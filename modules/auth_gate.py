@@ -11,27 +11,45 @@ def _is_authed() -> bool:
 
 
 def _set_auth(user: dict, session=None):
-    """session_state에 인증 정보 저장 + 작가 프로필 자동 생성/활성화"""
+    """session_state에 인증 정보 저장 + 작가 프로필 처리.
+    - 가입 시 직접 입력한 작가명 있으면 그걸로 생성
+    - 기존 작가가 있으면 가장 최근 거 활성화
+    - 작가가 1명도 없으면 이메일 앞부분으로 자동 생성
+    """
     st.session_state.auth_user = user
     if session is not None:
         st.session_state.auth_session = session
 
-    # 작가명: 가입 시 직접 입력했으면 그걸로, 아니면 이메일 앞부분
     email = user.get("email", "")
-    writer_name = (
-        st.session_state.pop("signup_writer_override", None)
-        or auth_user.email_to_writer_name(email)
-    )
-    # 이메일 ↔ 작가명 매핑 저장 (다음 로그인 시 같은 작가로 활성화)
-    st.session_state.auth_writer_name = writer_name
 
-    existing = prof.load_profile(writer_name)
-    if not existing:
-        new_p = prof.empty_profile()
-        new_p["name"] = writer_name
-        new_p["tagline"] = email
-        prof.save_profile(new_p)
-    prof.set_active(writer_name)
+    # 가입 시 직접 입력한 작가명이 있으면 — 그 이름으로 작가 생성
+    override = st.session_state.pop("signup_writer_override", None)
+    if override:
+        existing = prof.load_profile(override)
+        if not existing:
+            new_p = prof.empty_profile()
+            new_p["name"] = override
+            new_p["tagline"] = email
+            new_p["auth_email"] = email
+            prof.save_profile(new_p)
+        prof.set_active(override)
+        return
+
+    # 본인의 기존 작가 확인
+    existing_profiles = prof.list_profiles()  # 이미 email 기준 필터됨
+    if existing_profiles:
+        # 가장 최근 사용한 작가 활성화
+        prof.set_active(existing_profiles[0]["name"])
+        return
+
+    # 작가 없음 — 이메일 앞부분으로 자동 생성
+    default_name = auth_user.email_to_writer_name(email)
+    new_p = prof.empty_profile()
+    new_p["name"] = default_name
+    new_p["tagline"] = email
+    new_p["auth_email"] = email
+    prof.save_profile(new_p)
+    prof.set_active(default_name)
 
 
 def _gate_ui():
