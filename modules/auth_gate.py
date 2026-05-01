@@ -240,7 +240,7 @@ def _gate_ui():
     if google_url:
         st.markdown(
             f"""
-            <a href="{google_url}" target="_self" style="
+            <a href="{google_url}" target="_top" style="
                 display: flex; align-items: center; justify-content: center;
                 gap: 10px; padding: 14px 18px; margin-bottom: 14px;
                 background: white; border: 1.5px solid #dadce0;

@@ -64,8 +64,8 @@ def _fallback_system_prompt() -> str:
 - 박완서·황석영·김애란·한강의 한국어 문체를 더한다
 - 한국 드라마 작가 김은희·박찬욱·봉준호의 화법을 참조
 
-## 13개 지원 장르 (모두 한국 실무 표준 포맷)
-A. TV드라마 / B. 영화 / C. 숏드라마 / D. 극장애니 / E. 애니시리즈
+## 12개 지원 장르 (모두 한국 실무 표준 포맷)
+A. TV드라마 / B. 영화 / C. 숏드라마 / D. 애니메이션(극장+시리즈 통합)
 F. 웹툰 / G. 다큐 / H. 웹소설 / I. 뮤지컬 / J. 유튜브
 K. 전시·체험 / L. 게임 / M. 예능
 
@@ -131,13 +131,23 @@ K. 전시·체험 / L. 게임 / M. 예능
 
 
 _CACHED_SYSTEM = None
+_CACHED_ANTHROPIC_CLIENT = None
 
 
 def get_system_prompt() -> str:
+    """정적 SKILL.md 본문 — 모든 호출에 동일. 캐시 적중 대상."""
     global _CACHED_SYSTEM
     if _CACHED_SYSTEM is None:
         _CACHED_SYSTEM = _load_sori_skill()
     return _CACHED_SYSTEM
+
+
+def _get_anthropic_client() -> Anthropic:
+    """모듈 전역 Anthropic 클라이언트 — 매 호출 재생성 방지"""
+    global _CACHED_ANTHROPIC_CLIENT
+    if _CACHED_ANTHROPIC_CLIENT is None:
+        _CACHED_ANTHROPIC_CLIENT = Anthropic(api_key=API_KEY)
+    return _CACHED_ANTHROPIC_CLIENT
 
 
 def is_configured() -> bool:
@@ -145,11 +155,10 @@ def is_configured() -> bool:
     return auth.is_ready()
 
 
-def _build_full_system() -> str:
-    """기본 SKILL + 활성 프로필 + 누적 학습을 합쳐 system prompt 구성"""
-    parts = [get_system_prompt()]
-
-    # 활성 프로필이 있으면 컨텍스트로 추가 (지연 import 순환 회피)
+def _build_dynamic_context() -> str:
+    """활성 프로필 + 누적 학습 — 매 호출 달라지는 부분.
+    캐시 적중을 위해 system이 아닌 user 메시지 앞에 prepend됨."""
+    parts = []
     try:
         from modules import profile as prof
         from modules import learning
@@ -157,14 +166,26 @@ def _build_full_system() -> str:
         if active:
             ctx = prof.build_profile_context(active)
             if ctx:
-                parts.append("\n\n" + ctx)
+                parts.append(ctx)
             lessons_ctx = learning.build_lessons_context(active.get("name", ""))
             if lessons_ctx:
-                parts.append("\n\n" + lessons_ctx)
+                parts.append(lessons_ctx)
     except (ImportError, Exception):
         pass
 
-    return "\n".join(parts)
+    if not parts:
+        return ""
+    return "\n\n".join(parts) + "\n\n---\n\n"
+
+
+def _build_full_system() -> str:
+    """레거시 호환 — Claude Code CLI 모드는 system+user 합쳐 보내므로 하나로.
+    SDK 모드는 _get_anthropic_client + 분리된 system/user 사용."""
+    static = get_system_prompt()
+    dynamic = _build_dynamic_context()
+    if dynamic:
+        return static + "\n\n" + dynamic.rstrip("\n-\n ")
+    return static
 
 
 def call_sori(user_prompt: str, max_tokens: int = 4096, temperature: float = 0.7, model: str = None) -> str:
@@ -227,31 +248,35 @@ def stream_sori(user_prompt: str, max_tokens: int = 4096, temperature: float = 0
             yield buf
         return
 
-    # SDK 스트리밍
-    client = Anthropic(api_key=API_KEY)
-    system = _build_full_system()
+    # SDK 스트리밍 — 정적 SKILL은 system+캐시, 동적 컨텍스트는 user 앞에 prepend
+    client = _get_anthropic_client()
+    static_system = get_system_prompt()
+    dynamic_ctx = _build_dynamic_context()
+    user_msg = (dynamic_ctx + user_prompt) if dynamic_ctx else user_prompt
     with client.messages.stream(
         model=model or DEFAULT_MODEL,
         max_tokens=max_tokens,
         temperature=temperature,
-        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": user_prompt}],
+        system=[{"type": "text", "text": static_system, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": user_msg}],
     ) as stream:
         for text in stream.text_stream:
             yield text
 
 
 def _call_via_sdk(user_prompt: str, max_tokens: int, temperature: float, model: str = None) -> str:
-    """Anthropic SDK 직접 호출 (API 키)"""
-    client = Anthropic(api_key=API_KEY)
-    system = _build_full_system()
+    """Anthropic SDK 직접 호출 — 정적 system 캐시 + 동적 컨텍스트 user 앞에"""
+    client = _get_anthropic_client()
+    static_system = get_system_prompt()
+    dynamic_ctx = _build_dynamic_context()
+    user_msg = (dynamic_ctx + user_prompt) if dynamic_ctx else user_prompt
 
     response = client.messages.create(
         model=model or DEFAULT_MODEL,
         max_tokens=max_tokens,
         temperature=temperature,
-        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": user_prompt}],
+        system=[{"type": "text", "text": static_system, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": user_msg}],
     )
     return response.content[0].text
 
@@ -298,30 +323,62 @@ def _call_via_claude_code(user_prompt: str, max_tokens: int = 4096) -> str:
             **kwargs,
         )
         if result.returncode != 0:
-            err = result.stderr.strip() or result.stdout.strip() or "Claude Code 실행 실패"
-            return f"[오류] {err[:500]}\n\n[설정] 페이지에서 인증 상태를 확인하거나, Anthropic API 키를 직접 입력하세요."
+            msg = _humanize_cli_error(result.stderr or "", result.stdout or "")
+            return f"[오류] {msg}"
         out = result.stdout.strip()
         if not out:
-            return "[오류] 빈 응답. Claude 앱이 로그인되어 있는지 확인하세요."
+            return "[오류] " + _humanize_cli_error("", "")
         return out
     except subprocess.TimeoutExpired:
-        return "[오류] 응답 시간 초과 (5분). 짧게 다시 시도해주세요."
-    except FileNotFoundError as e:
-        return f"[오류] 실행 파일 호출 실패: {e}"
+        return "[오류] 응답이 너무 오래 걸려서 끊겼어요 (5분 초과). 짧게 다시 시도하거나 [설정]에서 Anthropic API 키를 입력하면 훨씬 빠릅니다."
+    except FileNotFoundError:
+        return "[오류] Claude 앱이 감지되지 않아요. https://claude.ai/download 에서 설치 후 로그인해 주세요."
     except Exception as e:
-        return f"[오류] {e}"
+        return f"[오류] 작가 에이전트 호출 실패: {str(e)[:200]}"
+
+
+MOCK_PREFIX = "[⚠ MOCK 응답 — 저장하지 마세요]"
+
+
+def is_mock_output(text: str) -> bool:
+    """결과물이 mock 응답인지 — 저장 버튼에서 차단용"""
+    if not text:
+        return False
+    head = text.lstrip()[:200]
+    return head.startswith(MOCK_PREFIX) or head.startswith("[모의 응답") or head.startswith("[오류]")
 
 
 def _mock_response(user_prompt: str) -> str:
-    """API 키 없을 때 — 동작 확인용 모의 응답"""
-    return f"""[모의 응답 — ANTHROPIC_API_KEY 미설정]
+    """API 키 없을 때 — 동작 확인용 모의 응답. 작가가 실수로 저장 못 하게 강한 prefix."""
+    return f"""{MOCK_PREFIX}
 
-받은 프롬프트:
-{user_prompt[:500]}{'...' if len(user_prompt) > 500 else ''}
+ANTHROPIC_API_KEY가 설정되지 않아 실제 작가 에이전트가 응답하지 못했습니다.
+이 텍스트는 작품 본문이 아닙니다. 절대 저장하지 마세요.
 
-실제 동작을 위해 .env 파일에 ANTHROPIC_API_KEY를 설정하세요.
-설정 페이지에서 직접 입력 가능합니다.
+해결: [설정] 페이지 → 'Anthropic API 키' 입력 → 다시 시도
+
+(참고) 받은 프롬프트 앞부분:
+{user_prompt[:300]}{'...' if len(user_prompt) > 300 else ''}
 """
+
+
+def _humanize_cli_error(stderr: str, stdout: str = "") -> str:
+    """Claude Code CLI 에러를 작가가 알아볼 수 있는 메시지로 변환"""
+    blob = (stderr or "") + " " + (stdout or "")
+    low = blob.lower()
+    if "not authenticated" in low or "login" in low or "auth" in low:
+        return "Claude 앱 로그인이 풀려있어요. Claude 데스크탑 앱을 열고 다시 로그인해 주세요."
+    if "rate limit" in low or "rate-limit" in low or "429" in low:
+        return "Claude 사용량이 잠시 한도에 도달했어요. 1~2분 뒤 다시 시도해 주세요."
+    if "timeout" in low or "timed out" in low:
+        return "응답이 너무 오래 걸려서 끊겼어요. 짧게 다시 시도하거나 Anthropic API 키를 [설정]에서 직접 입력하면 더 빠릅니다."
+    if "command not found" in low or "no such file" in low:
+        return "Claude 데스크탑 앱이 감지되지 않아요. https://claude.ai/download 에서 설치 후 로그인해 주세요."
+    if not blob.strip():
+        return "Claude 앱에서 응답이 비어 있어요. 앱이 로그인되어 있는지 확인해 주세요."
+    # 정말 알 수 없는 에러 — 한 줄만 노출
+    first_line = (stderr or stdout or "알 수 없는 오류").strip().split("\n")[0][:200]
+    return f"작가 에이전트 호출 실패: {first_line}"
 
 
 # ============ 모드별 프롬프트 빌더 ============
@@ -1177,7 +1234,7 @@ def build_full_package_prompt(idea: str, genre: dict, user_input: dict, artifact
 
 
 def build_osmu_prompt(idea: str, source_ip: str = "") -> str:
-    """OSMU 모드 — 한 IP를 13장르 모두로"""
+    """OSMU 모드 — 한 IP를 12장르 모두로"""
     ip_part = f"\n## 원본 IP\n{source_ip}\n" if source_ip else ""
 
     return f"""# 작업 요청: OSMU 풀세트 모드
@@ -1186,7 +1243,7 @@ def build_osmu_prompt(idea: str, source_ip: str = "") -> str:
 {idea}
 {ip_part}
 
-## 출력 — 13개 장르 매트릭스
+## 출력 — 12개 장르 매트릭스
 각 장르마다 다음 형식으로 1~2단락:
 
 ### A. TV 드라마
@@ -1197,7 +1254,8 @@ def build_osmu_prompt(idea: str, source_ip: str = "") -> str:
 ### B. 영화
 ...
 
-(M. 예능까지 13개)
+(★ 다음 12장르 모두: A.TV드라마 / B.영화 / C.숏드라마 / D.애니메이션 / F.웹툰 / G.다큐 / H.웹소설 / I.뮤지컬 / J.유튜브 / K.전시·체험 / L.게임 / M.예능)
+※ E(애니시리즈)는 D 안에 통합되어 있음 — 별도 항목 X
 
 ## 룰 (★)
 - 미디어별 다른 매력 분배 (영화=절제, 드라마=관계, 웹소설=내면, 게임=인터랙티브, 전시=공간)

@@ -527,31 +527,33 @@ def load_chat_log(project_name: str = "", writer_name: str = "") -> list:
 
 
 def save_chat_log(messages: list, project_name: str = "", writer_name: str = "") -> None:
-    """채팅 메시지 전체 저장 (작가별 분리)"""
+    """채팅 메시지 전체 저장 — Supabase 모드는 race 방지 위해 ts 기준 incremental insert만 (delete X)"""
     sb = db.get_client()
     if sb:
         w = writer_name or "guest"
         proj_name = project_name if (project_name and project_name != "(없음)") else ""
-        # 기존 행 삭제 후 재삽입 (단순화)
-        db.safe_call(
+        # 이미 저장된 ts 집합 조회 → 신규 메시지만 insert (race 방지)
+        r = db.safe_call(
             lambda: sb.table("chat_messages")
-            .delete()
+            .select("ts")
             .eq("writer_name", w)
             .eq("project_name", proj_name)
             .execute()
         )
-        if messages:
-            payload = [
-                {
-                    "writer_name": w,
-                    "project_name": proj_name,
-                    "role": m.get("role", "user"),
-                    "content": m.get("content", ""),
-                    "ts": m.get("ts", _now()),
-                }
-                for m in messages
-            ]
-            db.safe_call(lambda: sb.table("chat_messages").insert(payload).execute())
+        existing_ts = {row["ts"] for row in (r.data if r and r.data else [])}
+        new_payload = [
+            {
+                "writer_name": w,
+                "project_name": proj_name,
+                "role": m.get("role", "user"),
+                "content": m.get("content", ""),
+                "ts": m.get("ts", _now()),
+            }
+            for m in messages
+            if m.get("ts") and m["ts"] not in existing_ts
+        ]
+        if new_payload:
+            db.safe_call(lambda: sb.table("chat_messages").insert(new_payload).execute())
         return
 
     # 파일 모드
@@ -629,33 +631,43 @@ def active_letters() -> set:
 
 
 def list_projects() -> list[dict]:
-    """모든 프로젝트 (최근 수정순)"""
+    """모든 프로젝트 (최근 수정순). N+1 회피 — 버전 수는 단일 쿼리로 일괄 조회."""
     sb = db.get_client()
     if sb:
+        writer = _writer_name()
+        # 1) 작가 본인 프로젝트만 (다른 작가 작품 섞이지 않게)
         r = db.safe_call(
             lambda: sb.table("projects")
             .select("id,name,last_modified")
+            .eq("writer_name", writer)
             .order("last_modified", desc=True)
             .execute()
         )
         if r and r.data is not None:
-            # 버전 카운트는 별도 쿼리 (간단히, 작은 프로젝트 수면 OK)
-            result = []
-            for row in r.data:
+            project_ids = [row["id"] for row in r.data]
+            counts = {}
+            if project_ids:
+                # 2) 모든 버전을 한 번에 받아 Python에서 카운트 — N+1 → 2쿼리
                 vc_r = db.safe_call(
-                    lambda pid=row["id"]: sb.table("versions")
-                    .select("id", count="exact")
-                    .eq("project_id", pid)
+                    lambda: sb.table("versions")
+                    .select("project_id")
+                    .in_("project_id", project_ids)
                     .execute()
                 )
-                vc = (vc_r.count if vc_r else 0) or 0
-                result.append({
+                if vc_r and vc_r.data:
+                    for v in vc_r.data:
+                        pid = v.get("project_id")
+                        if pid:
+                            counts[pid] = counts.get(pid, 0) + 1
+            return [
+                {
                     "name": row["name"],
                     "path": "",
-                    "version_count": vc,
+                    "version_count": counts.get(row["id"], 0),
                     "last_modified": row.get("last_modified", ""),
-                })
-            return result
+                }
+                for row in r.data
+            ]
 
     # 파일 모드
     if not OUTPUT_DIR.exists():

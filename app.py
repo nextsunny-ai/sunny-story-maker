@@ -28,31 +28,12 @@ st.set_page_config(
 
 
 # ============================================================
-# CSS
-# ============================================================
-def load_css():
-    css_path = ASSETS / "styles.css"
-    if css_path.exists():
-        st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-
-
-load_css()
-
-
-# ============================================================
-# 인증 게이트 (초대 코드 + 로그인)
-# ============================================================
-from modules import auth_user, auth_gate
-if auth_user.get_invite_code():
-    auth_gate.require_login()
-
-
-# ============================================================
-# Routing — 카드 자체 클릭 처리 (a href → query param)
+# ★ Routing — 최우선 처리 (CSS·인증·DB 호출 전에 즉시 switch_page)
+# 카드 클릭 시 styles.css 2200줄 주입 + 사이드바 렌더 + 카드 그리드 모두 스킵
+# 인증은 타깃 페이지의 init_page → require_login에서 동일하게 검증됨
 # ============================================================
 qp = st.query_params
 
-# 라우팅 키 처리 — sid/sw 같은 인증 파라미터는 보존
 def _consume_route_param(key: str):
     """라우팅 키 하나만 제거 (인증 sid/sw는 유지)."""
     if key in st.query_params:
@@ -81,13 +62,58 @@ if "mode" in qp:
         "chat": "pages/5_보조작가와_대화.py",
         "osmu": "pages/6_OSMU.py",
         "library": "pages/7_라이브러리.py",
-        # admin pill: 작가 프로필 + 시스템 설정 (탭) 통합
         "profile": "pages/9_작가_프로필.py",
         "admin": "pages/9_작가_프로필.py",
         "settings": "pages/9_작가_프로필.py",
     }
     if mode in target_map:
         st.switch_page(target_map[mode])
+
+
+# ★ Streamlit 기본 multipage nav 깜빡임 방지 — styles.css 주입 전에 최우선
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebarNav"],
+    [data-testid="stSidebarNavItems"],
+    [data-testid="stSidebarNav"] ul,
+    section[data-testid="stSidebar"] > div > div > nav {
+        display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        max-height: 0 !important;
+        overflow: hidden !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ============================================================
+# CSS — read 1회만 (cache_resource), 매 rerun에는 markdown만
+# ============================================================
+@st.cache_resource
+def _load_css_text() -> str:
+    css_path = ASSETS / "styles.css"
+    if css_path.exists():
+        return css_path.read_text(encoding="utf-8")
+    return ""
+
+
+_css = _load_css_text()
+if _css:
+    st.markdown(f"<style>{_css}</style>", unsafe_allow_html=True)
+
+
+# ============================================================
+# 인증 게이트 (초대 코드 + 로그인) — 라우팅 후에 실행 (홈 직접 진입 시만)
+# ============================================================
+from modules import auth_user, auth_gate
+if auth_user.get_invite_code():
+    auth_gate.require_login()
 
 
 # ============================================================
@@ -179,14 +205,22 @@ def get_category(letter: str) -> str:
     return "media"
 
 
+@st.cache_resource
 def load_icon(letter: str) -> str:
+    """SVG 아이콘 — 디스크 read 1회만, 이후 메모리 캐시"""
     icon_path = ASSETS / "icons" / "genre" / f"{letter}.svg"
     if icon_path.exists():
         return icon_path.read_text(encoding="utf-8")
     return ""
 
 
-ACTIVE_LETTERS = storage.active_letters()
+@st.cache_data(ttl=30)
+def _cached_active_letters() -> set:
+    """활성 장르 letter — 30초 캐시 (홈 진입마다 DB 호출 안 하게)"""
+    return storage.active_letters()
+
+
+ACTIVE_LETTERS = _cached_active_letters()
 
 
 def render_genre_card(letter: str, data: dict, num: int, display_name: str = None):

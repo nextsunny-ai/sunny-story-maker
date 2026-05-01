@@ -22,10 +22,16 @@ create table if not exists writers (
   notes text default '',
   ip_count int default 0,
   is_active boolean default false,
+  auth_email text default '',
+  skill_md text default '',
   created_at timestamptz default now(),
   last_used timestamptz,
   last_modified timestamptz default now()
 );
+
+-- 기존 테이블에 컬럼 누락 시 보강 (이미 있으면 무시)
+alter table writers add column if not exists auth_email text default '';
+alter table writers add column if not exists skill_md text default '';
 
 -- ==========================================
 -- 2. 작품 (projects)

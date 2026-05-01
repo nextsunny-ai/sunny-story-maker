@@ -93,7 +93,7 @@ $Shortcut = $WshShell.CreateShortcut("{lnk_path}")
 $Shortcut.TargetPath = "{target_bat}"
 $Shortcut.WorkingDirectory = "{target_bat.parent}"
 $Shortcut.IconLocation = "{icon_ico}"
-$Shortcut.Description = "한국어 시나리오 작가 도구 (13장르 + 다중 타겟 리뷰)"
+$Shortcut.Description = "한국어 시나리오 작가 도구 (12장르 + 다중 타겟 리뷰)"
 $Shortcut.WindowStyle = 7
 $Shortcut.Save()
 """
