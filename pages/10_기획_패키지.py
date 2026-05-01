@@ -2,6 +2,9 @@
 로그라인 / 시놉시스 / 트리트먼트 / 캐릭터시트 / 세계관 / 회차구성표 / 기획안 / 대본 샘플
 모두 작품 폴더(output/<작품명>/artifacts/)에 자동 저장."""
 
+import os
+import sys
+import subprocess
 import streamlit as st
 from modules.page_init import init_page
 init_page("기획 패키지 — SUNNY Story Maker")
@@ -9,6 +12,26 @@ init_page("기획 패키지 — SUNNY Story Maker")
 from modules import sori_client, storage
 from modules.genres import GENRES, list_genre_names, parse_genre_choice
 from modules.workflows import get_workflow
+
+
+def open_folder_in_explorer(path) -> bool:
+    """OS별 파일 탐색기로 폴더 열기. 클라우드 환경은 무시."""
+    try:
+        path = str(path)
+        if sys.platform == "win32":
+            os.startfile(path)
+        elif sys.platform == "darwin":
+            subprocess.run(["open", path], check=False)
+        else:
+            subprocess.run(["xdg-open", path], check=False)
+        return True
+    except Exception:
+        return False
+
+
+def is_local_run() -> bool:
+    """Streamlit Cloud가 아닌 로컬 실행인지."""
+    return not bool(os.environ.get("STREAMLIT_SERVER_PORT") and os.environ.get("STREAMLIT_RUNTIME_ENV") == "cloud")
 st.markdown(
     """
     <div class="app-header">
@@ -164,7 +187,7 @@ if filtered_detail:
 
 # ========== 3. 산출물 선택 ==========
 st.markdown("## 2. 만들 산출물 (8종)")
-st.caption("필요한 것만 체크. 전부 만들면 약 5~10분 소요.")
+st.caption("필요한 것만 체크. 1개당 약 1분 소요.")
 
 artifacts_to_make = {}
 art_cols = st.columns(2)
@@ -314,9 +337,10 @@ if st.button(
 
                 progress.progress((i + 1) / total, text=f"{i+1} / {total} 완료")
 
-        # ---- 최종 알림 ----
+        # ---- 최종 알림 + 폴더 열기 ----
+        a_dir = storage.artifacts_dir(project_name)
         if not errors:
-            st.success(f"🎉 {total}개 산출물 모두 완료. `output/{project_name}/artifacts/` 폴더에 저장됨.")
+            st.success(f"🎉 {total}개 산출물 모두 완료.")
             st.balloons()
         elif results:
             st.warning(
@@ -332,6 +356,22 @@ if st.button(
                 for name, err in errors:
                     st.error(f"**{name}**: {err}")
 
+        # 폴더 위치 + 열기 버튼 (성공·부분 성공 시에만)
+        if results:
+            st.markdown("##### 📂 저장 폴더")
+            col_p, col_btn = st.columns([3, 1])
+            with col_p:
+                st.code(str(a_dir), language=None)
+            with col_btn:
+                if is_local_run():
+                    if st.button("📂 폴더 열기", use_container_width=True, key="open_folder_done"):
+                        if open_folder_in_explorer(a_dir):
+                            st.toast("폴더 열림", icon="📂")
+                        else:
+                            st.toast("열기 실패 — 경로 복사해서 직접 열어주세요", icon="⚠️")
+                else:
+                    st.caption("(클라우드 모드 — 아래 다운로드 버튼 이용)")
+
         st.session_state.pkg_results = results
 
 
@@ -340,6 +380,17 @@ if "pkg_results" in st.session_state and st.session_state.pkg_results:
     results = st.session_state.pkg_results
     st.markdown("---")
     st.markdown(f"## 📦 {project_name} — 산출물")
+
+    # 결과 영역에서도 폴더 바로 열기
+    if project_name:
+        a_dir_show = storage.artifacts_dir(project_name)
+        col_p, col_btn = st.columns([3, 1])
+        with col_p:
+            st.caption(f"📂 저장 위치: `{a_dir_show}`")
+        with col_btn:
+            if is_local_run():
+                if st.button("📂 폴더 열기", use_container_width=True, key="open_folder_results"):
+                    open_folder_in_explorer(a_dir_show)
 
     # 탭으로 표시
     tab_labels = []
