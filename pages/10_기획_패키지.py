@@ -270,99 +270,73 @@ if st.button(
         errors = []
         completed_files = []
 
-        # ---- 진행 표시 컨테이너 (스크롤 따라 안 가려지게 큰 박스) ----
+        # ---- 진행 표시 (간단하게: 현재 작업 + 글자 흐름만) ----
         st.markdown("### 🛠 작업 중")
         progress = st.progress(0, text=f"0 / {total} 시작 중...")
-        status_box = st.container(border=True)
-        status_lines = []
+        live_box = st.empty()  # 현재 작업 하나만 표시
 
-        with st.spinner(f"전체 {total}개 산출물 생성 중... (약 {total}분 소요)"):
-            for i, key in enumerate(selected_keys):
-                artifact_name = next(
-                    (label for k2, label, _, _ in ARTIFACT_INFO if k2 == key), key
-                )
-                progress.progress(i / total, text=f"{i+1} / {total} · {artifact_name} 작성 중...")
-                status_lines.append(f"⏳ **{artifact_name}** 작성 중...")
-                status_box.empty()
-                with status_box:
-                    for line in status_lines:
-                        st.markdown(line)
+        for i, key in enumerate(selected_keys):
+            artifact_name = next(
+                (label for k2, label, _, _ in ARTIFACT_INFO if k2 == key), key
+            )
+            progress.progress(i / total, text=f"{i+1} / {total} · {artifact_name} 작성 중...")
 
-                builder = builders[key]
-                prior = {
-                    next((label for k2, label, _, _ in ARTIFACT_INFO if k2 == k), k): v
-                    for k, v in results.items()
-                }
+            builder = builders[key]
+            prior = {
+                next((label for k2, label, _, _ in ARTIFACT_INFO if k2 == k), k): v
+                for k, v in results.items()
+            }
 
-                try:
-                    if key == "logline":
-                        prompt = builder(idea, genre, user_input)
-                    else:
-                        prompt = builder(idea, genre, user_input, prior=prior)
+            try:
+                if key == "logline":
+                    prompt = builder(idea, genre, user_input)
+                else:
+                    prompt = builder(idea, genre, user_input, prior=prior)
 
-                    # 스트리밍 — 글자가 실시간으로 흐르도록 (챗지피티 느낌)
-                    stream_placeholder = status_box.empty()
-                    response = ""
-                    if sori_client.is_configured():
-                        try:
-                            for chunk in sori_client.stream_sori(
-                                prompt, max_tokens=max_tokens_map.get(key, 4000)
-                            ):
-                                response += chunk
-                                # 너무 자주 그리면 느려지니 일정 길이마다만 갱신
-                                if len(response) % 80 < len(chunk):
-                                    with stream_placeholder.container():
-                                        for line in status_lines[:-1]:
-                                            st.markdown(line)
-                                        st.markdown(f"⏳ **{artifact_name}** 작성 중... ({len(response):,}자)")
-                                        st.markdown(
-                                            f"<div style='max-height:200px; overflow-y:auto; "
-                                            f"background:var(--card); padding:8px; border-radius:6px; "
-                                            f"font-size:12px; opacity:0.7;'>{response[-500:]}</div>",
-                                            unsafe_allow_html=True,
-                                        )
-                        except Exception:
-                            # 스트리밍 실패하면 일반 호출로 폴백
-                            response = sori_client.call_sori(
-                                prompt, max_tokens=max_tokens_map.get(key, 4000)
-                            )
-                    else:
+                # 스트리밍 — 글자가 실시간으로 흐르도록
+                response = ""
+                if sori_client.is_configured():
+                    try:
+                        for chunk in sori_client.stream_sori(
+                            prompt, max_tokens=max_tokens_map.get(key, 4000)
+                        ):
+                            response += chunk
+                            if len(response) % 80 < len(chunk):
+                                live_box.markdown(
+                                    f"⏳ **{artifact_name}** ({len(response):,}자)\n\n"
+                                    f"> {response[-300:]}"
+                                )
+                    except Exception:
                         response = sori_client.call_sori(
                             prompt, max_tokens=max_tokens_map.get(key, 4000)
                         )
-
-                    if not response or response.startswith("[오류]") or response.startswith("[Mock"):
-                        raise ValueError(f"빈 응답 또는 오류 응답: {response[:100] if response else 'empty'}")
-
-                    results[key] = response
-
-                    # 작품 폴더에 즉시 저장 (페이지 떠나도 보존)
-                    saved = storage.save_artifact(
-                        project_name, key, response,
-                        metadata={
-                            "genre": genre["code"],
-                            "idea": idea,
-                            "user_input": user_input,
-                        },
+                else:
+                    response = sori_client.call_sori(
+                        prompt, max_tokens=max_tokens_map.get(key, 4000)
                     )
-                    completed_files.append((artifact_name, saved))
 
-                    # 마지막 줄을 ✓로 교체
-                    status_lines[-1] = f"✓ **{artifact_name}** 완료 ({len(response):,}자)"
-                    st.toast(f"✓ {artifact_name} 완료", icon="📄")
-                except Exception as e:
-                    err_msg = f"❌ **{artifact_name}** 실패: {e}"
-                    status_lines[-1] = err_msg
-                    errors.append((artifact_name, str(e)))
-                    st.toast(f"❌ {artifact_name} 실패", icon="⚠️")
+                if not response or response.startswith("[오류]") or response.startswith("[Mock"):
+                    raise ValueError(f"빈 응답 또는 오류 응답: {response[:100] if response else 'empty'}")
 
-                # status_box 다시 그리기
-                status_box.empty()
-                with status_box:
-                    for line in status_lines:
-                        st.markdown(line)
+                results[key] = response
+                saved = storage.save_artifact(
+                    project_name, key, response,
+                    metadata={
+                        "genre": genre["code"],
+                        "idea": idea,
+                        "user_input": user_input,
+                    },
+                )
+                completed_files.append((artifact_name, saved))
 
-                progress.progress((i + 1) / total, text=f"{i+1} / {total} 완료")
+                live_box.markdown(f"✓ **{artifact_name}** 완료 ({len(response):,}자)")
+                st.toast(f"✓ {artifact_name}", icon="📄")
+            except Exception as e:
+                live_box.markdown(f"❌ **{artifact_name}** 실패: {e}")
+                errors.append((artifact_name, str(e)))
+                st.toast(f"❌ {artifact_name} 실패", icon="⚠️")
+
+            progress.progress((i + 1) / total, text=f"{i+1} / {total} 완료")
 
         # ---- 최종 알림 + 폴더 열기 ----
         a_dir = storage.artifacts_dir(project_name)
