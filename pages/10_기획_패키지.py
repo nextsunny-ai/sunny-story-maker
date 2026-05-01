@@ -204,9 +204,10 @@ ready = bool(project_name and idea and selected_count > 0)
 
 if ready:
     st.info(
-        f"⚠ **이 페이지를 떠나지 마세요.** 생성에 약 {selected_count}분 걸려요. "
-        f"산출물은 만들어지는 즉시 `output/{project_name}/artifacts/` 폴더에 자동 저장돼요. "
-        "혹시 중간에 닫혀도 거기까지 만든 건 그대로 남습니다."
+        f"⏱ 약 {selected_count}분 소요. **이 화면에서 기다려주세요.** "
+        "다른 페이지로 이동하거나 새로고침하면 생성이 중단됩니다. "
+        f"단, 한 개 끝날 때마다 `output/{project_name}/artifacts/`에 즉시 저장되어, "
+        "중단되더라도 거기까지 만든 산출물은 그대로 남아있어 다시 이어 만들면 됩니다."
     )
 
 if st.button(
