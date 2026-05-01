@@ -96,7 +96,14 @@ def login(email: str, password: str) -> dict:
         result = sb.auth.sign_in_with_password({"email": email, "password": password})
         user = result.user
         if user is None:
-            return {"ok": False, "user": None, "error": "이메일 또는 비밀번호가 틀립니다"}
+            return {
+                "ok": False,
+                "user": None,
+                "error": (
+                    "로그인 실패. 가입 안 하셨으면 위의 **'✨ 신규 가입'** 탭에서 먼저 가입해주세요. "
+                    "이미 가입했으면 비밀번호를 다시 확인해주세요."
+                ),
+            }
         return {
             "ok": True,
             "user": {"id": user.id, "email": user.email},
@@ -106,7 +113,15 @@ def login(email: str, password: str) -> dict:
     except Exception as e:
         msg = str(e)
         if "invalid" in msg.lower() or "credentials" in msg.lower():
-            return {"ok": False, "user": None, "error": "이메일 또는 비밀번호가 틀립니다"}
+            return {
+                "ok": False,
+                "user": None,
+                "error": (
+                    "이 이메일로 가입된 적이 없거나 비밀번호가 틀립니다.\n\n"
+                    "👉 **처음이세요?** 위의 **'✨ 신규 가입'** 탭으로 가셔서 먼저 가입하세요.\n"
+                    "👉 **이미 가입한 적 있으세요?** 그때 정한 비밀번호를 다시 확인해주세요."
+                ),
+            }
         return {"ok": False, "user": None, "error": f"로그인 오류: {msg}"}
 
 
