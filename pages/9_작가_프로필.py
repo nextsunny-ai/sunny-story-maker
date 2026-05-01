@@ -34,6 +34,20 @@ with tab_writer:
     profiles = prof.list_profiles()
     active = prof.get_active()
 
+    # ---------- 자동 활성화: 활성 없는데 등록된 작가 있으면 가장 최근 자동 활성화 ----------
+    if not active and profiles:
+        prof.set_active(profiles[0]["name"])
+        active = prof.get_active()
+
+    # ---------- 첫 사용자 (등록된 작가 0명) — 인라인 입력 안내 ----------
+    if not active and not profiles:
+        st.info(
+            "**처음 오셨네요.** 아래 폼에 본인 정보를 입력하고 저장하시면 됩니다. "
+            "한 번만 입력하면 모든 모드(집필/리뷰/각색/보조작가)에 자동 반영돼요."
+        )
+        # 자동으로 폼 열어주기
+        st.session_state.show_form = True
+
     # ---------- 활성 작가 카드 (상단) ----------
     if active:
         st.markdown(
@@ -42,7 +56,7 @@ with tab_writer:
                         border-left: 4px solid var(--coral); padding: 16px 20px;
                         border-radius: 10px; margin-bottom: 16px;">
               <div style="font-size: 11px; color: var(--ink-3); letter-spacing: 0.5px;
-                          text-transform: uppercase; margin-bottom: 4px;">현재 활성</div>
+                          text-transform: uppercase; margin-bottom: 4px;">내 프로필</div>
               <div style="font-size: 22px; font-weight: 700; color: var(--ink);">{active['name']}</div>
               <div style="font-size: 13px; color: var(--ink-2); margin-top: 2px;">
                 {active.get('tagline') or '한 줄 소개 없음'}
@@ -51,32 +65,37 @@ with tab_writer:
             """,
             unsafe_allow_html=True,
         )
-    else:
-        st.info("활성 작가가 없습니다. 아래에서 신규 등록하거나 작가를 활성화하세요.")
 
-    # ---------- 액션 줄 (전환 / 새 작가) ----------
-    action_l, action_r = st.columns([1, 1])
-    with action_l:
-        if st.button(
-            "✏️ 내 정보 편집" if active else "👤 작가 정보 편집",
-            use_container_width=True,
-            disabled=not active,
-        ):
-            st.session_state.editing_profile = active["name"]
-            st.session_state.show_form = True
-            st.rerun()
-    with action_r:
-        if st.button("➕ 새 작가 등록", use_container_width=True):
-            st.session_state.pop("editing_profile", None)
-            st.session_state.show_form = True
-            st.rerun()
+    # ---------- 액션 줄 ----------
+    if active:
+        # 1명만 등록돼 있으면 편집 버튼만. 여러 명이면 전환 옵션도.
+        if len(profiles) == 1:
+            if st.button(
+                "✏️ 내 정보 편집",
+                use_container_width=True,
+                type="primary" if not st.session_state.get("show_form") else "secondary",
+            ):
+                st.session_state.editing_profile = active["name"]
+                st.session_state.show_form = True
+                st.rerun()
+        else:
+            action_l, action_r = st.columns([1, 1])
+            with action_l:
+                if st.button("✏️ 내 정보 편집", use_container_width=True):
+                    st.session_state.editing_profile = active["name"]
+                    st.session_state.show_form = True
+                    st.rerun()
+            with action_r:
+                if st.button("➕ 다른 작가 추가", use_container_width=True):
+                    st.session_state.pop("editing_profile", None)
+                    st.session_state.show_form = True
+                    st.rerun()
 
-    # ---------- 등록된 작가 목록 (1명이라도 보여줘야 활성화 가능) ----------
-    if profiles:
-        # 활성 작가 없으면 자동으로 펼쳐서 활성화 유도
+    # ---------- 다른 작가 전환 (2명 이상일 때만) ----------
+    if profiles and len(profiles) > 1:
         with st.expander(
             f"👥 등록된 작가 {len(profiles)}명 — 전환·관리",
-            expanded=(active is None),
+            expanded=False,
         ):
             for p in profiles:
                 is_active = active and p["name"] == active["name"]
@@ -274,15 +293,13 @@ with tab_writer:
                 ),
             )
 
-            col_save, col_act, col_cancel = st.columns(3)
+            col_save, col_cancel = st.columns([3, 1])
             with col_save:
-                saved = st.form_submit_button("💾 저장", type="primary")
-            with col_act:
-                save_and_activate = st.form_submit_button("💾 저장 + 활성화")
+                saved = st.form_submit_button("💾 저장", type="primary", use_container_width=True)
             with col_cancel:
-                cancel = st.form_submit_button("취소")
+                cancel = st.form_submit_button("취소", use_container_width=True)
 
-            if (saved or save_and_activate) and name:
+            if saved and name:
                 new_profile = {
                     **target_profile,
                     "name": name,
@@ -309,8 +326,8 @@ with tab_writer:
                     new_profile["created_at"] = datetime.now().isoformat()
 
                 prof.save_profile(new_profile)
-                if save_and_activate:
-                    prof.set_active(name)
+                # 항상 자동 활성화 (등록 = 내 프로필 = 활성)
+                prof.set_active(name)
                 st.session_state.pop("editing_profile", None)
                 st.session_state.show_form = False
                 st.success(f"✓ {name} 저장 완료")
