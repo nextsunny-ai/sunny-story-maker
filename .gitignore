@@ -3,6 +3,7 @@
 .env.local
 *.key
 *.pem
+.streamlit/secrets.toml
 
 # 작가 작업 결과물 (개인 데이터)
 output/

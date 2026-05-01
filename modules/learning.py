@@ -8,7 +8,9 @@ from pathlib import Path
 from datetime import datetime
 from modules import profile as prof
 
-LEARNING_DIR = Path("C:/SUNNY_Story_Maker/output/_learning")
+import os
+_ROOT = Path(__file__).resolve().parent.parent
+LEARNING_DIR = Path(os.getenv("STORY_MAKER_OUTPUT") or (_ROOT / "output")) / "_learning"
 
 
 def lessons_path(profile_name: str) -> Path:

@@ -10,8 +10,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-OUTPUT_DIR = Path("C:/SUNNY_Story_Maker/output")
-DRIVE_DIR = Path(os.getenv("DRIVE_OUTPUT_DIR", "G:/내 드라이브/SUNNY_TEAM/05_콘텐츠IP/시나리오"))
+# 프로젝트 루트 기준 (Cloud/로컬 호환)
+_ROOT = Path(__file__).resolve().parent.parent
+OUTPUT_DIR = Path(os.getenv("STORY_MAKER_OUTPUT") or (_ROOT / "output"))
+DRIVE_DIR = Path(os.getenv("DRIVE_OUTPUT_DIR") or "")  # 빈 값이면 동기화 X
 
 
 def slugify(name: str) -> str:
@@ -300,7 +302,7 @@ def diff_versions(project_name: str, v1: int, v2: int) -> dict:
 
 # ============ IP 라이브러리 (4사 IP + 신규) ============
 
-LIBRARY_DIR = Path("C:/SUNNY_Story_Maker/output/_library")
+LIBRARY_DIR = OUTPUT_DIR / "_library"
 
 
 def save_ip(ip_data: dict):

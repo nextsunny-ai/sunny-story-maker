@@ -1,0 +1,25 @@
+# Streamlit Cloud + 로컬 공통 설정
+
+[browser]
+gatherUsageStats = false
+
+[server]
+headless = true
+runOnSave = true
+fileWatcherType = "auto"
+
+[theme]
+# 리안 디자인 토큰과 일치 (paper / ink / rust)
+base = "light"
+primaryColor = "#C2410C"
+backgroundColor = "#FAF8F3"
+secondaryBackgroundColor = "#F4F0E6"
+textColor = "#1C1917"
+font = "sans serif"
+
+[ui]
+hideTopBar = true
+
+[client]
+toolbarMode = "minimal"
+showErrorDetails = true

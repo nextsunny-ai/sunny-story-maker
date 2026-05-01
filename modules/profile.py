@@ -6,7 +6,9 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-PROFILES_DIR = Path("C:/SUNNY_Story_Maker/output/_profiles")
+import os
+_ROOT = Path(__file__).resolve().parent.parent
+PROFILES_DIR = Path(os.getenv("STORY_MAKER_OUTPUT") or (_ROOT / "output")) / "_profiles"
 ACTIVE_PROFILE_FILE = PROFILES_DIR / "_active.txt"
 
 

@@ -62,34 +62,34 @@
 }
 
 
-/* ---------- Design Tokens (V2) ---------- */
+/* ---------- Design Tokens (V3 — Zajno Beige + Coral) ---------- */
 :root {
-  /* — Surface (Notion · Bear) — */
-  --bg:           #FFFFFF;
-  --bg-soft:      #FAFAFA;
-  --card:         #F7F7F8;     /* layered paper */
-  --card-hover:   #F1F1F4;
-  --card-pure:    #FFFFFF;
+  /* — Surface (베이지 페이퍼 톤) — */
+  --bg:           #E8DFCF;     /* 메인 베이스 — 따뜻한 베이지 */
+  --bg-soft:      #E2D7C3;     /* 사이드바 — 살짝 진한 */
+  --card:         #DFD4BE;     /* 카드 보조 */
+  --card-hover:   #D6CAB1;
+  --card-pure:    #F2EBDC;     /* 밝은 카드 (오프화이트 베이지) */
 
-  /* — Ink (charcoal, 부드러운 차콜) — */
-  --ink:          #0A0A0A;     /* display H1 */
-  --ink-2:        #18181B;     /* body */
-  --ink-3:        #52525B;     /* secondary */
-  --ink-4:        #71717A;     /* tertiary (zinc) */
-  --ink-5:        #A1A1AA;     /* meta */
+  /* — Ink (베이지 위에서 너무 검지 않게) — */
+  --ink:          #1F1A14;     /* 메인 텍스트 (잉크 브라운) */
+  --ink-2:        #3A3328;     /* body */
+  --ink-3:        #6B5F4C;     /* secondary */
+  --ink-4:        #8E826E;     /* tertiary */
+  --ink-5:        #AC9F89;     /* meta */
 
-  --line:         #E4E4E7;
-  --line-soft:    #F1F1F4;
+  --line:         #CFC2A6;     /* 베이지 라인 */
+  --line-soft:    #DCD0B5;
 
-  /* — Single Accent: 차분 코랄 — */
-  --coral:        #E54D2E;
-  --coral-deep:   #C73E22;
-  --coral-soft:   #FFEFE9;
-  --coral-tint:   #FFF7F3;
-  --coral-glow:   rgba(229, 77, 46, 0.14);
+  /* — Single Accent: Zajno 다홍/연한 코랄 — */
+  --coral:        #E89589;     /* 메인 액센트 — 부드러운 다홍 */
+  --coral-deep:   #C76B5C;
+  --coral-soft:   #F4D9D0;
+  --coral-tint:   #F8E5DF;
+  --coral-glow:   rgba(232, 149, 137, 0.20);
 
-  /* — Soft warm mesh (헤더 only) — */
-  --mesh-warm:    radial-gradient(1200px circle at 50% -20%, #FFEFE9 0%, rgba(255,239,233,0) 60%);
+  /* — Soft warm mesh (헤더 — 더 진한 베이지 그라데이션) — */
+  --mesh-warm:    radial-gradient(1200px circle at 50% -20%, #F2D8CE 0%, rgba(242,216,206,0) 60%);
 
   /* — 4 카테고리 도트 (13장르 그룹) — */
   --dot-video:    #18181B;     /* 영상: TV/영화/숏드라마 */
@@ -172,12 +172,27 @@ button[kind="header"][title*="Deploy"],
 }
 
 [data-testid="stHeader"] {
-  background: transparent !important;
+  display: none !important;
   height: 0 !important;
   min-height: 0 !important;
   padding: 0 !important;
+  margin: 0 !important;
+  visibility: hidden !important;
 }
 [data-testid="stHeader"] > div { display: none !important; }
+
+/* 메인 영역 위 padding 강제 0 — Streamlit 자동 6rem padding 무력화 */
+section[data-testid="stMain"],
+section.main {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+
+section[data-testid="stMain"] > div,
+section.main > div {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
 
 [data-testid="stSidebarCollapseButton"],
 [data-testid="stSidebarCollapsedControl"],
@@ -218,23 +233,39 @@ html, body, [class*="css"] {
   background: var(--bg) !important;
 }
 
-/* 페이지 본체 — 위 여백 컴팩트 */
+/* 페이지 본체 — 위 여백 강제 제거 (모든 Streamlit DOM 변종 대응) */
 .main .block-container,
 [data-testid="stMain"] .block-container,
-section.main > div {
+[data-testid="stMainBlockContainer"],
+[data-testid="stMain"] [data-testid="stMainBlockContainer"],
+section.main > div,
+section.main > div:first-child {
   max-width: 1200px !important;
-  padding-top: var(--s-2) !important;
+  padding-top: 8px !important;
   padding-bottom: var(--s-9) !important;
   margin-top: 0 !important;
 }
 
+[data-testid="stMain"],
 [data-testid="stAppViewContainer"] > section.main {
   padding-top: 0 !important;
+  margin-top: 0 !important;
   background:
     var(--mesh-warm),
     var(--bg);
   background-repeat: no-repeat;
-  background-size: 100% 480px, 100% 100%;
+  background-size: 100% 320px, 100% 100%;
+}
+
+/* 메인 첫 element 위 margin 제거 */
+[data-testid="stMain"] [data-testid="stVerticalBlock"]:first-child,
+section.main > div > div:first-child {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+[data-testid="stMain"] [data-testid="stMarkdownContainer"]:first-child {
+  margin-top: 0 !important;
 }
 
 
@@ -1332,57 +1363,60 @@ hr {
 }
 
 
-/* ---------- Sidebar brand (큰 심볼 위, 워드마크 아래 — stacked) ---------- */
+/* ---------- Sidebar brand (한 줄 — 메인 topbar와 라인 정렬) ---------- */
 .ssm-brand {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 4px 14px 18px;   /* top 4 — 메인 topbar와 정렬 */
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
   margin: 0 0 8px;
   border-bottom: 1px solid var(--line);
+  min-height: 60px;
+  box-sizing: border-box;
 }
 
 .ssm-brand-symbol {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 32px;
 }
 
 .ssm-brand-symbol svg {
-  width: 56px !important;
-  height: 56px !important;
+  width: 32px !important;
+  height: 32px !important;
   display: block;
 }
 
 .ssm-brand-text {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
   line-height: 1;
-  gap: 2px;
 }
 
 .ssm-brand-name {
   font-family: var(--font-ui);
   font-weight: 800;
-  font-size: 22px;
+  font-size: 15px;
   color: var(--ink);
-  letter-spacing: -0.04em;
+  letter-spacing: -0.035em;
   line-height: 1;
-  display: flex;
+  display: inline-flex;
   align-items: baseline;
 }
 
 .ssm-brand-dot {
   color: var(--coral);
   font-weight: 800;
-  margin-left: 1px;
 }
 
 .ssm-brand-tag {
   font-family: var(--font-display);
   font-style: italic;
-  font-size: 16px;
+  font-size: 13px;
   color: var(--ink-3);
   letter-spacing: -0.01em;
   line-height: 1;
@@ -1425,8 +1459,8 @@ hr {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 0 0 14px;
-  margin: 0 0 16px;
+  padding: 0 0 10px;
+  margin: 0 0 12px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -1441,10 +1475,10 @@ hr {
 .ssm-topbar-title {
   font-family: var(--font-display) !important;
   font-style: italic !important;
-  font-size: 28px !important;
+  font-size: 38px !important;
   font-weight: 400 !important;
   line-height: 1 !important;
-  letter-spacing: -0.025em !important;
+  letter-spacing: -0.03em !important;
   color: var(--ink) !important;
   margin: 0 !important;
   font-variation-settings: "opsz" 144, "SOFT" 50;
@@ -1573,7 +1607,7 @@ hr {
   align-items: baseline;
   gap: 10px;
   padding: 0;
-  margin: 20px 0 12px;
+  margin: 8px 0 10px;
 }
 
 .ssm-section-num {
@@ -1612,8 +1646,8 @@ hr {
   background: var(--card-pure);
   border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 16px 16px 18px;
-  height: 188px;
+  padding: 14px 14px 16px;
+  height: 142px;
   display: flex;
   flex-direction: column;
   cursor: pointer;
@@ -1629,15 +1663,37 @@ hr {
   box-shadow: var(--shadow-md);
 }
 
-.genre-card-top {
+/* head: 좌 아이콘 + 우 (dot 위 / num 아래) */
+.genre-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.genre-card-icon {
+  margin: 0;
+  color: var(--ink);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
+}
+
+.genre-card-icon svg {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+.genre-card-num-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  line-height: 1;
 }
 
 .genre-card-dot {
-  width: 7px; height: 7px;
+  width: 6px; height: 6px;
   border-radius: var(--r-pill);
   background: var(--ink-4);
   display: block;
@@ -1650,21 +1706,11 @@ hr {
 
 .genre-card-num {
   font-family: var(--font-display);
-  font-size: 16px;
+  font-size: 14px;
   font-style: italic;
   color: var(--ink-4);
   letter-spacing: -0.02em;
-}
-
-.genre-card-icon {
-  margin: 8px 0 14px;
-  color: var(--ink);
-}
-
-.genre-card-icon svg {
-  width: 32px;
-  height: 32px;
-  display: block;
+  line-height: 1;
 }
 
 .genre-card-meta {
@@ -1707,6 +1753,52 @@ hr {
 }
 
 
+/* ---------- Add card (+ placeholder, 매체 추가) ---------- */
+.genre-card.is-add {
+  background: transparent;
+  border: 1.5px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: not-allowed;
+  height: 142px;
+  padding: 12px;
+  transition: border-color 160ms var(--ease);
+}
+
+.genre-card.is-add:hover {
+  border-color: var(--ink-5);
+  transform: none;
+  box-shadow: none;
+}
+
+.genre-card-add-icon {
+  font-family: var(--font-ui);
+  font-size: 36px;
+  font-weight: 200;
+  color: var(--ink-5);
+  line-height: 1;
+}
+
+.genre-card-add-label {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-4);
+  letter-spacing: -0.012em;
+}
+
+.genre-card-add-hint {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 11px;
+  color: var(--ink-5);
+  letter-spacing: -0.005em;
+}
+
+
 /* ---------- Mode card (자체 클릭) ---------- */
 .mode-card-link {
   display: block;
@@ -1722,8 +1814,8 @@ hr {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 18px 18px 16px;
-  height: 168px;
+  padding: 14px 14px 14px;
+  height: 132px;
   display: flex;
   flex-direction: column;
   cursor: pointer;
@@ -1741,46 +1833,37 @@ hr {
   box-shadow: var(--shadow-md);
 }
 
-.mode-card-badge {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  font-family: var(--font-ui);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: var(--tk-wide);
-  color: var(--coral-deep);
-  background: var(--coral-soft);
-  border: 1px solid rgba(229, 77, 46, 0.25);
-  padding: 2px 7px;
-  border-radius: var(--r-pill);
-  text-transform: uppercase;
-}
-
+/* 영문은 작은 라벨, 한국어가 메인 */
 .mode-card-title {
   font-family: var(--font-display);
-  font-size: 26px;
-  line-height: 1.05;
-  letter-spacing: -0.025em;
-  color: var(--ink);
-  margin-bottom: 2px;
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--ink-4);
+  margin-bottom: 6px;
   font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .mode-card-ko {
   font-family: var(--font-ui);
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--ink-4);
-  letter-spacing: -0.01em;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.025em;
+  line-height: 1.15;
   margin-bottom: auto;
 }
 
 .mode-card-desc {
   font-family: var(--font-ui);
-  font-size: 12px;
-  color: var(--ink-3);
-  line-height: 1.45;
+  font-size: 11px;
+  color: var(--ink-4);
+  line-height: 1.4;
   margin-top: auto;
 }
 
@@ -1909,7 +1992,7 @@ hr {
 
 /* ---------- Spacers ---------- */
 .ssm-spacer-lg {
-  height: 32px;
+  height: 16px;
 }
 
 
