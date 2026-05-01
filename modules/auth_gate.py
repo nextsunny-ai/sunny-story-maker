@@ -238,17 +238,20 @@ def _gate_ui():
     # Google 로그인 (한 번 누르면 평생 자동 — 권장)
     google_url = auth_user.get_google_oauth_url()
     if google_url:
+        # ★ Streamlit Cloud의 iframe sandbox는 allow-top-navigation 없음
+        # → target="_top"/window.top 다 차단됨
+        # → 새 탭(_blank)이 sandbox 정책 우회 가능한 유일한 방법
+        # React가 inline event handler(onmouseover 등) string을 거부하므로 모두 제거
         st.markdown(
             f"""
-            <a href="{google_url}" target="_top" style="
+            <a href="{google_url}" target="_blank" rel="noopener" style="
                 display: flex; align-items: center; justify-content: center;
                 gap: 10px; padding: 14px 18px; margin-bottom: 14px;
                 background: white; border: 1.5px solid #dadce0;
                 border-radius: 10px; text-decoration: none;
                 color: #3c4043; font-size: 14px; font-weight: 500;
-                transition: box-shadow 0.2s;
-            " onmouseover="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)'"
-              onmouseout="this.style.boxShadow='none'">
+                cursor: pointer;
+            ">
                 <svg width="18" height="18" viewBox="0 0 18 18">
                     <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
                     <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
@@ -260,7 +263,7 @@ def _gate_ui():
             """,
             unsafe_allow_html=True,
         )
-        st.caption("👆 한 번만 누르면 다음부턴 자동 로그인. (권장)")
+        st.caption("🆕 새 탭에서 Google 로그인 → 완료되면 이 탭으로 돌아와 새로고침(F5)")
         st.markdown("<div style='text-align:center; color:#999; margin: 16px 0; font-size:12px;'>또는 이메일/비번으로</div>", unsafe_allow_html=True)
     else:
         st.caption("Gmail 주소로만 가입 가능합니다.")
