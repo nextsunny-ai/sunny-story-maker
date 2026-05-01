@@ -188,14 +188,23 @@ st.caption(f"선택: **{selected_count}개** · 예상 소요시간: 약 {select
 # ========== 4. 실행 ==========
 st.markdown("## 3. 패키지 생성")
 
-ready = bool(project_name and idea and selected_count > 0)
+missing = []
+if not project_name:
+    missing.append("**1번 작품명**")
+if not idea:
+    missing.append("**1번 한 줄 아이디어**")
+if selected_count == 0:
+    missing.append("**2번 산출물 1개 이상**")
+ready = not missing
 
 if not ready:
-    st.warning("작품명 + 한 줄 아이디어 + 산출물 1개 이상 체크해주세요.")
+    st.warning(
+        "↑ 위에서 다음 항목을 채워주세요: " + ", ".join(missing)
+    )
 else:
     st.info(
         f"⚠ **이 페이지를 떠나지 마세요.** 생성에 약 {selected_count}분 걸려요. "
-        "산출물은 만들어지는 즉시 `output/" + project_name + "/artifacts/` 폴더에 자동 저장돼요. "
+        f"산출물은 만들어지는 즉시 `output/{project_name}/artifacts/` 폴더에 자동 저장돼요. "
         "혹시 중간에 닫혀도 거기까지 만든 건 그대로 남습니다."
     )
     if st.button("📦 패키지 생성 시작", type="primary", use_container_width=True):
