@@ -57,6 +57,15 @@ idea = st.text_area(
     placeholder="예) 번아웃으로 퇴사한 30대 직장인이 시골 마을 작은 카페를 인수하면서 벌어지는 일",
 )
 
+# 1번 섹션 안에서 누락 항목 안내
+_sec1_missing = []
+if not project_name:
+    _sec1_missing.append("작품명")
+if not idea:
+    _sec1_missing.append("한 줄 아이디어")
+if _sec1_missing:
+    st.warning(f"⚠ 다음 항목이 비어있습니다: {' · '.join(_sec1_missing)}")
+
 
 # ========== 2. 매체 분량 + 추가 정보 ==========
 workflow = get_workflow(genre_letter)
@@ -184,30 +193,29 @@ for i, (key, label, desc, default) in enumerate(ARTIFACT_INFO):
 selected_count = sum(1 for v in artifacts_to_make.values() if v)
 st.caption(f"선택: **{selected_count}개** · 예상 소요시간: 약 {selected_count}분")
 
+if selected_count == 0:
+    st.warning("⚠ 산출물을 1개 이상 체크해주세요.")
+
 
 # ========== 4. 실행 ==========
 st.markdown("## 3. 패키지 생성")
 
-missing = []
-if not project_name:
-    missing.append("**1번 작품명**")
-if not idea:
-    missing.append("**1번 한 줄 아이디어**")
-if selected_count == 0:
-    missing.append("**2번 산출물 1개 이상**")
-ready = not missing
+ready = bool(project_name and idea and selected_count > 0)
 
-if not ready:
-    st.warning(
-        "↑ 위에서 다음 항목을 채워주세요: " + ", ".join(missing)
-    )
-else:
+if ready:
     st.info(
         f"⚠ **이 페이지를 떠나지 마세요.** 생성에 약 {selected_count}분 걸려요. "
         f"산출물은 만들어지는 즉시 `output/{project_name}/artifacts/` 폴더에 자동 저장돼요. "
         "혹시 중간에 닫혀도 거기까지 만든 건 그대로 남습니다."
     )
-    if st.button("📦 패키지 생성 시작", type="primary", use_container_width=True):
+
+if st.button(
+    "📦 패키지 생성 시작",
+    type="primary",
+    use_container_width=True,
+    disabled=not ready,
+):
+    if ready:
         # 메타데이터 미리 저장
         st.session_state.pkg_project_name = project_name
         st.session_state.pkg_genre_letter = genre_letter
