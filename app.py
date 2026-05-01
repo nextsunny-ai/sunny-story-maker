@@ -27,49 +27,6 @@ st.set_page_config(
 )
 
 
-# ============================================================
-# ★ Routing — 최우선 처리 (CSS·인증·DB 호출 전에 즉시 switch_page)
-# 카드 클릭 시 styles.css 2200줄 주입 + 사이드바 렌더 + 카드 그리드 모두 스킵
-# 인증은 타깃 페이지의 init_page → require_login에서 동일하게 검증됨
-# ============================================================
-qp = st.query_params
-
-def _consume_route_param(key: str):
-    """라우팅 키 하나만 제거 (인증 sid/sw는 유지)."""
-    if key in st.query_params:
-        del st.query_params[key]
-
-if "project" in qp:
-    project_name = qp.get("project")
-    _consume_route_param("project")
-    st.session_state.detail_project = project_name
-    st.switch_page("pages/8_작품_상세.py")
-
-if "genre" in qp:
-    letter = qp.get("genre")
-    _consume_route_param("genre")
-    st.session_state.prefilled_genre = letter
-    st.switch_page("pages/2_집필.py")
-
-if "mode" in qp:
-    mode = qp.get("mode")
-    _consume_route_param("mode")
-    target_map = {
-        "pitch": "pages/1_AI_기획.py",
-        "package": "pages/10_기획_패키지.py",
-        "adapt": "pages/3_각색.py",
-        "review": "pages/4_리뷰.py",
-        "chat": "pages/5_보조작가와_대화.py",
-        "osmu": "pages/6_OSMU.py",
-        "library": "pages/7_라이브러리.py",
-        "profile": "pages/9_작가_프로필.py",
-        "admin": "pages/9_작가_프로필.py",
-        "settings": "pages/9_작가_프로필.py",
-    }
-    if mode in target_map:
-        st.switch_page(target_map[mode])
-
-
 # ★ Streamlit 기본 multipage nav 깜빡임 방지 — styles.css 주입 전에 최우선
 st.markdown(
     """
@@ -109,11 +66,53 @@ if _css:
 
 
 # ============================================================
-# 인증 게이트 (초대 코드 + 로그인) — 라우팅 후에 실행 (홈 직접 진입 시만)
+# 인증 게이트 — 라우팅 전에 검증 (session_state.auth_user 복원 보장)
 # ============================================================
 from modules import auth_user, auth_gate
 if auth_user.get_invite_code():
     auth_gate.require_login()
+
+
+# ============================================================
+# ★ Routing — 인증 직후 / 사이드바·카드 그리드 전에 처리
+# 인증된 상태에서 카드 클릭 시 사이드바·카드·DB 호출 스킵하고 즉시 switch_page
+# ============================================================
+qp = st.query_params
+
+def _consume_route_param(key: str):
+    """라우팅 키 하나만 제거 (인증 sid/sw는 유지)."""
+    if key in st.query_params:
+        del st.query_params[key]
+
+if "project" in qp:
+    project_name = qp.get("project")
+    _consume_route_param("project")
+    st.session_state.detail_project = project_name
+    st.switch_page("pages/8_작품_상세.py")
+
+if "genre" in qp:
+    letter = qp.get("genre")
+    _consume_route_param("genre")
+    st.session_state.prefilled_genre = letter
+    st.switch_page("pages/2_집필.py")
+
+if "mode" in qp:
+    mode = qp.get("mode")
+    _consume_route_param("mode")
+    target_map = {
+        "pitch": "pages/1_AI_기획.py",
+        "package": "pages/10_기획_패키지.py",
+        "adapt": "pages/3_각색.py",
+        "review": "pages/4_리뷰.py",
+        "chat": "pages/5_보조작가와_대화.py",
+        "osmu": "pages/6_OSMU.py",
+        "library": "pages/7_라이브러리.py",
+        "profile": "pages/9_작가_프로필.py",
+        "admin": "pages/9_작가_프로필.py",
+        "settings": "pages/9_작가_프로필.py",
+    }
+    if mode in target_map:
+        st.switch_page(target_map[mode])
 
 
 # ============================================================

@@ -57,6 +57,10 @@ def _restore_from_cookies():
             del st.query_params["code"]
 
     # 1) URL 쿼리 파라미터에서 우선 복원 (가장 안정적)
+    # ip=1 (invite passed)도 URL에 박음 — cookie first-render-None 우회
+    if qp.get("ip") == "1" and not st.session_state.get("invite_passed"):
+        st.session_state.invite_passed = True
+
     sid_email = qp.get("sid", "")
     if sid_email and not st.session_state.get("auth_user"):
         st.session_state.auth_user = {"email": sid_email}
@@ -94,6 +98,9 @@ def _persist_to_url():
     writer = st.session_state.get("auth_writer_name")
     if writer:
         st.query_params["sw"] = writer
+    # invite_passed도 URL에 영속화 (cookie first-render-None 우회)
+    if st.session_state.get("invite_passed"):
+        st.query_params["ip"] = "1"
 
 
 def _persist_to_cookies():
@@ -117,15 +124,20 @@ def _persist_to_cookies():
 
 def auth_query_str() -> str:
     """HTML href 링크에 붙일 쿼리 스트링 — 페이지 이동 시 인증 유지.
-    예: '&sid=foo@gmail.com&sw=유희정' (앞에 & 포함)
+    예: '&sid=foo@gmail.com&sw=유희정&ip=1' (앞에 & 포함)
     """
     user = st.session_state.get("auth_user")
     if not user or not user.get("email"):
+        # 인증 안 됐어도 invite_passed는 유지하고 싶음
+        if st.session_state.get("invite_passed"):
+            return "&ip=1"
         return ""
     parts = [f"sid={user['email']}"]
     writer = st.session_state.get("auth_writer_name")
     if writer:
         parts.append(f"sw={writer}")
+    if st.session_state.get("invite_passed"):
+        parts.append("ip=1")
     return "&" + "&".join(parts)
 
 
@@ -158,6 +170,9 @@ def _is_authed() -> bool:
 def _set_auth(user: dict, session=None):
     """session_state에 인증 정보 저장 + 작가 프로필 처리 + 쿠키 저장."""
     st.session_state.auth_user = user
+    # ★ 핵심: 인증 성공 시 invite도 영속화 (cookie first-render-None 우회)
+    # 이게 빠지면 페이지 이동마다 invite 게이트 다시 뜸
+    st.session_state.invite_passed = True
     if session is not None:
         st.session_state.auth_session = session
 
@@ -217,76 +232,82 @@ def _gate_ui():
         unsafe_allow_html=True,
     )
 
-    # 1단계: 초대 코드
-    if not st.session_state.get("invite_passed"):
-        st.markdown("### 🔑 초대 코드 입력")
-        st.caption("관리자에게서 받으신 초대 코드를 입력해주세요.")
-        with st.form("invite_form"):
-            code = st.text_input("초대 코드", type="password", placeholder="")
-            submitted = st.form_submit_button("입장", type="primary", use_container_width=True)
-            if submitted:
-                if auth_user.is_valid_invite(code):
-                    st.session_state.invite_passed = True
-                    st.rerun()
-                else:
-                    st.error("초대 코드가 맞지 않습니다.")
-        st.stop()
+    # ★ 통합 로그인 화면 — 초대 코드 + (Google OR 이메일/비번) 한 번에
+    # 이전엔 초대 → 로그인 두 단계였는데, 두 번 입력 강제라 답답해서 한 화면으로 합침
+    # 이메일/비번 form엔 초대 코드 input 포함 (한 번에 검증)
+    # Google 로그인은 invite_passed 통과 후 활성 (다른 탭에 안전한 OAuth)
 
-    # 2단계: 가입/로그인
-    st.markdown("### 📝 가입 / 로그인")
+    google_url = auth_user.get_google_oauth_url()
 
     # Google 로그인 (한 번 누르면 평생 자동 — 권장)
-    google_url = auth_user.get_google_oauth_url()
     if google_url:
-        # ★ Streamlit Cloud의 iframe sandbox는 allow-top-navigation 없음
-        # → target="_top"/window.top 다 차단됨
-        # → 새 탭(_blank)이 sandbox 정책 우회 가능한 유일한 방법
-        # React가 inline event handler(onmouseover 등) string을 거부하므로 모두 제거
-        st.markdown(
-            f"""
-            <a href="{google_url}" target="_blank" rel="noopener" style="
-                display: flex; align-items: center; justify-content: center;
-                gap: 10px; padding: 14px 18px; margin-bottom: 14px;
-                background: white; border: 1.5px solid #dadce0;
-                border-radius: 10px; text-decoration: none;
-                color: #3c4043; font-size: 14px; font-weight: 500;
-                cursor: pointer;
-            ">
-                <svg width="18" height="18" viewBox="0 0 18 18">
-                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
-                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
-                    <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC04"/>
-                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-                </svg>
-                <span>Google 계정으로 로그인 / 가입</span>
-            </a>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.caption("🆕 새 탭에서 Google 로그인 → 완료되면 이 탭으로 돌아와 새로고침(F5)")
+        if st.session_state.get("invite_passed"):
+            st.markdown(
+                f"""
+                <a href="{google_url}" target="_blank" rel="noopener" style="
+                    display: flex; align-items: center; justify-content: center;
+                    gap: 10px; padding: 14px 18px; margin-bottom: 14px;
+                    background: white; border: 1.5px solid #dadce0;
+                    border-radius: 10px; text-decoration: none;
+                    color: #3c4043; font-size: 14px; font-weight: 500;
+                    cursor: pointer;
+                ">
+                    <svg width="18" height="18" viewBox="0 0 18 18">
+                        <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+                        <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+                        <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC04"/>
+                        <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                    </svg>
+                    <span>Google 계정으로 로그인 / 가입</span>
+                </a>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.caption("🆕 새 탭에서 Google 로그인 → 완료되면 이 탭 새로고침(F5)")
+        else:
+            # 초대 코드 미통과 시 — 안내만
+            st.info("Google 로그인을 사용하려면 아래에서 **초대 코드 먼저 입력** 후 다시 새로고침해주세요.")
+
         st.markdown("<div style='text-align:center; color:#999; margin: 16px 0; font-size:12px;'>또는 이메일/비번으로</div>", unsafe_allow_html=True)
-    else:
-        st.caption("Gmail 주소로만 가입 가능합니다.")
 
     tab_login, tab_signup = st.tabs(["🔓 로그인", "✨ 신규 가입"])
 
+    # invite_passed 통과 시 초대 코드 input은 안 보임 (한 번 입력 후 영구)
+    invite_already = st.session_state.get("invite_passed", False)
+
     with tab_login:
         with st.form("login_form"):
+            if not invite_already:
+                invite_code = st.text_input("🔑 초대 코드", type="password",
+                                             help="관리자에게서 받으신 초대 코드")
+            else:
+                invite_code = ""  # 이미 통과
             email = st.text_input("Gmail", placeholder="example@gmail.com")
             password = st.text_input("비밀번호", type="password")
             submitted = st.form_submit_button("로그인", type="primary", use_container_width=True)
             if submitted:
-                with st.spinner("로그인 중..."):
-                    result = auth_user.login(email, password)
-                if result["ok"]:
-                    _set_auth(result["user"], result.get("session"))
-                    st.success(f"✓ 환영합니다, {result['user']['email']}")
-                    st.rerun()
+                # 초대 코드 검증 (이미 통과했으면 스킵)
+                if not invite_already and not auth_user.is_valid_invite(invite_code):
+                    st.error("초대 코드가 맞지 않습니다.")
                 else:
-                    st.error(result["error"])
+                    if not invite_already:
+                        st.session_state.invite_passed = True
+                    with st.spinner("로그인 중..."):
+                        result = auth_user.login(email, password)
+                    if result["ok"]:
+                        _set_auth(result["user"], result.get("session"))
+                        st.success(f"✓ 환영합니다, {result['user']['email']}")
+                        st.rerun()
+                    else:
+                        st.error(result["error"])
 
     with tab_signup:
         with st.form("signup_form"):
+            if not invite_already:
+                su_invite_code = st.text_input("🔑 초대 코드", type="password",
+                                                key="su_invite", help="관리자에게서 받으신 초대 코드")
+            else:
+                su_invite_code = ""
             email = st.text_input("Gmail (아이디)", placeholder="example@gmail.com", key="su_email")
             password = st.text_input("새 비밀번호 (6자 이상)", type="password", key="su_pw")
             password2 = st.text_input("비밀번호 확인", type="password", key="su_pw2")
@@ -298,9 +319,13 @@ def _gate_ui():
             )
             submitted = st.form_submit_button("가입하기", type="primary", use_container_width=True)
             if submitted:
-                if password != password2:
+                if not invite_already and not auth_user.is_valid_invite(su_invite_code):
+                    st.error("초대 코드가 맞지 않습니다.")
+                elif password != password2:
                     st.error("비밀번호가 일치하지 않습니다.")
                 else:
+                    if not invite_already:
+                        st.session_state.invite_passed = True
                     with st.spinner("가입 처리 중..."):
                         result = auth_user.signup(email, password)
                     if result["ok"]:
