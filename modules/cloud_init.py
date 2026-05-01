@@ -18,6 +18,7 @@ def init_cloud_env():
             "FORCE_AUTH_MODE",
             "SUPABASE_URL",
             "SUPABASE_KEY",
+            "INVITE_CODE",
         ]
         for k in secret_keys:
             if k in st.secrets and not os.environ.get(k):

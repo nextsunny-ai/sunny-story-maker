@@ -40,6 +40,14 @@ load_css()
 
 
 # ============================================================
+# 인증 게이트 (초대 코드 + 로그인)
+# ============================================================
+from modules import auth_user, auth_gate
+if auth_user.get_invite_code():
+    auth_gate.require_login()
+
+
+# ============================================================
 # Routing — 카드 자체 클릭 처리 (a href → query param)
 # ============================================================
 qp = st.query_params
@@ -104,6 +112,7 @@ apply_script_font(st.session_state.script_font)
 # Sidebar (custom)
 # ============================================================
 render_sidebar()
+auth_gate.render_logout_button()
 # 모든 설정(Script Font, Profile, Status, Claude API, Global MD)은
 # 우측 상단 Admin pill → Settings 페이지로 일원화
 
