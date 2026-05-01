@@ -39,7 +39,20 @@ def _expiry():
 
 
 def _restore_from_cookies():
-    """페이지 진입 시 쿠키에서 세션 복원. 쿠키 매니저 첫 호출 시 None 가능 → 다음 rerun에 채워짐."""
+    """쿠키 + URL 양쪽에서 세션 복원 시도.
+    URL은 페이지 이동에도 잘 유지되므로 fallback으로 사용.
+    """
+    # 1) URL 쿼리 파라미터에서 우선 복원 (가장 안정적)
+    qp = st.query_params
+    sid_email = qp.get("sid", "")
+    if sid_email and not st.session_state.get("auth_user"):
+        st.session_state.auth_user = {"email": sid_email}
+        st.session_state.invite_passed = True
+        sid_writer = qp.get("sw", "")
+        if sid_writer:
+            st.session_state.auth_writer_name = sid_writer
+
+    # 2) 쿠키 시도 (있으면 좋고 없으면 패스)
     if not _COOKIES_AVAILABLE:
         return
     cm = _cookie_manager()
@@ -47,7 +60,7 @@ def _restore_from_cookies():
         return
     cookies = cm.get_all()
     if cookies is None:
-        return  # 쿠키 아직 로드 중 — 다음 rerun에 시도
+        return
 
     if cookies.get(COOKIE_INVITE) == "1" and not st.session_state.get("invite_passed"):
         st.session_state.invite_passed = True
@@ -60,8 +73,19 @@ def _restore_from_cookies():
             st.session_state.auth_writer_name = writer
 
 
+def _persist_to_url():
+    """세션을 URL 쿼리 파라미터에 저장 — 가장 안정적, 새로고침/페이지이동에 유지."""
+    user = st.session_state.get("auth_user")
+    if user and user.get("email"):
+        st.query_params["sid"] = user["email"]
+    writer = st.session_state.get("auth_writer_name")
+    if writer:
+        st.query_params["sw"] = writer
+
+
 def _persist_to_cookies():
-    """현재 세션 상태를 쿠키에 저장."""
+    """현재 세션 상태를 쿠키에 저장 + URL에도."""
+    _persist_to_url()
     if not _COOKIES_AVAILABLE:
         return
     cm = _cookie_manager()
@@ -78,8 +102,26 @@ def _persist_to_cookies():
         cm.set(COOKIE_WRITER, writer, expires_at=expires, key="set_writer")
 
 
+def auth_query_str() -> str:
+    """HTML href 링크에 붙일 쿼리 스트링 — 페이지 이동 시 인증 유지.
+    예: '&sid=foo@gmail.com&sw=유희정' (앞에 & 포함)
+    """
+    user = st.session_state.get("auth_user")
+    if not user or not user.get("email"):
+        return ""
+    parts = [f"sid={user['email']}"]
+    writer = st.session_state.get("auth_writer_name")
+    if writer:
+        parts.append(f"sw={writer}")
+    return "&" + "&".join(parts)
+
+
 def _clear_cookies():
-    """로그아웃 시 쿠키 삭제."""
+    """로그아웃 시 쿠키 + URL 세션 삭제."""
+    # URL 정리
+    for k in ("sid", "sw"):
+        if k in st.query_params:
+            del st.query_params[k]
     if not _COOKIES_AVAILABLE:
         return
     cm = _cookie_manager()

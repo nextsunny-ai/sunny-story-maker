@@ -52,15 +52,21 @@ if auth_user.get_invite_code():
 # ============================================================
 qp = st.query_params
 
+# 라우팅 키 처리 — sid/sw 같은 인증 파라미터는 보존
+def _consume_route_param(key: str):
+    """라우팅 키 하나만 제거 (인증 sid/sw는 유지)."""
+    if key in st.query_params:
+        del st.query_params[key]
+
 if "genre" in qp:
     letter = qp.get("genre")
-    st.query_params.clear()
+    _consume_route_param("genre")
     st.session_state.prefilled_genre = letter
     st.switch_page("pages/2_집필.py")
 
 if "mode" in qp:
     mode = qp.get("mode")
-    st.query_params.clear()
+    _consume_route_param("mode")
     target_map = {
         "pitch": "pages/1_AI_기획.py",
         "package": "pages/10_기획_패키지.py",
@@ -123,6 +129,7 @@ auth_gate.render_logout_button()
 _active = prof.get_active()
 _writer_name = _active["name"] if _active else "Guest"
 _writer_initial = (_writer_name[0] if _writer_name else "G").upper()
+_AUTH_QS = auth_gate.auth_query_str()  # &sid=...&sw=... 인증 유지용
 
 st.markdown(
     f"""
@@ -131,7 +138,7 @@ st.markdown(
         <h1 class="ssm-topbar-title">Today's Story<span class="accent-dot">.</span></h1>
         <span class="ssm-topbar-sub">한국 시나리오 작가의 12가지 형식 통합 작업 도구</span>
       </div>
-      <a href="?mode=profile" target="_self" class="ssm-admin">
+      <a href="?mode=profile{_AUTH_QS}" target="_self" class="ssm-admin">
         <div class="ssm-admin-avatar">{_writer_initial}</div>
         <div class="ssm-admin-text">
           <div class="ssm-admin-name">{_writer_name}</div>
@@ -184,7 +191,7 @@ def render_genre_card(letter: str, data: dict, num: int, display_name: str = Non
     active_attr = ' data-active="true"' if is_active else ''
 
     html = (
-        f'<a href="?genre={letter}" target="_self" class="genre-card-link">'
+        f'<a href="?genre={letter}{_AUTH_QS}" target="_self" class="genre-card-link">'
         f'<div class="genre-card" data-cat="{category}"{active_attr}>'
         f'<div class="genre-card-head">'
         f'<div class="genre-card-icon">{icon_svg}</div>'
