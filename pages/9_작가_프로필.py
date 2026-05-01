@@ -1,6 +1,7 @@
-"""어드민 — 작가 프로필 + 시스템 설정 통합 (우측 상단 ADMIN pill 진입점)
-- 작가 프로필: 스타일/선호/노하우/안티패턴 (모든 모드에 자동 반영)
-- 시스템 설정: Claude 연결 / API 키 / 저장 폴더 / 노하우 폴더 / 폰트 / 진단
+"""어드민 — 작가 + 시스템 설정 (우측 상단 ADMIN pill 진입점)
+복잡한 중첩 탭 폐기. 두 개 탭만:
+  1) 👤 작가  — 현재 활성 + 전환 + 편집/추가 (한 화면)
+  2) ⚙️ 시스템 — Claude 연결 + 저장 + 진단 (한 화면)
 """
 
 import streamlit as st
@@ -17,168 +18,217 @@ st.markdown(
     """
     <div class="app-header">
         <div class="app-header-title"><span class="app-header-title-emoji">⚙️</span>어드민</div>
-        <div class="app-header-version">작가 프로필 · 시스템 설정</div>
+        <div class="app-header-version">작가 · 시스템 설정</div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# ============================================================
-# 최상위 탭 — 작가 프로필 / 시스템 설정
-# ============================================================
-top_profile, top_system = st.tabs(["👤 작가 프로필", "⚙️ 시스템 설정"])
+tab_writer, tab_system = st.tabs(["👤 작가", "⚙️ 시스템"])
 
 
 # ============================================================
-# 👤 작가 프로필
+# 👤 작가 — 활성 + 전환 + 편집 (한 화면)
 # ============================================================
-with top_profile:
-    st.markdown(
-        """
-        <div class="page-intro">
-        <strong>왜 프로필?</strong>
-        한번 등록하면 모든 모드(AI 기획 / 집필 / 각색 / 리뷰)에서 자동으로 작가 스타일이 반영됩니다.
-        선호 장르·톤·비유 체계·안티패턴까지 다 기억해서 매번 입력 안 해도 돼요.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+with tab_writer:
+    profiles = prof.list_profiles()
+    active = prof.get_active()
 
-    tab1, tab2, tab3 = st.tabs(["🟢 활성 프로필", "📋 등록된 프로필", "➕ 신규 등록"])
+    # ---------- 활성 작가 카드 (상단) ----------
+    if active:
+        st.markdown(
+            f"""
+            <div style="background: var(--card-pure); border:1px solid var(--line);
+                        border-left: 4px solid var(--coral); padding: 16px 20px;
+                        border-radius: 10px; margin-bottom: 16px;">
+              <div style="font-size: 11px; color: var(--ink-3); letter-spacing: 0.5px;
+                          text-transform: uppercase; margin-bottom: 4px;">현재 활성</div>
+              <div style="font-size: 22px; font-weight: 700; color: var(--ink);">{active['name']}</div>
+              <div style="font-size: 13px; color: var(--ink-2); margin-top: 2px;">
+                {active.get('tagline') or '한 줄 소개 없음'}
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.info("활성 작가가 없습니다. 아래에서 신규 등록하거나 작가를 활성화하세요.")
 
-    # ---------- Tab 1: 활성 프로필 ----------
-    with tab1:
-        active = prof.get_active()
-        if active:
-            st.success(f"현재 활성: **{active['name']}**")
-            st.markdown(f"_{active.get('tagline', '')}_")
+    # ---------- 액션 줄 (전환 / 새 작가) ----------
+    action_l, action_r = st.columns([1, 1])
+    with action_l:
+        if st.button(
+            "✏️ 내 정보 편집" if active else "👤 작가 정보 편집",
+            use_container_width=True,
+            disabled=not active,
+        ):
+            st.session_state.editing_profile = active["name"]
+            st.session_state.show_form = True
+            st.rerun()
+    with action_r:
+        if st.button("➕ 새 작가 등록", use_container_width=True):
+            st.session_state.pop("editing_profile", None)
+            st.session_state.show_form = True
+            st.rerun()
 
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.markdown("##### 기본 정보")
-                if active.get("career"): st.markdown(f"- **경력**: {active['career']}")
-                if active.get("preferred_genres"): st.markdown(f"- **선호 장르**: {', '.join(active['preferred_genres'])}")
-                if active.get("preferred_tone"): st.markdown(f"- **선호 톤**: {active['preferred_tone']}")
-                if active.get("favorite_authors"): st.markdown(f"- **좋아하는 작가**: {active['favorite_authors']}")
-            with col_b:
-                st.markdown("##### 작업 노하우")
-                if active.get("writing_style"): st.markdown(f"- **스타일**: {active['writing_style']}")
-                if active.get("preferred_metaphor_systems"):
-                    st.markdown(f"- **비유 체계**: {', '.join(active['preferred_metaphor_systems'])}")
-                if active.get("preferred_font"): st.markdown(f"- **선호 폰트**: {active['preferred_font']}")
-
-            if active.get("personal_anti_patterns"):
-                with st.expander("🚫 개인 안티패턴"):
-                    for p in active["personal_anti_patterns"]:
-                        st.markdown(f"- {p}")
-            if active.get("notes"):
-                with st.expander("📝 추가 노트"):
-                    st.markdown(active["notes"])
-
-            st.markdown("---")
-            if st.button("✏️ 활성 프로필 편집"):
-                st.session_state.editing_profile = active["name"]
-                st.rerun()
-        else:
-            st.info("활성 프로필이 없습니다. **신규 등록** 또는 **등록된 프로필**에서 활성화하세요.")
-
-    # ---------- Tab 2: 등록된 프로필 ----------
-    with tab2:
-        profiles = prof.list_profiles()
-        if not profiles:
-            st.info("등록된 프로필이 없습니다.")
-        else:
-            st.markdown(f"### 총 {len(profiles)}명")
+    # ---------- 다른 작가로 전환 ----------
+    if profiles and len(profiles) > 1:
+        with st.expander(f"👥 등록된 작가 {len(profiles)}명 — 전환·관리", expanded=False):
             for p in profiles:
-                cols = st.columns([3, 1, 1, 1])
+                is_active = active and p["name"] == active["name"]
+                cols = st.columns([5, 1, 1, 1])
                 with cols[0]:
-                    st.markdown(f"**{p['name']}** — {p.get('tagline', '')}")
+                    badge = " 🟢" if is_active else ""
+                    st.markdown(f"**{p['name']}**{badge}")
                     st.caption(
-                        f"선호 장르: {', '.join(p.get('preferred_genres', []) or ['미지정'])} · "
+                        f"{p.get('tagline') or '소개 없음'} · "
                         f"마지막 사용: {p.get('last_used', '')[:10] or '-'}"
                     )
                 with cols[1]:
-                    if st.button("활성화", key=f"act_{p['name']}"):
+                    if not is_active and st.button("활성화", key=f"act_{p['name']}"):
                         prof.set_active(p["name"])
-                        st.success(f"✓ {p['name']} 활성화")
                         st.rerun()
                 with cols[2]:
                     if st.button("편집", key=f"edt_{p['name']}"):
                         st.session_state.editing_profile = p["name"]
+                        st.session_state.show_form = True
                         st.rerun()
                 with cols[3]:
-                    if st.button("삭제", key=f"del_{p['name']}"):
+                    if st.button("🗑", key=f"del_{p['name']}", help="삭제"):
                         prof.delete_profile(p["name"])
                         st.rerun()
-                st.markdown("---")
 
-    # ---------- Tab 3: 신규 등록 / 편집 ----------
-    with tab3:
+    # ---------- 활성 정보 표시 (편집폼이 닫혀 있을 때) ----------
+    if active and not st.session_state.get("show_form"):
+        with st.expander("📋 활성 작가 상세 정보", expanded=False):
+            col_a, col_b = st.columns(2)
+            with col_a:
+                st.markdown("##### 기본")
+                if active.get("career"):
+                    st.markdown(f"- 경력: {active['career']}")
+                if active.get("preferred_genres"):
+                    st.markdown(f"- 선호 장르: {', '.join(active['preferred_genres'])}")
+                if active.get("preferred_tone"):
+                    st.markdown(f"- 선호 톤: {active['preferred_tone']}")
+                if active.get("favorite_authors"):
+                    st.markdown(f"- 좋아하는 작가: {active['favorite_authors']}")
+            with col_b:
+                st.markdown("##### 스타일")
+                if active.get("writing_style"):
+                    st.markdown(f"- {active['writing_style']}")
+                if active.get("preferred_metaphor_systems"):
+                    st.markdown(f"- 비유 체계: {', '.join(active['preferred_metaphor_systems'])}")
+                if active.get("preferred_font"):
+                    st.markdown(f"- 폰트: {active['preferred_font']}")
+            if active.get("personal_anti_patterns"):
+                st.markdown("##### 🚫 안티패턴")
+                for p in active["personal_anti_patterns"]:
+                    st.markdown(f"- {p}")
+            if active.get("notes"):
+                st.markdown("##### 📝 추가 노트")
+                st.markdown(active["notes"])
+
+    # ---------- 편집/신규 폼 (show_form일 때만) ----------
+    if st.session_state.get("show_form"):
         editing = "editing_profile" in st.session_state
-        target_profile = prof.load_profile(st.session_state.editing_profile) if editing else prof.empty_profile()
+        target_profile = (
+            prof.load_profile(st.session_state.editing_profile)
+            if editing else prof.empty_profile()
+        )
 
-        if editing:
-            st.info(f"✏️ 편집 모드: {target_profile['name']}")
+        st.markdown("---")
+        st.markdown(
+            f"### {'✏️ 편집' if editing else '➕ 새 작가 등록'}"
+            f"{(' — ' + target_profile['name']) if editing else ''}"
+        )
+
+        st.caption(
+            "💡 입력한 내용은 모든 작업(기획·집필·각색·리뷰·보조작가)에 자동 반영됩니다. "
+            "정확할수록 AI가 작가 스타일을 따라옵니다. **빈칸 OK** — 나중에 채워도 됩니다."
+        )
 
         with st.form("profile_form"):
-            st.markdown("### 기본 정보")
+            # 1. 기본
             col1, col2 = st.columns(2)
             with col1:
-                name = st.text_input("작가명 (필수)", value=target_profile.get("name", ""), placeholder="필명 또는 본명")
-                tagline = st.text_input("한 줄 소개", value=target_profile.get("tagline", ""), placeholder="예: 미스터리·SF 전문 / 10년차 드라마 작가")
+                name = st.text_input(
+                    "작가명 *",
+                    value=target_profile.get("name", ""),
+                    placeholder="예: 김선희 / 필명 RIAN",
+                    help="저장 폴더와 채팅 기록이 이 이름으로 분리됩니다.",
+                )
+                career = st.text_input(
+                    "경력",
+                    value=target_profile.get("career", ""),
+                    placeholder="예: 영화 시나리오 8년차 · 2018년 단편으로 데뷔",
+                )
             with col2:
-                career = st.text_input("경력 (선택)", value=target_profile.get("career", ""), placeholder="예: 영화 시나리오 8년 / 데뷔 2018")
+                tagline = st.text_input(
+                    "한 줄 소개",
+                    value=target_profile.get("tagline", ""),
+                    placeholder="예: 도시 미스터리 + 여성 서사 전문",
+                )
                 favorite_authors = st.text_input(
                     "좋아하는 작가/감독",
                     value=target_profile.get("favorite_authors", ""),
-                    placeholder="예: 박찬욱, 김은희, 박완서, McKee",
+                    placeholder="예: 박찬욱, 김은희, 봉준호, 박완서",
                 )
 
-            st.markdown("### 선호 작업 영역")
+            # 2. 선호
             preferred_genres = st.multiselect(
-                "선호 장르 (복수 선택 가능)",
+                "선호 장르",
                 list_genre_names(),
                 default=target_profile.get("preferred_genres", []),
+                help="작품 의뢰가 들어왔을 때 자동으로 추천 우선순위가 됩니다.",
             )
             preferred_tone = st.text_input(
                 "선호 톤",
                 value=target_profile.get("preferred_tone", ""),
-                placeholder="예: 다크하고 절제된 / 따뜻하고 일상적 / 시네마틱",
+                placeholder="예: 다크하지만 따뜻한 / 절제된 미니멀 / 시네마틱하고 압축적",
             )
 
-            st.markdown("### 작업 스타일 / 노하우")
+            # 3. 스타일
             writing_style = st.text_area(
                 "내 스타일 (자유 서술)",
                 value=target_profile.get("writing_style", ""),
-                height=100,
+                height=110,
                 placeholder=(
-                    "예) 서브텍스트 중시. 대사보다 행동/소품으로 보여주는 편.\n"
-                    "회차 후크는 감정형 클리프행어 선호. 반전보다는 누적된 의미가 터지는 구조."
+                    "예시:\n"
+                    "- 대사보다 행동/소품으로 보여주는 편. 서브텍스트 중시.\n"
+                    "- 회차 후크는 감정형 클리프행어 선호 (사건 반전보다는 감정의 누적).\n"
+                    "- 첫 5분 안에 주인공의 결핍을 시각적으로 던진다.\n"
+                    "- 멜로보다 인물 변화에 집중. 로맨스는 부산물처럼 따라붙게."
                 ),
             )
             metaphor_systems_str = st.text_area(
-                "자주 쓰는 캐릭터 비유 체계 (한 줄에 하나)",
+                "자주 쓰는 비유 체계 — 한 줄에 하나",
                 value="\n".join(target_profile.get("preferred_metaphor_systems", [])),
-                height=80,
+                height=90,
                 placeholder=(
-                    "예)\n야구 — 승부/시즌/타석 비유\n"
-                    "건축 — 설계/구조/하중 비유\n"
-                    "요리 — 재료/불/시간 비유"
+                    "예시:\n"
+                    "야구 — 승부 / 시즌 / 타석 / 마운드\n"
+                    "건축 — 설계 / 하중 / 균열\n"
+                    "요리 — 재료 / 불 / 시간\n"
+                    "바둑 — 포석 / 사석 / 중반전"
                 ),
+                help="작가별 고유 비유. 등장인물별로 비유체계가 다르면 보조작가에 따로 메모하세요.",
             )
             anti_patterns_str = st.text_area(
-                "🚫 절대 안 쓰는 패턴 (개인 안티패턴, 한 줄에 하나)",
+                "🚫 절대 안 쓰는 표현 — 한 줄에 하나",
                 value="\n".join(target_profile.get("personal_anti_patterns", [])),
-                height=80,
+                height=110,
                 placeholder=(
-                    "예)\n격언체 대사 (\"인생은 ~다\")\n"
+                    "예시:\n"
+                    "격언체 대사 (\"인생은 ~다\")\n"
                     "회상 씬 남용\n"
-                    "신파 클리셰\n"
-                    "특정 단어 — 영혼, 운명, 진정한"
+                    "내레이션으로 감정 설명\n"
+                    "신파 결말 / 가족 화해 클리셰\n"
+                    "특정 단어 — 영혼, 운명, 진정한, 가슴이 뜨거워지는"
                 ),
+                help="AI가 이 패턴들을 회피합니다. 리뷰 시에도 검출 대상이 돼요.",
             )
 
-            st.markdown("### 출력 선호")
+            # 4. 출력
             col_f, col_t = st.columns(2)
             with col_f:
                 font_options = [f["css"] for f in SCRIPT_FONTS]
@@ -188,26 +238,33 @@ with top_profile:
                     "선호 본문 폰트",
                     font_options,
                     index=font_idx,
-                    format_func=lambda c: next((f["name"] for f in SCRIPT_FONTS if f["css"] == c), c),
+                    format_func=lambda c: next(
+                        (f["name"] for f in SCRIPT_FONTS if f["css"] == c), c
+                    ),
                 )
             with col_t:
                 preferred_targets_str = st.text_input(
                     "주력 타겟층 (쉼표 구분)",
                     value=", ".join(target_profile.get("preferred_targets", [])),
-                    placeholder="예: 30대 도시 여성, 40~50대 가족",
+                    placeholder="예: 30대 도시 직장인 여성, 40~50대 가족 시청자, 글로벌 한류팬",
                 )
 
             notes = st.text_area(
                 "추가 노트 (자유)",
                 value=target_profile.get("notes", ""),
                 height=80,
-                placeholder="기타 모든 작업에 반영되었으면 하는 것",
+                placeholder=(
+                    "예시:\n"
+                    "- 영문 고유명사는 한글로 표기 (스타벅스 X → 별다방 O 같은 룰)\n"
+                    "- 욕설은 ⓒ로 검열 표기\n"
+                    "- 회차당 분량 60분 ±5분 엄수"
+                ),
             )
 
-            col_save, col_activate, col_cancel = st.columns(3)
+            col_save, col_act, col_cancel = st.columns(3)
             with col_save:
                 saved = st.form_submit_button("💾 저장", type="primary")
-            with col_activate:
+            with col_act:
                 save_and_activate = st.form_submit_button("💾 저장 + 활성화")
             with col_cancel:
                 cancel = st.form_submit_button("취소")
@@ -222,10 +279,16 @@ with top_profile:
                     "preferred_genres": preferred_genres,
                     "preferred_tone": preferred_tone,
                     "writing_style": writing_style,
-                    "preferred_metaphor_systems": [s.strip() for s in metaphor_systems_str.splitlines() if s.strip()],
-                    "personal_anti_patterns": [s.strip() for s in anti_patterns_str.splitlines() if s.strip()],
+                    "preferred_metaphor_systems": [
+                        s.strip() for s in metaphor_systems_str.splitlines() if s.strip()
+                    ],
+                    "personal_anti_patterns": [
+                        s.strip() for s in anti_patterns_str.splitlines() if s.strip()
+                    ],
                     "preferred_font": preferred_font,
-                    "preferred_targets": [s.strip() for s in preferred_targets_str.split(",") if s.strip()],
+                    "preferred_targets": [
+                        s.strip() for s in preferred_targets_str.split(",") if s.strip()
+                    ],
                     "notes": notes,
                     "last_modified": datetime.now().isoformat(),
                 }
@@ -235,21 +298,21 @@ with top_profile:
                 prof.save_profile(new_profile)
                 if save_and_activate:
                     prof.set_active(name)
-                if "editing_profile" in st.session_state:
-                    del st.session_state.editing_profile
+                st.session_state.pop("editing_profile", None)
+                st.session_state.show_form = False
                 st.success(f"✓ {name} 저장 완료")
                 st.rerun()
 
             if cancel:
-                if "editing_profile" in st.session_state:
-                    del st.session_state.editing_profile
+                st.session_state.pop("editing_profile", None)
+                st.session_state.show_form = False
                 st.rerun()
 
 
 # ============================================================
-# ⚙️ 시스템 설정
+# ⚙️ 시스템 — Claude 연결 + 저장 + 진단 (간결)
 # ============================================================
-with top_system:
+with tab_system:
     env_path = Path(__file__).parent.parent / ".env"
 
     def read_env() -> dict:
@@ -264,125 +327,105 @@ with top_system:
         return result
 
     def write_env(values: dict):
-        lines = []
-        for k, v in values.items():
-            if v is not None:
-                lines.append(f"{k}={v}")
+        lines = [f"{k}={v}" for k, v in values.items() if v is not None]
         env_path.write_text("\n".join(lines), encoding="utf-8")
 
     env = read_env()
     status = auth.get_status_for_writer()
 
-    # ---------- 1. AI 작가 연결 ----------
-    st.markdown("### 1. AI 작가 (Claude) 연결")
+    # ---------- Claude 연결 상태 (한 줄) ----------
     if status["ready"]:
-        st.success(status["label"])
-        st.caption(status["detail"])
+        st.success(f"✓ Claude 연결됨 — {status['label']}")
     else:
-        st.warning(status["label"])
-        st.caption(status["detail"])
+        st.warning(f"⚠ Claude 미연결 — {status['label']}")
+    st.caption(status["detail"])
 
-    with st.expander("❓ Claude 연결 방법 (안 됐으면 펼쳐보기)", expanded=not status["ready"]):
+    with st.expander("❓ Claude 연결 방법", expanded=not status["ready"]):
         st.markdown(
             """
-            **방법 1. Claude 앱으로 (★ 권장)**
-            - [claude.ai](https://claude.ai) 가입 + 월 $20 Pro/Max 구독
-            - [Claude Desktop 앱](https://claude.ai/download) 설치 + 로그인
-            - 우리 프로그램이 **자동 감지** → 작가는 추가 설정 0
+**방법 1 — Claude 앱 (권장, 작가 추가 설정 0)**
+1. [claude.ai](https://claude.ai) 가입 + Pro/Max 구독 ($20/월)
+2. [Claude Desktop 앱](https://claude.ai/download) 설치 + 로그인
+3. 자동 감지됨
 
-            **방법 2. API 키 직접**
-            - [console.anthropic.com](https://console.anthropic.com) (Claude.ai와 다른 계정)
-            - 결제수단 등록 → API 키 발급 (sk-ant-... 로 시작)
-            - 아래 입력란에 붙여넣기
-            - 사용량 청구 (작품 1편당 약 $0.5~$2)
-
-            **잘 모르겠으면** 방법 1. 거의 모든 작가는 방법 1로 충분.
+**방법 2 — API 키 직접 (사용량 청구)**
+1. [console.anthropic.com](https://console.anthropic.com) 가입
+2. 결제수단 등록 → API 키 발급
+3. 아래에 붙여넣기 (작품 1편당 약 $0.5~$2)
             """
         )
 
-    # ---------- 2. API 키 ----------
-    st.markdown("---")
-    st.markdown("### 2. API 키 (방법 2 사용 시만)")
-    st.caption("방법 1로 사용하시는 분은 비워두세요. 방법 1이 자동으로 쓰입니다.")
+    # ---------- 핵심 설정 ----------
+    st.markdown("### 설정")
 
     api_key = st.text_input(
-        "Anthropic API 키",
+        "API 키 (방법 2 사용 시만)",
         value=env.get("ANTHROPIC_API_KEY", ""),
         type="password",
-        placeholder="sk-ant-... (없으면 비워두세요)",
-        help="Anthropic 콘솔에서 발급받은 API 키. 작가는 보통 비워둬도 됩니다.",
+        placeholder="sk-ant-... · 비워두면 Claude 앱(방법 1) 자동 사용",
     )
 
     model = st.selectbox(
-        "응답 품질 (모델)",
+        "기본 응답 품질",
         ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
-        index=0,
+        index=["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"].index(
+            env.get("DEFAULT_MODEL", "claude-opus-4-7")
+        ) if env.get("DEFAULT_MODEL") in ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"] else 0,
         format_func=lambda m: {
-            "claude-opus-4-7": "최고 품질 (느리지만 가장 좋음 — 권장)",
-            "claude-sonnet-4-6": "균형 (적당히 빠르고 좋음)",
-            "claude-haiku-4-5-20251001": "빠른 속도 (간단한 작업용)",
+            "claude-opus-4-7": "Opus — 최고 품질 (시나리오 권장)",
+            "claude-sonnet-4-6": "Sonnet — 균형",
+            "claude-haiku-4-5-20251001": "Haiku — 빠름 (보조작가 채팅 전용)",
         }.get(m, m),
-        help="Opus = 시나리오용 권장. Haiku = 자잘한 캐릭터 이름 추천 같은 거에 쓰면 빨라요.",
+        help="보조작가 채팅은 항상 Haiku 사용. 그 외 모드 기본값을 여기서.",
     )
-
-    # ---------- 3. 작품 저장 위치 ----------
-    st.markdown("---")
-    st.markdown("### 3. 작품 저장 위치")
-    st.caption("기본은 이 프로그램 폴더 안 (output/). Drive/원드라이브와 자동 동기화하려면 그 폴더 경로 입력.")
 
     drive_dir = st.text_input(
         "외부 동기화 폴더 (선택)",
         value=env.get("DRIVE_OUTPUT_DIR", ""),
-        placeholder="예: G:/내 드라이브/내 작품 (비워두면 로컬만 저장)",
-        help="Google Drive / OneDrive / Dropbox 폴더 경로를 넣으면 작품 저장 시 자동으로 백업됩니다.",
+        placeholder="예: G:/내 드라이브/내 작품 (비워두면 로컬만)",
     )
 
-    # ---------- 4. 노하우 폴더 (고급) ----------
-    st.markdown("---")
-    with st.expander("📚 고급 — 외부 노하우 폴더 (선택)"):
-        st.markdown(
-            """
-            **이게 뭔가요?**
-            본인이 직접 만든 작가 노하우 문서(SKILL.md)가 있다면, 그 폴더를 연결하면
-            AI 작가가 작업할 때 그걸 참고합니다.
-
-            **거의 모든 작가는 비워두시면 됩니다.** 비워두면 프로그램 내장 노하우
-            (humanizer 6패턴, 13장르 매뉴얼, 한국 실무 양식 등)를 자동으로 사용합니다.
-            """
-        )
-        sori_skill_dir = st.text_input(
-            "노하우 폴더 경로",
-            value=env.get("SORI_SKILL_DIR", ""),
-            placeholder="(비워두면 내장 노하우 자동 사용)",
-        )
-
-    # ---------- 저장 ----------
-    st.markdown("---")
-    if st.button("💾 시스템 설정 저장", type="primary", use_container_width=True):
+    if st.button("💾 설정 저장", type="primary", use_container_width=True):
         write_env({
             "ANTHROPIC_API_KEY": api_key,
             "DEFAULT_MODEL": model,
             "DRIVE_OUTPUT_DIR": drive_dir,
-            "SORI_SKILL_DIR": sori_skill_dir,
+            "SORI_SKILL_DIR": env.get("SORI_SKILL_DIR", ""),
         })
-        st.success("✓ 저장 완료. 페이지 새로고침 시 적용됩니다.")
+        st.success("✓ 저장. 페이지 새로고침 시 적용.")
 
-    # ---------- 5. 폰트 안내 ----------
-    st.markdown("---")
-    st.markdown("### 4. 본문 폰트")
-    st.info(
-        "**메뉴/UI 폰트**: Pretendard (변경 불가)\n\n"
-        "**본문(대본 입력 영역)**: 위 작가 프로필에서 8종 중 선택 — "
-        "함초롬바탕 / 나눔명조 / 본명조 / 마루부리 / KoPub바탕 / 고운바탕 / 나눔바른고딕 / 본고딕"
-    )
+    # ---------- 고급 / 진단 (접어둠) ----------
+    with st.expander("🛠 고급 — 노하우 폴더 / 진단"):
+        st.markdown("**외부 노하우 폴더** (거의 안 씀, 비워두면 내장 사용)")
+        sori_skill_dir = st.text_input(
+            "노하우 폴더 경로",
+            value=env.get("SORI_SKILL_DIR", ""),
+            placeholder="(비워두면 내장 자동 사용)",
+            label_visibility="collapsed",
+        )
+        if sori_skill_dir != env.get("SORI_SKILL_DIR", ""):
+            if st.button("저장", key="save_skill_dir"):
+                write_env({
+                    "ANTHROPIC_API_KEY": api_key,
+                    "DEFAULT_MODEL": model,
+                    "DRIVE_OUTPUT_DIR": drive_dir,
+                    "SORI_SKILL_DIR": sori_skill_dir,
+                })
+                st.success("✓ 저장")
 
-    # ---------- 6. 진단 ----------
-    st.markdown("---")
-    with st.expander("🛠 진단 정보 (문제 있을 때만 보세요)"):
+        st.markdown("---")
+        st.markdown("**진단 정보**")
         st.code(
-            f"""인증 모드: {auth.get_auth_mode()}
+            f"""인증 모드:     {auth.get_auth_mode()}
 Claude 앱 감지: {auth.detect_claude_code()}
-API 키 등록: {auth.has_api_key()}
-저장 폴더: {drive_dir or '(로컬만)'}
-노하우 폴더: {sori_skill_dir or '(내장 사용)'}"""
+API 키 등록:   {auth.has_api_key()}
+저장 폴더:     {drive_dir or '(로컬만)'}
+노하우 폴더:   {sori_skill_dir or '(내장)'}"""
+        )
+
+        st.markdown("---")
+        st.markdown("**본문 폰트**")
+        st.caption(
+            "메뉴/UI 폰트: Pretendard 고정. "
+            "본문(대본 입력)은 위 작가 프로필에서 8종 중 선택."
         )
