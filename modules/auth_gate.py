@@ -25,8 +25,9 @@ COOKIE_WRITER = "ssm_writer"
 COOKIE_EXPIRY_DAYS = 30
 
 
-@st.cache_resource
 def _cookie_manager():
+    """CookieManager 인스턴스. cache_resource 사용 금지 (내부 위젯 호출).
+    Streamlit이 같은 key로 자동 dedupe."""
     if not _COOKIES_AVAILABLE:
         return None
     return stx.CookieManager(key="ssm_cookie_manager")
