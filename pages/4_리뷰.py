@@ -221,26 +221,29 @@ if st.button(
     use_container_width=True,
     disabled=not valid,
 ):
-    with st.spinner("AI 작가가 타겟 시각으로 리뷰하는 중... (1~2분 소요)"):
-        prompt = sori_client.build_targeted_review_prompt(
-            text_to_review,
-            targets=target_inputs,
-            genre=genre,
-        )
-        review_result = sori_client.call_sori(prompt, max_tokens=8000)
+    st.session_state.ssm_busy = {"label": "리뷰 작성 중", "detail": project_name or ""}
+    prompt = sori_client.build_targeted_review_prompt(
+        text_to_review,
+        targets=target_inputs,
+        genre=genre,
+    )
+    st.markdown("### ✍ 리뷰가 흐르는 중...")
+    live = st.empty()
+    review_result = sori_client.stream_to_placeholder(prompt, live, max_tokens=8000)
+    st.session_state.pop("ssm_busy", None)
 
-        # AI투 검출 (원본 텍스트 대상)
-        findings = humanizer.detect(text_to_review)
+    # AI투 검출 (원본 텍스트 대상)
+    findings = humanizer.detect(text_to_review)
 
-        st.session_state.last_review = {
-            "project": project_name,
-            "genre": genre,
-            "targets": target_inputs,
-            "review": review_result,
-            "findings": findings,
-            "ai_score": humanizer.severity_score(findings),
-            "text": text_to_review,
-        }
+    st.session_state.last_review = {
+        "project": project_name,
+        "genre": genre,
+        "targets": target_inputs,
+        "review": review_result,
+        "findings": findings,
+        "ai_score": humanizer.severity_score(findings),
+        "text": text_to_review,
+    }
 
 # ========== 4. 결과 ==========
 if "last_review" in st.session_state:

@@ -317,15 +317,18 @@ if mode.startswith("같은 매체"):
 
     if st.button("🔄 다음 버전 생성", type="primary", disabled=not valid, use_container_width=True):
         next_v = (existing_versions[0]["version"] + 1) if existing_versions else 2
-        with st.spinner(f"v{next_v} 작성 중..."):
-            prompt = sori_client.build_revise_prompt(
-                text=text,
-                direction=direction,
-                genre=source_genre,
-                target_section=target_section,
-                version_number=next_v,
-            )
-            result = sori_client.call_sori(prompt, max_tokens=8000)
+        prompt = sori_client.build_revise_prompt(
+            text=text,
+            direction=direction,
+            genre=source_genre,
+            target_section=target_section,
+            version_number=next_v,
+        )
+        st.session_state.ssm_busy = {"label": f"각색 v{next_v} 작성 중", "detail": project_name}
+        st.markdown(f"### ✍ v{next_v}이(가) 흐르는 중...")
+        live = st.empty()
+        result = sori_client.stream_to_placeholder(prompt, live, max_tokens=8000)
+        st.session_state.pop("ssm_busy", None)
 
         st.session_state.last_revise = {
             "project": project_name,
@@ -393,9 +396,12 @@ else:
             disabled=not text,
             use_container_width=True,
         ):
-            with st.spinner("분석 중..."):
-                prompt = sori_client.build_genre_recommend_prompt(text, source_genre)
-                result = sori_client.call_sori(prompt, max_tokens=6000)
+            prompt = sori_client.build_genre_recommend_prompt(text, source_genre)
+            st.session_state.ssm_busy = {"label": "매체 추천 분석 중", "detail": project_name or ""}
+            st.markdown("### ✍ 추천 분석이 흐르는 중...")
+            live = st.empty()
+            result = sori_client.stream_to_placeholder(prompt, live, max_tokens=6000)
+            st.session_state.pop("ssm_busy", None)
             st.session_state.genre_recommend = result
 
         if "genre_recommend" in st.session_state:
@@ -416,14 +422,19 @@ else:
             disabled=not valid,
             use_container_width=True,
         ):
-            with st.spinner("변환 중... (원본 자산 유지하면서 목표 매체로)"):
-                prompt = sori_client.build_adapt_prompt(
-                    text, source_genre, target_genre, target_workflow
-                )
-                # 추가 디렉션 있으면 프롬프트에 덧붙임
-                if direction:
-                    prompt = f"{prompt}\n\n### 추가 디렉션\n{direction}"
-                result = sori_client.call_sori(prompt, max_tokens=8000)
+            prompt = sori_client.build_adapt_prompt(
+                text, source_genre, target_genre, target_workflow
+            )
+            if direction:
+                prompt = f"{prompt}\n\n### 추가 디렉션\n{direction}"
+            st.session_state.ssm_busy = {
+                "label": f"{target_genre['name']}로 변환 중",
+                "detail": project_name or "",
+            }
+            st.markdown(f"### ✍ {target_genre['name']} 변환이 흐르는 중...")
+            live = st.empty()
+            result = sori_client.stream_to_placeholder(prompt, live, max_tokens=8000)
+            st.session_state.pop("ssm_busy", None)
 
             st.session_state.adapt_result = {
                 "project": f"{project_name}_{target_genre['name']}",

@@ -175,8 +175,11 @@ else:
                 workflow=workflow,
                 prior=state["results"],
             )
-            with st.spinner(f"AI 작가가 {current_step} 작업 중..."):
-                result = sori_client.call_sori(prompt, max_tokens=6000)
+            st.session_state.ssm_busy = {"label": f"{current_step} 작성 중", "detail": project_name or ""}
+            st.markdown(f"### ✍ {current_step}이(가) 흐르는 중...")
+            live = st.empty()
+            result = sori_client.stream_to_placeholder(prompt, live, max_tokens=6000)
+            st.session_state.pop("ssm_busy", None)
             state["results"][current_step] = result
             st.rerun()
     else:
@@ -232,18 +235,20 @@ if state["stage_idx"] == len(workflow["steps"]) - 1 and current_step in state["r
             col = art_cols[i % 3]
             with col:
                 if st.button(label, key=f"w_art_{key}", use_container_width=True):
-                    with st.spinner(f"{label} 작성 중..."):
-                        if key == "logline":
-                            prompt = builder(idea_brief, genre, state["user_input"])
-                        else:
-                            prompt = builder(idea_brief, genre, state["user_input"], prior=prior)
-                        response = sori_client.call_sori(prompt, max_tokens=max_tok)
-                        storage.save_artifact(
-                            project_name, key, response,
-                            metadata={"genre": genre["code"], "from": "writing"},
-                        )
-                        st.session_state[f"w_art_result_{key}"] = response
-                        st.success(f"✓ {label} 저장됨")
+                    if key == "logline":
+                        prompt = builder(idea_brief, genre, state["user_input"])
+                    else:
+                        prompt = builder(idea_brief, genre, state["user_input"], prior=prior)
+                    st.session_state.ssm_busy = {"label": f"{label} 작성 중", "detail": project_name}
+                    live = st.empty()
+                    response = sori_client.stream_to_placeholder(prompt, live, max_tokens=max_tok)
+                    st.session_state.pop("ssm_busy", None)
+                    storage.save_artifact(
+                        project_name, key, response,
+                        metadata={"genre": genre["code"], "from": "writing"},
+                    )
+                    st.session_state[f"w_art_result_{key}"] = response
+                    st.success(f"✓ {label} 저장됨")
 
         for key, label, _, _ in art_buttons:
             result_key = f"w_art_result_{key}"

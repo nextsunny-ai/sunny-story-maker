@@ -259,6 +259,10 @@ if source_text and project_name and target_letters:
                 target_genre = GENRES[letter]
                 status.markdown(f"**{i+1}/{len(target_letters)}** · {target_genre['name']} 작업 중...")
 
+                st.session_state.ssm_busy = {
+                    "label": f"{target_genre['name']} 변환 중",
+                    "detail": f"{i+1}/{len(target_letters)}",
+                }
                 if depth_key == "B":
                     # 트리트먼트만
                     prompt = sori_client.build_treatment_prompt(
@@ -266,7 +270,8 @@ if source_text and project_name and target_letters:
                         user_input={"source_medium": GENRES[source_letter]['name']},
                         prior={"원본": idea_summary},
                     )
-                    response = sori_client.call_sori(prompt, max_tokens=6000)
+                    live = st.empty()
+                    response = sori_client.stream_to_placeholder(prompt, live, max_tokens=6000)
                     per_medium[letter] = {"treatment": response}
 
                     storage.save_artifact(
@@ -285,7 +290,10 @@ if source_text and project_name and target_letters:
                         user_input={"source_medium": GENRES[source_letter]['name']},
                         prior={"원본": idea_summary},
                     )
-                    package_results["synopsis"] = sori_client.call_sori(p_synopsis, max_tokens=3000)
+                    syn_live = st.empty()
+                    package_results["synopsis"] = sori_client.stream_to_placeholder(
+                        p_synopsis, syn_live, max_tokens=3000
+                    )
 
                     # 캐릭터
                     sub_status.caption(f"  ↳ {target_genre['name']} 캐릭터...")
@@ -293,7 +301,10 @@ if source_text and project_name and target_letters:
                         idea_summary, target_genre,
                         prior={"시놉시스": package_results["synopsis"]},
                     )
-                    package_results["characters"] = sori_client.call_sori(p_chars, max_tokens=5000)
+                    char_live = st.empty()
+                    package_results["characters"] = sori_client.stream_to_placeholder(
+                        p_chars, char_live, max_tokens=5000
+                    )
 
                     # 첫 부분 샘플
                     sub_status.caption(f"  ↳ {target_genre['name']} 첫 부분...")
@@ -305,7 +316,10 @@ if source_text and project_name and target_letters:
                         },
                         target_section=f"{target_genre['name']} 첫 부분 샘플",
                     )
-                    package_results["script"] = sori_client.call_sori(p_script, max_tokens=6000)
+                    script_live = st.empty()
+                    package_results["script"] = sori_client.stream_to_placeholder(
+                        p_script, script_live, max_tokens=6000
+                    )
                     sub_status.empty()
 
                     per_medium[letter] = package_results
@@ -320,6 +334,7 @@ if source_text and project_name and target_letters:
 
                 progress.progress((i + 1) / len(target_letters))
 
+            st.session_state.pop("ssm_busy", None)
             status.success(f"✓ {len(target_letters)}개 매체 변환 완료")
 
             st.session_state.osmu_result = {

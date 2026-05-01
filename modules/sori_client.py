@@ -179,6 +179,32 @@ def call_sori(user_prompt: str, max_tokens: int = 4096, temperature: float = 0.7
     return _call_via_sdk(user_prompt, max_tokens=max_tokens, temperature=temperature, model=model)
 
 
+def stream_to_placeholder(
+    prompt: str,
+    placeholder,
+    max_tokens: int = 4096,
+    temperature: float = 0.7,
+    model: str = None,
+    cursor: str = "▌",
+) -> str:
+    """스트리밍해서 placeholder에 글자 흐르게 + 최종 텍스트 반환.
+    실패 시 call_sori로 폴백.
+    placeholder: st.empty() 또는 st.container() — markdown 메서드를 가져야 함.
+    """
+    full = ""
+    try:
+        for chunk in stream_sori(prompt, max_tokens=max_tokens, temperature=temperature, model=model):
+            full += chunk
+            placeholder.markdown(full + cursor)
+        placeholder.markdown(full)
+        return full
+    except Exception:
+        # 스트리밍 실패 시 동기 호출로 폴백
+        full = call_sori(prompt, max_tokens=max_tokens, temperature=temperature, model=model)
+        placeholder.markdown(full)
+        return full
+
+
 def stream_sori(user_prompt: str, max_tokens: int = 4096, temperature: float = 0.7, model: str = None) -> Iterator[str]:
     """스트리밍 응답.
     model: 명시 시 해당 모델 사용 (예: 'claude-haiku-4-5' 빠른 채팅용). 미지정 시 DEFAULT_MODEL.
