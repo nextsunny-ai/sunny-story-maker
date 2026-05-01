@@ -300,9 +300,36 @@ if st.button(
                     else:
                         prompt = builder(idea, genre, user_input, prior=prior)
 
-                    response = sori_client.call_sori(
-                        prompt, max_tokens=max_tokens_map.get(key, 4000)
-                    )
+                    # 스트리밍 — 글자가 실시간으로 흐르도록 (챗지피티 느낌)
+                    stream_placeholder = status_box.empty()
+                    response = ""
+                    if sori_client.is_configured():
+                        try:
+                            for chunk in sori_client.stream_sori(
+                                prompt, max_tokens=max_tokens_map.get(key, 4000)
+                            ):
+                                response += chunk
+                                # 너무 자주 그리면 느려지니 일정 길이마다만 갱신
+                                if len(response) % 80 < len(chunk):
+                                    with stream_placeholder.container():
+                                        for line in status_lines[:-1]:
+                                            st.markdown(line)
+                                        st.markdown(f"⏳ **{artifact_name}** 작성 중... ({len(response):,}자)")
+                                        st.markdown(
+                                            f"<div style='max-height:200px; overflow-y:auto; "
+                                            f"background:var(--card); padding:8px; border-radius:6px; "
+                                            f"font-size:12px; opacity:0.7;'>{response[-500:]}</div>",
+                                            unsafe_allow_html=True,
+                                        )
+                        except Exception:
+                            # 스트리밍 실패하면 일반 호출로 폴백
+                            response = sori_client.call_sori(
+                                prompt, max_tokens=max_tokens_map.get(key, 4000)
+                            )
+                    else:
+                        response = sori_client.call_sori(
+                            prompt, max_tokens=max_tokens_map.get(key, 4000)
+                        )
 
                     if not response or response.startswith("[오류]") or response.startswith("[Mock"):
                         raise ValueError(f"빈 응답 또는 오류 응답: {response[:100] if response else 'empty'}")
