@@ -56,8 +56,8 @@ if upload_method.startswith("텍스트"):
         value=st.session_state.get("osmu_idea", ""),
         height=180,
         placeholder=(
-            "예) 조선시대 요괴 사냥꾼이 봉인이 풀려 현대 서울로 떨어진다. "
-            "자기를 봉인했던 후손을 찾아가는 여정..."
+            "예) 번아웃으로 퇴사한 30대 직장인이 시골 마을 작은 카페를 인수한다. "
+            "처음엔 도시로 돌아갈 생각이었지만 마을 사람들과 엮이면서..."
         ),
     )
 

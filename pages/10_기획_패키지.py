@@ -39,7 +39,7 @@ with col1:
     project_name = st.text_input(
         "작품명",
         value=st.session_state.get("pkg_project_name", ""),
-        placeholder="예: 조선요괴 서울생존기",
+        placeholder="예: 시골카페 일기",
     )
 with col2:
     genre_choice = st.selectbox(
@@ -55,7 +55,7 @@ idea = st.text_area(
     "한 줄 아이디어",
     value=st.session_state.get("pkg_idea", ""),
     height=80,
-    placeholder="예) 조선시대 요괴 사냥꾼이 봉인이 풀려 현대 서울로 떨어진다",
+    placeholder="예) 번아웃으로 퇴사한 30대 직장인이 시골 마을 작은 카페를 인수하면서 벌어지는 일",
 )
 
 

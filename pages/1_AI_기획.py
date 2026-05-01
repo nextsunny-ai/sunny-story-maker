@@ -34,7 +34,7 @@ st.markdown("## 1. 아이디어 입력")
 idea = st.text_area(
     "한 줄 아이디어",
     height=80,
-    placeholder="예) 조선시대 요괴 사냥꾼이 현대 서울로 떨어지면서 벌어지는 일",
+    placeholder="예) 번아웃으로 퇴사한 30대 직장인이 시골 마을 작은 카페를 인수하면서 벌어지는 일",
 )
 
 col1, col2 = st.columns([2, 1])
@@ -43,7 +43,7 @@ with col1:
     genre_letter = parse_genre_choice(genre_choice)
     genre = GENRES[genre_letter]
 with col2:
-    project_name = st.text_input("작품명 (저장용)", placeholder="예: 조선요괴 서울생존기")
+    project_name = st.text_input("작품명 (저장용)", placeholder="예: 시골카페 일기")
 
 # 장르 정보 미리보기
 with st.expander(f"📖 {genre['name']} 핵심 가이드", expanded=False):
