@@ -5,8 +5,10 @@
 # ============================================================
 # 공통 필드 — 모든 장르에 적용되는 글쓰기 본질
 # ============================================================
-def common_writing_fields(extra: list = None) -> list:
-    """매체 무관 글쓰기 필수 입력 — 장르/타겟/톤/주인공/시점/세계관/후크"""
+def common_writing_fields(extra: list = None, exclude: list = None) -> list:
+    """매체 무관 글쓰기 필수 입력 — 장르/타겟/톤/주인공/시점/세계관/후크
+    exclude: 매체별로 빼고 싶은 키 (예: 유튜브는 first_hook 제외)"""
+    exclude = exclude or []
     base = [
         # ★ 타겟 — 톤을 결정하는 핵심 (작가가 명시적으로 정함)
         {"key": "target_audience", "label": "타겟 (연령/특성 — 톤 결정에 영향)", "type": "select",
@@ -89,6 +91,8 @@ def common_writing_fields(extra: list = None) -> list:
         {"key": "first_hook", "label": "첫 장면/컷 후크 (무엇으로 독자/시청자를 잡을지)", "type": "textarea",
          "placeholder": "예) 평범한 카페 알바생이 손님 컵 안에서 자기 시체를 발견한다."},
     ]
+    if exclude:
+        base = [f for f in base if f["key"] not in exclude]
     if extra:
         base = (extra or []) + base
     return base
@@ -271,10 +275,24 @@ WORKFLOWS = {
                          "다큐/르포", "인터뷰", "ASMR/힐링", "음악/MV", "게임", "캐릭터 스핀오프", "혼합"]},
             {"key": "length_type", "label": "콘텐츠 길이", "type": "select",
              "options": ["쇼츠 (60초 이하)", "1~3분 (초단편)", "5~15분 (미드폼)", "20~40분 (롱폼)", "1시간+ (대화/팟캐스트)"]},
-            *common_writing_fields(),
-            {"key": "first_3sec", "label": "첫 3초 후크 (가장 중요)", "type": "textarea",
+            # 유튜브는 first_hook(공통)이 first_3sec와 중복 — first_hook만 제외
+            # structure는 살림 (스토리텔링은 기승전결, 해설은 주장-근거 구조 등)
+            *common_writing_fields(exclude=["first_hook"]),
+            {"key": "first_3sec", "label": "첫 3초 후크 (★ 가장 중요)", "type": "textarea",
              "placeholder": "충격적인 사실/질문/소리. 시청자가 멈출 한 줄."},
-            {"key": "cta", "label": "콜투액션 (영상 끝에 무엇을 시킬지)", "type": "textarea",
+            {"key": "main_content", "label": "본론에 다룰 핵심 내용 / 줄거리", "type": "textarea",
+             "placeholder": (
+                 "콘텐츠 유형에 맞춰 작성:\n"
+                 "• 스토리텔링: 기승전결 흐름 (예: 1) 평범한 일상  2) 사건 발생  3) 진실 발견  4) 결말)\n"
+                 "• 해설/리뷰: 핵심 주장 + 근거 3가지 + 반박\n"
+                 "• 브이로그: 하루 흐름 / 분위기 키워드\n"
+                 "• 교육/튜토리얼: 학습 목표 + 단계 + 예시\n"
+                 "• 게임: 플레이 포인트 + 해설 톤\n"
+                 "• 캐릭터 스핀오프: 원작 IP + 이번 회차 컨셉"
+             )},
+            {"key": "thumbnail_concept", "label": "썸네일 컨셉 (한 줄)", "type": "text",
+             "placeholder": "예: 주인공 컵 안의 시체 + '이 카페에 다신 안 갑니다'"},
+            {"key": "cta", "label": "콜투액션 (영상 끝에 무엇을 시킬지)", "type": "text",
              "placeholder": "예: 다음 화 구독 / 댓글 / 공유 / 굿즈 구매"},
         ],
         "export_format": "youtube_script",

@@ -12,6 +12,9 @@ css_path = Path(__file__).parent.parent / "assets" / "styles.css"
 if css_path.exists():
     st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
+
+from modules.sidebar import render_sidebar
+render_sidebar()
 st.markdown(
     """
     <div class="app-header">
@@ -166,11 +169,62 @@ else:
                 )
                 st.success(f"✓ {project_name} v{meta['version']} 저장")
 
-# 최종 다운로드
+# 최종 다운로드 + 추가 산출물
 if state["stage_idx"] == len(workflow["steps"]) - 1 and current_step in state["results"]:
     st.markdown("---")
-    st.markdown("## 📥 최종 출력")
     full_text = "\n\n".join([f"## {k}\n\n{v}" for k, v in state["results"].items()])
+
+    # ========== 추가 산출물 생성 (B 통합) ==========
+    if project_name:
+        st.markdown("## 📦 추가 산출물 생성")
+        st.caption("작품 폴더에 자동 저장됩니다 (output/<작품명>/artifacts/).")
+
+        art_buttons = [
+            ("logline",    "🎯 로그라인",    sori_client.build_logline_prompt, 1500),
+            ("synopsis",   "📄 시놉시스",   sori_client.build_synopsis_prompt, 3000),
+            ("characters", "👥 캐릭터 시트", sori_client.build_characters_prompt, 5000),
+            ("worldview",  "🌐 세계관",      sori_client.build_worldview_prompt, 4000),
+            ("episodes",   "📺 회차 구성표", sori_client.build_episodes_prompt, 7000),
+            ("proposal",   "📑 기획안",      sori_client.build_proposal_prompt, 5000),
+        ]
+
+        art_cols = st.columns(3)
+        prior = {"집필 결과": full_text[:6000]}
+        idea_brief = state["user_input"].get("hook") or state["user_input"].get("first_hook") or project_name
+
+        for i, (key, label, builder, max_tok) in enumerate(art_buttons):
+            col = art_cols[i % 3]
+            with col:
+                if st.button(label, key=f"w_art_{key}", use_container_width=True):
+                    with st.spinner(f"{label} 작성 중..."):
+                        if key == "logline":
+                            prompt = builder(idea_brief, genre, state["user_input"])
+                        else:
+                            prompt = builder(idea_brief, genre, state["user_input"], prior=prior)
+                        response = sori_client.call_sori(prompt, max_tokens=max_tok)
+                        storage.save_artifact(
+                            project_name, key, response,
+                            metadata={"genre": genre["code"], "from": "writing"},
+                        )
+                        st.session_state[f"w_art_result_{key}"] = response
+                        st.success(f"✓ {label} 저장됨")
+
+        for key, label, _, _ in art_buttons:
+            result_key = f"w_art_result_{key}"
+            if result_key in st.session_state:
+                with st.expander(f"📄 {label}", expanded=False):
+                    st.markdown(st.session_state[result_key])
+
+        # 산출물 현황
+        artifacts = storage.list_artifacts(project_name)
+        info_line = " · ".join([
+            f"**{info['name']}** v{info['latest_version']}" if info["has"] else f"~~{info['name']}~~"
+            for k, info in sorted(artifacts.items(), key=lambda x: x[1]["order"])
+        ])
+        st.caption(info_line)
+
+    st.markdown("---")
+    st.markdown("## 📥 최종 출력")
 
     if st.button("📥 .docx 다운로드"):
         doc_bytes = exporter.export_to_docx(

@@ -740,6 +740,462 @@ def build_genre_recommend_prompt(text: str, source_genre: dict) -> str:
 """
 
 
+# ============================================================
+# 산출물 (Artifacts) 프롬프트 빌더 — 8종
+# 각 산출물은 매체/장르/타겟/톤 등 작가 입력을 받아 별도 생성
+# ============================================================
+
+def _common_brief(idea: str, genre: dict, user_input: dict) -> str:
+    """모든 산출물 빌더에 공통으로 들어가는 작품 정보 블록.
+    영화/드라마면 심도 가이드 자동 첨부."""
+    fields = "\n".join([f"- **{k}**: {v}" for k, v in (user_input or {}).items() if v])
+    deep = _drama_movie_deep_addendum(genre, user_input)
+    return f"""## 작품 기본 정보
+- **아이디어**: {idea}
+- **매체**: {genre['name']} ({genre['subtitle']})
+- **분량 표준**: {genre.get('분량_표준', '')}
+{fields}
+{deep}"""
+
+
+def build_logline_prompt(idea: str, genre: dict, user_input: dict = None) -> str:
+    """로그라인 — 영화 제작자가 1초 안에 판단할 수 있는 1줄"""
+    return f"""# 작업 요청: 로그라인 생성
+
+{_common_brief(idea, genre, user_input)}
+
+## 출력 형식
+**로그라인 3안** — 작가가 고르거나 합칠 수 있게 3가지 변형:
+
+### 안 1 (구조형)
+"[누가] [어떤 상황에서] [무엇을] [왜] 한다"
+
+### 안 2 (감정형)
+캐릭터의 감정·결핍에 초점
+
+### 안 3 (반전형)
+훅이 강한 1줄 — 마지막에 반전
+
+## 룰
+- 각 안 1줄 이내
+- 30년 CD가 1초 안에 판단 가능한 명료함
+- humanizer 적용 (격언체/관념어 X)
+- 매체에 맞는 톤 (영화는 시네마틱, 숏드라마는 강렬, 다큐는 질문형)
+"""
+
+
+def build_synopsis_prompt(idea: str, genre: dict, user_input: dict = None, prior: dict = None) -> str:
+    """시놉시스 — A4 1쪽"""
+    prior_part = ""
+    if prior:
+        prior_part = "\n\n## 이미 작성된 자료\n" + "\n\n".join([f"### {k}\n{v[:1000]}" for k, v in prior.items()])
+
+    return f"""# 작업 요청: 시놉시스 (A4 1쪽)
+
+{_common_brief(idea, genre, user_input)}
+{prior_part}
+
+## 출력 형식
+**시놉시스 본문** (A4 1쪽 = 약 1,200자):
+
+1. **시작 (Setup)** — 인물·세계 소개 (3~4줄)
+2. **발단 (Inciting Incident)** — 사건 발생 (2~3줄)
+3. **전개 (Plot Point 1 → Midpoint → Plot Point 2)** — 핵심 갈등 (4~6줄)
+4. **절정·결말 (Climax → Resolution)** — 어떻게 끝나는가 (2~3줄)
+
+## 룰
+- 한국어 자연스러움 우선
+- humanizer 6패턴 자가 검증
+- "그것은 ~이었다" 같은 번역체 X
+- 캐릭터의 결핍·아크 명확
+- 시놉시스 자체가 곧 피칭 자료
+"""
+
+
+def _drama_movie_deep_addendum(genre: dict, user_input: dict = None) -> str:
+    """영화·드라마 전용 심도 가이드 (Save the Cat 15비트 + 한국 실무 + 회차 구조)"""
+    code = genre.get("code", "")
+    if code not in ("drama", "movie"):
+        return ""
+
+    if code == "drama":
+        episodes = (user_input or {}).get("episodes", "12부작")
+        return f"""
+
+## ★ TV 드라마 심도 가이드 (한국 실무 표준)
+
+### 회차 수: {episodes}
+회차별 미드포인트·턴 위치는 이 회차 수 기준으로 계산.
+
+### 한국 드라마 작가 작법 — 김은희·박찬욱·김원석 패턴
+- **A플롯·B플롯 병행**: A=메인 사건/관계, B=서브 캐릭터/일상. 매 회 둘 다 진전
+- **회차 후크 (마지막 30초~1분)**: 다음 회 본방사수 결정. 강력한 클리프행어
+- **8~12회 구간 처짐 방지** (코리안 드라마 고질병): 미드포인트 큰 반전 필수
+- **대사가 곧 사건**: 한 줄 대사로 관계가 뒤집힌다 (정보 전달 X)
+- **회차별 1화 후크**: 첫 5분 안에 시청자를 의자에 묶어두는 사건/대사
+
+### Save the Cat 15비트 + 한국 드라마 회차 매핑
+- Opening Image (1화 1분) → 일상의 평범
+- Theme Stated (1화 5~10분) → 누군가 작품 주제를 흘림
+- Setup → Catalyst (1~2화) → Inciting Incident
+- Debate → Break Into Two (3화 끝) → Plot Point 1
+- B Story (4화) → 서브 라인 시작
+- Fun & Games (5~7화) → 약속의 즐거움
+- Midpoint ({episodes} 중반) → 큰 반전 또는 가짜 승리
+- Bad Guys Close In (중후반) → 모든 게 무너짐
+- All Is Lost → Dark Night → Break Into Three (마지막 3~4화 전)
+- Finale (마지막 회) → Final Image (Opening 대칭)
+
+### 한국 드라마 대사 룰 (humanizer)
+- "당신" 남발 X → "오빠/형/누나/이름" 호명
+- 영어식 직설 X → 서브텍스트 ("그쪽이 좋다고 하면 어떻게 할 거예요?")
+- 감정 설명 대사 X → 행동/소품/침묵
+- 표준어 일변도 X → 캐릭터 출신/직업/세대 따라 사투리·줄임말
+"""
+
+    # movie
+    runtime = (user_input or {}).get("runtime", "100분")
+    return f"""
+
+## ★ 영화 심도 가이드 (한국 영화 표준)
+
+### 러닝타임: {runtime}
+1페이지 = 1분 기준. 시퀀스 분할.
+
+### 한국 영화 작가 작법 — 박찬욱·봉준호·김지운 패턴
+- **첫 10분 = 영화의 운명**: 관객을 의자에 묶어두는 시간
+- **절제**: 한 줄 대사·한 컷 장면이 무거워야 함. 라디오 드라마 X
+- **오프닝 ↔ 클로징 이미지 대칭**: 관객 무의식 충족
+- **미드포인트 (50~60분)**: 가장 큰 반전 또는 톤 전환
+- **에필로그 씬**: 전체 메시지를 한 컷에 압축
+- **대사보다 비주얼/소품/공간**이 더 많이 말한다
+- **캐릭터 4~6명**: 너무 많으면 누구도 깊지 못함
+
+### Save the Cat 15비트 — 영화 풀 적용
+- Opening Image (~1분) → 일상의 평범
+- Theme Stated (~5분) → 작품 주제 암시
+- Setup (~12분) → 인물·세계 소개
+- Catalyst (~12분) → Inciting Incident (사건 발생)
+- Debate (~25분) → 주인공 망설임
+- Break Into Two (~25분, 1막 끝) → 결심
+- B Story (~30분) → 서브 캐릭터 등장
+- Fun & Games (30~55분) → 약속의 즐거움
+- Midpoint (~55분) → 가짜 승리 또는 가짜 패배
+- Bad Guys Close In (55~75분) → 모든 게 무너지기 시작
+- All Is Lost (~75분) → 밑바닥
+- Dark Night of the Soul (75~85분) → 어둠
+- Break Into Three (~85분) → 깨달음
+- Finale (85~110분) → 클라이맥스
+- Final Image (~110분) → Opening Image 대칭
+
+### 영화 대사 룰 (humanizer)
+- 격언체 X → 캐릭터 비유로
+- 깔끔한 대구문 ("X가 아니라 Y야") X → 불완전한 문장
+- 의도가 다 보이는 대사 X → 서브텍스트
+- "OST를 위한 대사" X → 현실 대화처럼
+
+### 한국 영화 시나리오 표준 양식
+- 한글(.hwp) 또는 워드(.docx)
+- 함초롬바탕 11pt, 줄간격 160%, 자간 100%
+- 씬 헤딩: `S#1. 장소 / 시간` (한국식)
+- 분량: A4 70페이지 (영진위 기준)
+"""
+
+
+def build_treatment_prompt(idea: str, genre: dict, user_input: dict = None, prior: dict = None) -> str:
+    """트리트먼트 — A4 3~5쪽 (시놉시스 확장)"""
+    prior_part = ""
+    if prior:
+        prior_part = "\n\n## 이미 작성된 자료\n" + "\n\n".join([f"### {k}\n{v[:1500]}" for k, v in prior.items()])
+
+    return f"""# 작업 요청: 트리트먼트 (A4 3~5쪽)
+
+{_common_brief(idea, genre, user_input)}
+{prior_part}
+
+## 출력 형식
+**트리트먼트 본문** (A4 3~5쪽 = 약 4,000~6,500자):
+
+장 단위로 구성. 각 장에 핵심 사건·감정·턴 명시.
+
+### 1장 (Setup, 25%)
+- 인물 소개 + 일상
+- Inciting Incident (1막 끝)
+
+### 2장 전반 (Confrontation 1, 25%)
+- Plot Point 1 → 본격 갈등
+- 중간 위기
+
+### 2장 후반 (Confrontation 2, 25%)
+- Midpoint 반전
+- Plot Point 2 → 모든 게 무너짐
+
+### 3장 (Resolution, 25%)
+- Climax
+- Resolution + Epilogue
+
+## 룰
+- 씬 헤딩 X (그건 대본 단계). 줄글로.
+- 캐릭터 감정 흐름 명확
+- 핵심 대사 1~2개 인용 가능
+- humanizer 6패턴
+"""
+
+
+def build_characters_prompt(idea: str, genre: dict, user_input: dict = None, prior: dict = None) -> str:
+    """캐릭터 시트 — 메인 3~5명"""
+    prior_part = ""
+    if prior:
+        prior_part = "\n\n## 이미 작성된 자료\n" + "\n\n".join([f"### {k}\n{v[:1500]}" for k, v in prior.items()])
+
+    protagonist_count = (user_input or {}).get("protagonist_count", "1인 단독 (원톱)")
+
+    return f"""# 작업 요청: 캐릭터 시트
+
+{_common_brief(idea, genre, user_input)}
+{prior_part}
+
+## 출력 형식
+
+**메인 캐릭터 ({protagonist_count} 기준 + 적대자 + 핵심 조연 = 총 3~5명)** — 각 캐릭터마다:
+
+### [캐릭터명] (나이·성별·직업)
+
+**핵심 한 줄**: (이 캐릭터를 가장 잘 설명하는 한 줄)
+
+**Want vs Need**:
+- Want (표면 욕망):
+- Need (진짜 필요):
+
+**결핍 (Wound) → 거짓믿음 (Lie) → 결함 (Flaw)**:
+- Wound: 과거 상처
+- Lie: 그래서 믿게 된 거짓
+- Flaw: 그게 만든 결함
+
+**Backstory (3줄)**: 작가만 알아도 OK. 행동 일관성 만드는 배경
+
+**비유 체계 (★ 이 캐릭터만의 직업/취미 기반)**:
+- 예: 야구 비유 / 커피 비유 / 건축 비유 / 의료 비유
+
+**입버릇 / 시그니처 표현 1~2개**
+
+**캐릭터 아크**: (시작 → 끝 변화)
+
+**관계 매트릭스**: 다른 메인 캐릭터와의 관계 한 줄씩
+
+---
+
+(다음 캐릭터 동일 형식)
+
+## 룰
+- 4분면 매트릭스 균형 (외향/내향 × 행동/사고)
+- 캐릭터별 비유 체계 절대 겹치지 X
+- humanizer 적용
+- 이름 가리기 테스트 통과 가능한 화법 차별화
+"""
+
+
+def build_worldview_prompt(idea: str, genre: dict, user_input: dict = None, prior: dict = None) -> str:
+    """세계관 정리서"""
+    prior_part = ""
+    if prior:
+        prior_part = "\n\n## 이미 작성된 자료\n" + "\n\n".join([f"### {k}\n{v[:1200]}" for k, v in prior.items()])
+
+    era = (user_input or {}).get("era", "현대")
+    space = (user_input or {}).get("space", "서울/수도권 도시")
+
+    return f"""# 작업 요청: 세계관 정리서
+
+{_common_brief(idea, genre, user_input)}
+{prior_part}
+
+## 출력 형식
+
+### 1. 시대·공간
+- 시대: {era}
+- 공간: {space}
+- 시각적 톤 (의상/공간/색감 키워드)
+
+### 2. 룰 (이 세계만의 규칙)
+판타지·SF·사극이면 마법/기술/시대 룰. 현대물이면 사회 룰/직업 룰.
+- 룰 1:
+- 룰 2:
+- 룰 3:
+
+### 3. 시간대 / 연표 (해당 시)
+주요 사건 연표 (작품 속 과거 포함)
+
+### 4. 핵심 장소 5개
+- 장소 1 (이름·설명·기능)
+- 장소 2
+- 장소 3
+- 장소 4
+- 장소 5
+
+### 5. 사회 구조·계층·권력
+누가 위에 있고 누가 아래 있는가
+
+### 6. 작가 노트 (절대 작품에 안 나올 디테일)
+- 작가만 알아도 OK인 배경 (행동/대사 일관성용)
+
+## 룰
+- 세계관은 작가팀·디자인팀이 공유하는 문서
+- 번역체/관념어 X
+- 시각적·구체적 묘사
+"""
+
+
+def build_episodes_prompt(idea: str, genre: dict, user_input: dict = None, prior: dict = None) -> str:
+    """회차 구성표 — 드라마/숏드라마/웹툰/웹소설/애니 시리즈만"""
+    prior_part = ""
+    if prior:
+        prior_part = "\n\n## 이미 작성된 자료\n" + "\n\n".join([f"### {k}\n{v[:1500]}" for k, v in prior.items()])
+
+    episodes = (user_input or {}).get("episodes") or (user_input or {}).get("total_episodes") or "12부"
+
+    return f"""# 작업 요청: 회차 구성표
+
+{_common_brief(idea, genre, user_input)}
+{prior_part}
+
+## 출력 형식 (회차 수: {episodes})
+
+### 시즌 아크 한 줄
+시즌 전체를 관통하는 한 줄
+
+### 회차별 구성 (모든 회차 — 각 1단락)
+
+**EP01. [부제]**
+- 핵심 사건:
+- 시작 후크 (1분):
+- 중간 턴:
+- 엔딩 클리프행어:
+- 캐릭터 진전:
+
+**EP02. [부제]**
+(동일 형식)
+
+... 마지막 회까지
+
+### 회차 분포 표 (개관)
+| 회차 | 부제 | 주요 사건 | 캐릭터 진전 | 엔딩 톤 |
+|------|------|----------|-----------|--------|
+| EP01 | | | | |
+| ... | | | | |
+
+## 매체별 룰
+- 드라마: 매 회 후크 + A/B플롯 / 미드포인트 반전
+- 숏드라마: 매 회 클리프행어 / 페이월 5블록 의식
+- 웹툰: 컷 단위는 X. 회차별 첫컷·엔딩컷 컨셉만
+- 웹소설: 회당 5,000~5,500자 분량 의식
+- 애니 시리즈: 시즌 아크 + 에피 소아크 이중
+
+## humanizer 6패턴 적용
+"""
+
+
+def build_proposal_prompt(idea: str, genre: dict, user_input: dict = None, prior: dict = None) -> str:
+    """기획안 — 제작사/방송사/공모전 제출용"""
+    prior_part = ""
+    if prior:
+        prior_part = "\n\n## 이미 작성된 자료\n" + "\n\n".join([f"### {k}\n{v[:1500]}" for k, v in prior.items()])
+
+    return f"""# 작업 요청: 기획안 (제출용)
+
+{_common_brief(idea, genre, user_input)}
+{prior_part}
+
+## 출력 형식 — 한국 제작사·방송사 표준 기획안
+
+### 1. 제목 + 가제 + 부제
+
+### 2. 한 줄 정의 (로그라인)
+
+### 3. 기획 의도
+- 왜 이 시점에 이 작품인가
+- 작가의 동기·문제의식
+- 사회적 맥락 (있다면)
+※ 자기자랑 X. 기획 중심·설득 톤.
+
+### 4. 시장성 / 타겟
+- 메인 타겟층
+- 비교 작품 (벤치마크) 2~3편
+- 차별점
+
+### 5. 시놉시스 (요약 1쪽)
+
+### 6. 캐릭터 (메인 3~4명 — 각 한 단락)
+
+### 7. 톤 & 매너
+- 비주얼 키워드 5개
+- 음악·연출 방향
+
+### 8. 분량·일정 (개략)
+- 회차/러닝타임
+- 제작 단계별 일정
+
+### 9. 차별점 / 셀링 포인트 (핵심 3가지)
+
+### 10. 제작 가능성 / 예산 감
+- 캐스팅 후보 톤 (구체 이름 X — 분위기로)
+- 제작 난이도
+
+## 룰 (★ 절대)
+- 자기자랑 / 자기평가 X
+- 추측을 사실처럼 X (예: "Netflix 픽업 가능성")
+- 수치 인용 시 출처 명시
+- humanizer / 격언체 / 관념어 X
+- 30년 CD 통과 수준의 설득력
+"""
+
+
+def build_script_prompt(idea: str, genre: dict, user_input: dict = None, prior: dict = None,
+                       target_section: str = "EP01 첫 부분 샘플 (5~10페이지)") -> str:
+    """대본 본문 — 매체 표준 양식대로"""
+    prior_part = ""
+    if prior:
+        prior_part = "\n\n## 이미 작성된 자료\n" + "\n\n".join([f"### {k}\n{v[:2000]}" for k, v in prior.items()])
+
+    return f"""# 작업 요청: 대본 본문 ({target_section})
+
+{_common_brief(idea, genre, user_input)}
+{prior_part}
+
+## 매체 양식 (★ 정확히 준수)
+{genre['name']} 한국 실무 표준 양식:
+- 씬/컷 헤딩 형식: {genre.get('씬_포맷', '')}
+- 분량 표준: {genre.get('분량_표준', '')}
+
+## 출력
+{target_section} — 매체 양식 그대로 출력.
+
+## 룰
+- 씬 헤딩 양식 정확히 (`S#1. 장소 / 시간` 또는 매체별)
+- 캐릭터 화법 차별 (이름 가리기 테스트 통과)
+- 대사 숫자 = 한글 ("이십 년" / "20년" X)
+- 서브텍스트 활용 (직설 X)
+- humanizer 6패턴 자가 검증
+- 30년 CD 통과 수준
+"""
+
+
+def build_full_package_prompt(idea: str, genre: dict, user_input: dict, artifact_keys: list[str]) -> str:
+    """기획 패키지 한 번에 — 여러 산출물을 순차로 만드는 마스터 프롬프트.
+    실제로는 각 산출물 별도 호출 권장 (토큰/품질). 이 빌더는 미리보기용."""
+    return f"""# 작업 요청: 기획 패키지
+
+{_common_brief(idea, genre, user_input)}
+
+## 만들 산출물 ({len(artifact_keys)}종)
+{', '.join(artifact_keys)}
+
+각 산출물은 별도 호출로 깊이 작업할 것. 이 호출은 패키지 개요만 출력해줘:
+- 각 산출물 한 줄 요약 (이 작품의 그 산출물이 어떻게 나올지 미리보기)
+- 작업 권장 순서
+- 매체에 안 맞는 산출물 (예: 영화의 회차 구성표) 자동 제외 추천
+"""
+
+
 def build_osmu_prompt(idea: str, source_ip: str = "") -> str:
     """OSMU 모드 — 한 IP를 13장르 모두로"""
     ip_part = f"\n## 원본 IP\n{source_ip}\n" if source_ip else ""

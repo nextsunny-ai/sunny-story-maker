@@ -106,6 +106,115 @@ def latest_version(project_name: str) -> tuple[int, str]:
     return latest, load_version(project_name, latest)
 
 
+# ============================================================
+# 산출물 (Artifacts) — 작품별 다중 산출물 관리
+# 로그라인 / 시놉시스 / 트리트먼트 / 캐릭터시트 / 세계관 / 회차구성 / 기획안 / 대본
+# ============================================================
+
+ARTIFACT_TYPES = [
+    {"key": "logline",     "name": "로그라인",     "order": 1, "ext": ".md"},
+    {"key": "synopsis",    "name": "시놉시스",     "order": 2, "ext": ".md"},
+    {"key": "treatment",   "name": "트리트먼트",   "order": 3, "ext": ".md"},
+    {"key": "characters",  "name": "캐릭터시트",   "order": 4, "ext": ".md"},
+    {"key": "worldview",   "name": "세계관",       "order": 5, "ext": ".md"},
+    {"key": "episodes",    "name": "회차구성표",   "order": 6, "ext": ".md"},
+    {"key": "proposal",    "name": "기획안",       "order": 7, "ext": ".md"},
+    {"key": "script",      "name": "대본",         "order": 8, "ext": ".md"},
+]
+
+
+def artifacts_dir(project_name: str) -> Path:
+    p = project_dir(project_name) / "artifacts"
+    p.mkdir(exist_ok=True)
+    return p
+
+
+def save_artifact(project_name: str, artifact_key: str, body: str, metadata: dict = None) -> dict:
+    """작품의 특정 산출물 저장. 같은 산출물 다시 저장하면 v2, v3로 누적."""
+    artifact = next((a for a in ARTIFACT_TYPES if a["key"] == artifact_key), None)
+    if not artifact:
+        raise ValueError(f"Unknown artifact type: {artifact_key}")
+
+    a_dir = artifacts_dir(project_name)
+    base_name = f"{artifact['order']:02d}_{artifact['key']}"
+
+    # 기존 버전 확인
+    existing = list(a_dir.glob(f"{base_name}_v*.md"))
+    if existing:
+        nums = [int(f.stem.split("_v")[-1]) for f in existing if f.stem.split("_v")[-1].isdigit()]
+        next_v = max(nums) + 1 if nums else 1
+    else:
+        next_v = 1
+
+    body_path = a_dir / f"{base_name}_v{next_v}.md"
+    body_path.write_text(body, encoding="utf-8")
+
+    meta_path = a_dir / f"{base_name}_v{next_v}.json"
+    meta = {
+        "type": artifact_key,
+        "name": artifact["name"],
+        "version": next_v,
+        "saved_at": datetime.now().isoformat(),
+        "char_count": len(body),
+        **(metadata or {}),
+    }
+    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    return meta
+
+
+def load_artifact(project_name: str, artifact_key: str, version: int = None) -> tuple[str, dict]:
+    """산출물 로드. version 미지정 시 최신."""
+    artifact = next((a for a in ARTIFACT_TYPES if a["key"] == artifact_key), None)
+    if not artifact:
+        return "", {}
+
+    a_dir = artifacts_dir(project_name)
+    base_name = f"{artifact['order']:02d}_{artifact['key']}"
+
+    if version is None:
+        existing = list(a_dir.glob(f"{base_name}_v*.md"))
+        if not existing:
+            return "", {}
+        nums = [int(f.stem.split("_v")[-1]) for f in existing if f.stem.split("_v")[-1].isdigit()]
+        if not nums:
+            return "", {}
+        version = max(nums)
+
+    body_path = a_dir / f"{base_name}_v{version}.md"
+    meta_path = a_dir / f"{base_name}_v{version}.json"
+    body = body_path.read_text(encoding="utf-8") if body_path.exists() else ""
+    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+    return body, meta
+
+
+def list_artifacts(project_name: str) -> dict:
+    """작품의 산출물 현황 — {type_key: {has, latest_version, char_count}}"""
+    a_dir = artifacts_dir(project_name)
+    result = {}
+    for artifact in ARTIFACT_TYPES:
+        base_name = f"{artifact['order']:02d}_{artifact['key']}"
+        existing = list(a_dir.glob(f"{base_name}_v*.md"))
+        if existing:
+            nums = [int(f.stem.split("_v")[-1]) for f in existing if f.stem.split("_v")[-1].isdigit()]
+            latest_v = max(nums) if nums else 0
+            body, meta = load_artifact(project_name, artifact["key"], latest_v)
+            result[artifact["key"]] = {
+                "has": True,
+                "name": artifact["name"],
+                "order": artifact["order"],
+                "latest_version": latest_v,
+                "char_count": meta.get("char_count", len(body)),
+                "saved_at": meta.get("saved_at", ""),
+            }
+        else:
+            result[artifact["key"]] = {
+                "has": False,
+                "name": artifact["name"],
+                "order": artifact["order"],
+            }
+    return result
+
+
 def _update_index(project_name: str, version_meta: dict):
     """프로젝트 인덱스 — 모든 버전 한 눈에"""
     p = project_dir(project_name)

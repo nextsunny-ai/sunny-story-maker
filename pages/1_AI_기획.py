@@ -12,6 +12,9 @@ css_path = Path(__file__).parent.parent / "assets" / "styles.css"
 if css_path.exists():
     st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
+
+from modules.sidebar import render_sidebar
+render_sidebar()
 st.markdown(
     """
     <div class="app-header">
@@ -62,8 +65,36 @@ if st.button("🪄 AI 작가에게 맡기기", type="primary", use_container_wid
     workflow = get_workflow(genre_letter)
     prompt = sori_client.build_ai_pitch_prompt(idea, genre, workflow)
 
-    with st.spinner("AI 작가가 기획 중... (1~2분 소요)"):
-        result = sori_client.call_sori(prompt, max_tokens=8000)
+    # 진행 상태 + 실시간 텍스트
+    import time
+    start_ts = time.time()
+
+    status_box = st.empty()
+    timer_box = st.empty()
+    result_box = st.empty()
+
+    status_box.info(f"🪄 AI 작가가 **{genre['name']}** 기획 중... (로그라인 → 트리트먼트 → 시놉시스 → 첫 부분 샘플)")
+
+    result = ""
+    chunk_count = 0
+    try:
+        for chunk in sori_client.stream_sori(prompt, max_tokens=8000):
+            result += chunk
+            chunk_count += 1
+            # 글자가 흘러내리는 게 보이게
+            result_box.markdown(result + " ▌")
+            # 5청크마다 경과 시간 갱신
+            if chunk_count % 5 == 0:
+                elapsed = int(time.time() - start_ts)
+                timer_box.caption(f"⏱ 경과 {elapsed}초 · 글자 {len(result):,}자")
+    except Exception as e:
+        result_box.error(f"[오류] {e}")
+        result = result or f"[오류] {e}"
+
+    elapsed_total = int(time.time() - start_ts)
+    timer_box.caption(f"✓ 완료 · 총 {elapsed_total}초 · {len(result):,}자")
+    status_box.success(f"✓ 기획 완료 ({elapsed_total}초)")
+    result_box.empty()  # 아래 결과 영역에서 다시 그릴 거라 여기선 비움
 
     st.session_state.ai_pitch_result = {
         "idea": idea,
@@ -106,3 +137,56 @@ if "ai_pitch_result" in st.session_state:
         if st.button("✏️ 집필로 이어가기", use_container_width=True):
             st.session_state.cowrite_seed = r
             st.switch_page("pages/2_집필.py")
+
+    # ========== 추가 산출물 생성 (B 통합) ==========
+    st.markdown("---")
+    st.markdown("### 📦 추가 산출물 생성")
+    st.caption("작품 폴더에 자동 저장됩니다 (output/<작품명>/artifacts/).")
+
+    art_buttons = [
+        ("characters", "👥 캐릭터 시트",  sori_client.build_characters_prompt, 5000),
+        ("worldview",  "🌐 세계관 정리서", sori_client.build_worldview_prompt, 4000),
+        ("treatment",  "📝 트리트먼트",   sori_client.build_treatment_prompt, 6000),
+        ("episodes",   "📺 회차 구성표",  sori_client.build_episodes_prompt, 7000),
+        ("proposal",   "📑 기획안",       sori_client.build_proposal_prompt, 5000),
+        ("script",     "🎬 대본 샘플",    sori_client.build_script_prompt, 6000),
+    ]
+
+    art_cols = st.columns(3)
+    for i, (key, label, builder, max_tok) in enumerate(art_buttons):
+        col = art_cols[i % 3]
+        with col:
+            if st.button(label, key=f"art_{key}", use_container_width=True):
+                with st.spinner(f"{label} 작성 중..."):
+                    prior = {"AI 기획 결과": r["result"]}
+                    prompt = builder(r["idea"], r["genre"], prior=prior)
+                    response = sori_client.call_sori(prompt, max_tokens=max_tok)
+                    storage.save_artifact(
+                        r["project"], key, response,
+                        metadata={"genre": r["genre"]["code"], "idea": r["idea"], "from": "ai_pitch"},
+                    )
+                    st.session_state[f"art_result_{key}"] = response
+                    st.success(f"✓ {label} 저장됨 → output/{r['project']}/artifacts/")
+
+    # 생성된 산출물 표시
+    for key, label, _, _ in art_buttons:
+        result_key = f"art_result_{key}"
+        if result_key in st.session_state:
+            with st.expander(f"📄 {label}", expanded=False):
+                st.markdown(st.session_state[result_key])
+                st.download_button(
+                    f"📥 {key}.md 다운로드",
+                    data=st.session_state[result_key].encode("utf-8"),
+                    file_name=f"{r['project']}_{key}.md",
+                    mime="text/markdown",
+                    key=f"dl_art_{key}",
+                )
+
+    # 산출물 현황
+    st.markdown("### 📂 작품 폴더 현황")
+    artifacts = storage.list_artifacts(r["project"])
+    info_line = " · ".join([
+        f"**{info['name']}** v{info['latest_version']}" if info["has"] else f"~~{info['name']}~~"
+        for k, info in sorted(artifacts.items(), key=lambda x: x[1]["order"])
+    ])
+    st.caption(info_line)
