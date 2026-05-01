@@ -3,11 +3,10 @@
 모두 작품 폴더(output/<작품명>/artifacts/)에 자동 저장."""
 
 import streamlit as st
-from datetime import datetime
 from modules.page_init import init_page
 init_page("기획 패키지 — SUNNY Story Maker")
 
-from modules import sori_client, storage, exporter
+from modules import sori_client, storage
 from modules.genres import GENRES, list_genre_names, parse_genre_choice
 from modules.workflows import get_workflow
 st.markdown(
@@ -59,28 +58,99 @@ idea = st.text_area(
 )
 
 
-# ========== 2. 작가 입력 (선택 — 더 정확한 산출물용) ==========
-with st.expander("📝 추가 정보 (선택 — 더 정확한 결과 위해)", expanded=False):
-    workflow = get_workflow(genre_letter)
-    user_input = {}
-    cols = st.columns(2)
-    common_keys = ["sub_genre", "tone", "target_audience", "protagonist_count",
-                   "pov", "era", "space", "structure"]
-    for i, field in enumerate(workflow.get("fields", [])):
-        if field["key"] not in common_keys:
-            continue
-        col = cols[i % 2]
-        key = field["key"]
-        f_type = field["type"]
-        with col:
-            if f_type == "select":
-                user_input[key] = st.selectbox(field["label"], field["options"], key=f"pkg_{key}")
-            elif f_type == "multiselect":
-                user_input[key] = st.multiselect(field["label"], field["options"], key=f"pkg_{key}")
-            elif f_type == "textarea":
-                user_input[key] = st.text_area(field["label"], placeholder=field.get("placeholder", ""), key=f"pkg_{key}")
-            else:
-                user_input[key] = st.text_input(field["label"], placeholder=field.get("placeholder", ""), key=f"pkg_{key}")
+# ========== 2. 매체 분량 + 추가 정보 ==========
+workflow = get_workflow(genre_letter)
+user_input = {}
+
+# 분량 필드는 밖으로 빼서 무조건 노출 — "분량/회차/러닝타임/면적" 등 매체별 규모 필드
+LENGTH_KEYS = {
+    "episodes",        # A 드라마 회차 수
+    "runtime",         # B 영화 러닝타임
+    "total_episodes",  # C 숏드라마 / H 웹소설
+    "ep_length",       # E 애니 / M 예능 1편 분량
+    "ep_count",        # E 애니 시즌당 화수
+    "length_target",   # F 웹툰
+    "duration",        # G 다큐 / I 뮤지컬
+    "chars_per_ep",    # H 웹소설 회당 글자수
+    "length_type",     # J 유튜브
+    "area",            # K 전시 면적
+    "zone_count",      # K 존 구성
+}
+# custom 자식 필드: 부모 select가 '기타' 류일 때 같이 나타나는 직접입력 필드
+# 규칙: 이름이 "{parent}_custom"이면 자동으로 부모와 페어링
+all_fields = workflow.get("fields", [])
+all_keys = {f["key"] for f in all_fields}
+
+CUSTOM_KEYS = {k for k in all_keys if k.endswith("_custom") and k[:-7] in all_keys}
+CUSTOM_PARENT = {k: k[:-7] for k in CUSTOM_KEYS}
+
+length_fields = [f for f in all_fields if f["key"] in LENGTH_KEYS]
+custom_fields_by_parent = {f["key"]: f for f in all_fields if f["key"] in CUSTOM_KEYS}
+detail_fields = [
+    f for f in all_fields
+    if f["key"] not in LENGTH_KEYS and f["key"] not in CUSTOM_KEYS
+]
+
+
+def _render_with_custom(field: dict):
+    """select + 그 자식 _custom 필드를 짝으로. '기타' 선택 시만 자식 노출."""
+    _render_field(field)
+    child_key = f"{field['key']}_custom"
+    if child_key in custom_fields_by_parent:
+        parent_val = user_input.get(field["key"], "")
+        if isinstance(parent_val, str) and "기타" in parent_val:
+            child = dict(custom_fields_by_parent[child_key])
+            if not child.get("label", "").startswith("↪"):
+                child["label"] = "↪ 직접 입력"
+            _render_field(child)
+        else:
+            user_input[child_key] = ""
+
+
+def _render_field(field: dict):
+    key = field["key"]
+    f_type = field["type"]
+    label = field["label"]
+    if f_type == "select":
+        opts = field["options"]
+        default = field.get("default")
+        idx = opts.index(default) if default in opts else 0
+        user_input[key] = st.selectbox(label, opts, index=idx, key=f"pkg_{key}")
+    elif f_type == "multiselect":
+        user_input[key] = st.multiselect(label, field["options"], key=f"pkg_{key}")
+    elif f_type == "textarea":
+        user_input[key] = st.text_area(label, placeholder=field.get("placeholder", ""), key=f"pkg_{key}")
+    elif f_type == "number":
+        user_input[key] = st.number_input(
+            label,
+            min_value=field.get("min", 0),
+            max_value=field.get("max", 100),
+            value=field.get("default", field.get("min", 0)),
+            key=f"pkg_{key}",
+        )
+    else:
+        user_input[key] = st.text_input(label, placeholder=field.get("placeholder", ""), key=f"pkg_{key}")
+
+
+# ---- 분량 필드 (항상 보이게) ----
+if length_fields:
+    st.markdown(f"##### 📏 {genre['name']} 분량 / 규모")
+    cols_len = st.columns(min(len(length_fields), 2))
+    for i, field in enumerate(length_fields):
+        with cols_len[i % len(cols_len)]:
+            _render_with_custom(field)
+
+# ---- 추가 정보 (선택, expander) ----
+common_detail_keys = ["sub_genre", "tone", "target_audience", "protagonist_count",
+                       "pov", "era", "space", "structure"]
+filtered_detail = [f for f in detail_fields if f["key"] in common_detail_keys]
+
+if filtered_detail:
+    with st.expander("📝 추가 정보 (선택 — 더 정확한 결과 위해)", expanded=False):
+        cols = st.columns(2)
+        for i, field in enumerate(filtered_detail):
+            with cols[i % 2]:
+                _render_with_custom(field)
 
 
 # ========== 3. 산출물 선택 ==========
@@ -123,21 +193,20 @@ ready = bool(project_name and idea and selected_count > 0)
 if not ready:
     st.warning("작품명 + 한 줄 아이디어 + 산출물 1개 이상 체크해주세요.")
 else:
+    st.info(
+        f"⚠ **이 페이지를 떠나지 마세요.** 생성에 약 {selected_count}분 걸려요. "
+        "산출물은 만들어지는 즉시 `output/" + project_name + "/artifacts/` 폴더에 자동 저장돼요. "
+        "혹시 중간에 닫혀도 거기까지 만든 건 그대로 남습니다."
+    )
     if st.button("📦 패키지 생성 시작", type="primary", use_container_width=True):
         # 메타데이터 미리 저장
         st.session_state.pkg_project_name = project_name
         st.session_state.pkg_genre_letter = genre_letter
         st.session_state.pkg_idea = idea
 
-        results = {}
-        progress = st.progress(0)
-        status = st.empty()
-
-        # 산출물 생성 순서 (의존성 고려)
-        # 로그라인 → 시놉시스 → 캐릭터 → 세계관 → 트리트먼트 → 회차 → 기획안 → 대본
+        # 의존성 순서: 로그라인 → 시놉시스 → 캐릭터 → 세계관 → 트리트먼트 → 회차 → 기획안 → 대본
         order = ["logline", "synopsis", "characters", "worldview",
                  "treatment", "episodes", "proposal", "script"]
-
         builders = {
             "logline":    sori_client.build_logline_prompt,
             "synopsis":   sori_client.build_synopsis_prompt,
@@ -148,7 +217,6 @@ else:
             "proposal":   sori_client.build_proposal_prompt,
             "script":     sori_client.build_script_prompt,
         }
-
         max_tokens_map = {
             "logline": 1500, "synopsis": 3000, "treatment": 6000,
             "characters": 5000, "worldview": 4000, "episodes": 7000,
@@ -157,42 +225,95 @@ else:
 
         selected_keys = [k for k in order if artifacts_to_make.get(k)]
         total = len(selected_keys)
+        results = {}
+        errors = []
+        completed_files = []
 
-        for i, key in enumerate(selected_keys):
-            artifact_name = next((label for k2, label, _, _ in ARTIFACT_INFO if k2 == key), key)
-            status.markdown(f"**{i+1}/{total}** · {artifact_name} 작성 중...")
+        # ---- 진행 표시 컨테이너 (스크롤 따라 안 가려지게 큰 박스) ----
+        st.markdown("### 🛠 작업 중")
+        progress = st.progress(0, text=f"0 / {total} 시작 중...")
+        status_box = st.container(border=True)
+        status_lines = []
 
-            builder = builders[key]
-            # 이전에 만든 결과를 prior로 전달 (의존성)
-            prior = {
-                next((label for k2, label, _, _ in ARTIFACT_INFO if k2 == k), k): v
-                for k, v in results.items()
-            }
-
-            try:
-                if key == "logline":
-                    prompt = builder(idea, genre, user_input)
-                else:
-                    prompt = builder(idea, genre, user_input, prior=prior)
-
-                response = sori_client.call_sori(prompt, max_tokens=max_tokens_map.get(key, 4000))
-                results[key] = response
-
-                # 작품 폴더에 자동 저장
-                storage.save_artifact(
-                    project_name, key, response,
-                    metadata={
-                        "genre": genre["code"],
-                        "idea": idea,
-                        "user_input": user_input,
-                    },
+        with st.spinner(f"전체 {total}개 산출물 생성 중... (약 {total}분 소요)"):
+            for i, key in enumerate(selected_keys):
+                artifact_name = next(
+                    (label for k2, label, _, _ in ARTIFACT_INFO if k2 == key), key
                 )
-            except Exception as e:
-                results[key] = f"[오류] {e}"
+                progress.progress(i / total, text=f"{i+1} / {total} · {artifact_name} 작성 중...")
+                status_lines.append(f"⏳ **{artifact_name}** 작성 중...")
+                status_box.empty()
+                with status_box:
+                    for line in status_lines:
+                        st.markdown(line)
 
-            progress.progress((i + 1) / total)
+                builder = builders[key]
+                prior = {
+                    next((label for k2, label, _, _ in ARTIFACT_INFO if k2 == k), k): v
+                    for k, v in results.items()
+                }
 
-        status.success(f"✓ {total}개 산출물 생성 완료. 작품 폴더에 자동 저장됨.")
+                try:
+                    if key == "logline":
+                        prompt = builder(idea, genre, user_input)
+                    else:
+                        prompt = builder(idea, genre, user_input, prior=prior)
+
+                    response = sori_client.call_sori(
+                        prompt, max_tokens=max_tokens_map.get(key, 4000)
+                    )
+
+                    if not response or response.startswith("[오류]") or response.startswith("[Mock"):
+                        raise ValueError(f"빈 응답 또는 오류 응답: {response[:100] if response else 'empty'}")
+
+                    results[key] = response
+
+                    # 작품 폴더에 즉시 저장 (페이지 떠나도 보존)
+                    saved = storage.save_artifact(
+                        project_name, key, response,
+                        metadata={
+                            "genre": genre["code"],
+                            "idea": idea,
+                            "user_input": user_input,
+                        },
+                    )
+                    completed_files.append((artifact_name, saved))
+
+                    # 마지막 줄을 ✓로 교체
+                    status_lines[-1] = f"✓ **{artifact_name}** 완료 ({len(response):,}자)"
+                    st.toast(f"✓ {artifact_name} 완료", icon="📄")
+                except Exception as e:
+                    err_msg = f"❌ **{artifact_name}** 실패: {e}"
+                    status_lines[-1] = err_msg
+                    errors.append((artifact_name, str(e)))
+                    st.toast(f"❌ {artifact_name} 실패", icon="⚠️")
+
+                # status_box 다시 그리기
+                status_box.empty()
+                with status_box:
+                    for line in status_lines:
+                        st.markdown(line)
+
+                progress.progress((i + 1) / total, text=f"{i+1} / {total} 완료")
+
+        # ---- 최종 알림 ----
+        if not errors:
+            st.success(f"🎉 {total}개 산출물 모두 완료. `output/{project_name}/artifacts/` 폴더에 저장됨.")
+            st.balloons()
+        elif results:
+            st.warning(
+                f"⚠ 부분 완료: {len(results)}개 성공 / {len(errors)}개 실패. "
+                "실패한 항목은 다시 시도해주세요."
+            )
+            with st.expander("실패 상세"):
+                for name, err in errors:
+                    st.error(f"**{name}**: {err}")
+        else:
+            st.error("❌ 전체 실패. Claude 연결 상태를 확인해주세요. (어드민 → 시스템)")
+            with st.expander("에러 상세"):
+                for name, err in errors:
+                    st.error(f"**{name}**: {err}")
+
         st.session_state.pkg_results = results
 
 
