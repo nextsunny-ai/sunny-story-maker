@@ -10,7 +10,7 @@ from datetime import datetime
 from modules.page_init import init_page
 init_page("어드민 — SUNNY Story Maker")
 
-from modules import profile as prof, auth
+from modules import profile as prof, auth, db as ssm_db
 from modules.genres import list_genre_names
 from modules.workflows import SCRIPT_FONTS
 
@@ -339,6 +339,21 @@ with tab_system:
     else:
         st.warning(f"⚠ Claude 미연결 — {status['label']}")
     st.caption(status["detail"])
+
+    # ---------- Supabase (영구 저장) 진단 ----------
+    sb_diag = ssm_db.diagnose()
+    if sb_diag["client_created"]:
+        st.success("✓ Supabase 연결됨 — 작품·프로필·채팅 영구 저장 활성화")
+    else:
+        st.error("⚠ Supabase 미연결 — 데이터가 임시 저장됨 (재배포 시 사라짐)")
+        with st.expander("🛠 Supabase 진단 정보 (왜 안 되는지 보기)", expanded=True):
+            st.json(sb_diag)
+            st.caption(
+                "원인:\n"
+                "- supabase_module_imported = False → requirements.txt에 supabase 없음 (재배포 필요)\n"
+                "- url_set 또는 key_set = False → Streamlit Cloud Secrets에 SUPABASE_URL/KEY 입력 누락\n"
+                "- is_enabled = True인데 client_created = False → URL/KEY 값이 잘못됐거나 네트워크 오류"
+            )
 
     with st.expander("❓ Claude 연결 방법", expanded=not status["ready"]):
         st.markdown(
