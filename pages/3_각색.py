@@ -104,30 +104,83 @@ target_workflow = None
 sub_mode = None
 
 if mode.startswith("같은 매체"):
-    st.caption("작가 디렉션을 자연어로. 영화·드라마는 무한 반복 가능. 부분 수정 OK.")
+    st.caption("뭘 바꿀지 골라주세요. 여러 개 선택 가능. 직접 쓰는 칸도 있어요.")
+
+    # 디렉션 누적 저장 (rerun 사이에 유지)
+    if "direction_parts" not in st.session_state:
+        st.session_state.direction_parts = []
+
+    # ---------- 톤 / 분위기 ----------
+    st.markdown("**🎨 톤 / 분위기**")
+    tone_opts = [
+        ("🌙 더 어둡게", "톤을 더 어둡고 무겁게"),
+        ("☀️ 더 따뜻하게", "톤을 더 따뜻하고 부드럽게"),
+        ("⚡ 긴장감 더", "긴장감과 서스펜스를 더 강하게"),
+        ("😄 코미디 더", "유머와 재미를 더하기"),
+        ("💔 감정 진하게", "감정 묘사를 더 깊이"),
+        ("🧊 절제하게", "감정 과잉 빼고 더 절제된 톤으로"),
+    ]
+    tcols = st.columns(len(tone_opts))
+    for i, (label, phrase) in enumerate(tone_opts):
+        with tcols[i]:
+            if st.button(label, key=f"tone_{i}", use_container_width=True):
+                if phrase not in st.session_state.direction_parts:
+                    st.session_state.direction_parts.append(phrase)
+                    st.rerun()
+
+    # ---------- 분량 / 결말 ----------
+    st.markdown("**📏 분량 / 결말**")
+    other_opts = [
+        ("✂️ 짧게", "분량을 더 짧고 압축적으로"),
+        ("📜 길게", "분량을 더 길게, 디테일 추가"),
+        ("🌅 결말 해피", "결말을 희망적·따뜻하게"),
+        ("🌧 결말 비극", "결말을 비극적·여운 남게"),
+        ("❓ 결말 오픈", "결말을 오픈 엔딩으로"),
+        ("🔄 반전 추가", "예상 못한 반전 한 번 추가"),
+    ]
+    ocols = st.columns(len(other_opts))
+    for i, (label, phrase) in enumerate(other_opts):
+        with ocols[i]:
+            if st.button(label, key=f"other_{i}", use_container_width=True):
+                if phrase not in st.session_state.direction_parts:
+                    st.session_state.direction_parts.append(phrase)
+                    st.rerun()
+
+    # ---------- 누적된 디렉션 미리보기 + 직접 입력 ----------
     col_a, col_b = st.columns([2, 1])
     with col_a:
-        direction = st.text_area(
-            "🎯 수정 디렉션",
-            height=140,
+        # 칩에서 모인 것들 + 자유 입력 합쳐 한 textarea로
+        accumulated = "\n".join(f"- {p}" for p in st.session_state.direction_parts)
+        custom_direction = st.text_area(
+            "🎯 최종 디렉션 (직접 수정·추가 가능)",
+            value=accumulated,
+            height=160,
             placeholder=(
-                "예시:\n"
-                "- S#3에서 유건의 야구 비유를 더 강하게.\n"
-                "- 도윤 대사 줄이고 침묵으로 대체.\n"
-                "- 결말은 오픈 엔딩으로.\n"
-                "- 톤을 더 어둡고 차갑게. 코미디 톤 빼기."
+                "위 버튼을 눌러 채우거나, 여기 직접 쓰세요. 예:\n"
+                "- 주인공 이름을 '도윤'으로 바꿔줘\n"
+                "- 첫 장면을 더 강렬하게\n"
+                "- 학교 배경을 회사로 바꿔줘"
             ),
-            help="자연어로 자유롭게. AI가 알아서 해석합니다.",
+            key="direction_textarea",
         )
+        direction = custom_direction.strip()
+
+        col_clear, _ = st.columns([1, 4])
+        with col_clear:
+            if st.button("🗑 비우기", use_container_width=True):
+                st.session_state.direction_parts = []
+                st.rerun()
+
     with col_b:
         target_section = st.selectbox(
             "수정 범위",
-            ["전체", "특정 씬만", "특정 회차만", "특정 캐릭터 대사만"],
+            ["전체", "특정 부분만", "특정 회차만", "특정 인물 대사만"],
+            help="기본은 전체. 일부만 바꾸고 싶으면 선택.",
         )
         if target_section != "전체":
             target_detail = st.text_input(
-                "범위 명시",
-                placeholder="예: S#3 / EP05 / 유건 대사",
+                "어디?",
+                placeholder="예: 첫 장면 / EP05 / 도윤 대사",
             )
             if target_detail:
                 target_section = f"{target_section}: {target_detail}"
