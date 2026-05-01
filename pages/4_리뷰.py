@@ -7,12 +7,12 @@
 
 import streamlit as st
 from pathlib import Path
+from datetime import datetime
 from modules.page_init import init_page
 init_page("리뷰 — SUNNY Story Maker")
 
 from modules import sori_client, file_parser, humanizer, exporter, storage, profile as prof, learning, reviewers
 from modules.genres import GENRES, list_genre_names, parse_genre_choice
-from modules.workflows import SCRIPT_FONTS
 # ========== 헤더 ==========
 st.markdown(
     """
@@ -53,7 +53,7 @@ with col_p:
     project_name = st.text_input("작품명 (저장용)", placeholder="예: 트랑로제")
 
 st.markdown("### 리뷰어 선택")
-st.caption("한 명씩 받고, 다른 시각도 보고 싶으면 추가하세요. 한 번에 한 그룹의 시각을 깊게.")
+st.caption("여러 명 동시 선택 가능. 각자의 시각으로 따로 리뷰가 나옵니다.")
 
 all_reviewers = reviewers.list_all()
 recommended = reviewers.recommend_for_genre(genre_letter, limit=1)
@@ -65,46 +65,76 @@ target_inputs = []
 
 if select_mode == "라이브러리에서":
     all_options = [r["name"] for r in all_reviewers]
-    default_idx = next((i for i, r in enumerate(all_reviewers) if r["id"] == default_id), 0)
-    chosen_name = st.selectbox(
-        f"🎯 추천: 매체+장르 맞춤 ({genre['name']})",
+    default_name = next((r["name"] for r in all_reviewers if r["id"] == default_id), all_options[0])
+    chosen_names = st.multiselect(
+        f"🎯 추천: {genre['name']} 매체+장르 맞춤 (여러 명 선택 가능)",
         all_options,
-        index=default_idx,
+        default=[default_name],
     )
-    chosen = next(r for r in all_reviewers if r["name"] == chosen_name)
+    if chosen_names:
+        # 선택된 리뷰어 카드들 — 가로로 쌓아 보여줌
+        for cname in chosen_names:
+            cr = next(r for r in all_reviewers if r["name"] == cname)
+            st.markdown(
+                f"""<div style="background: var(--card); border:1px solid var(--line); padding: 12px 16px; border-radius: 10px; margin-top: 8px;">
+                <div style="font-weight: 600; margin-bottom: 4px; color: var(--ink);">{cr['name']}</div>
+                <div style="font-size: 12.5px; color: var(--ink-3);">
+                <strong style="color: var(--ink-2);">좋아함</strong>: {cr['loves']}<br>
+                <strong style="color: var(--ink-2);">싫어함</strong>: {cr['hates']}<br>
+                <strong style="color: var(--ink-2);">관점</strong>: {cr['voice_tone']}
+                </div></div>""",
+                unsafe_allow_html=True,
+            )
+            target_inputs.append(reviewers.to_target_dict(cr))
 
-    st.markdown(
-        f"""<div style="background: var(--card); border:1px solid var(--line); padding: 14px 18px; border-radius: 10px; margin-top: 10px;">
-        <div style="font-weight: 600; margin-bottom: 6px; color: var(--ink);">{chosen['name']}</div>
-        <div style="font-size: 13px; color: var(--ink-3);">
-        <strong style="color: var(--ink-2);">좋아함</strong>: {chosen['loves']}<br>
-        <strong style="color: var(--ink-2);">싫어함</strong>: {chosen['hates']}<br>
-        <strong style="color: var(--ink-2);">관점</strong>: {chosen['voice_tone']}
-        </div></div>""",
-        unsafe_allow_html=True,
-    )
-    target_inputs.append(reviewers.to_target_dict(chosen))
+else:  # 직접 작성 — 여러 명 추가 가능
+    if "custom_reviewers" not in st.session_state:
+        st.session_state.custom_reviewers = [{}]  # 빈 슬롯 1개
 
-else:  # 직접 작성
-    c_name = st.text_input("그룹 라벨", placeholder="예: 30대 도시 비혼 여성, OTT 헤비")
-    if c_name:
-        c_age = st.text_input("연령대")
-        c_life = st.text_input("거주/직업")
-        c_pref = st.text_input("취향")
-        c_cons = st.text_input("소비 패턴")
-        c_loves = st.text_input("좋아하는 패턴")
-        c_hates = st.text_input("싫어하는 패턴")
-        c_voice = st.text_input("관점/접근", placeholder="예: 솔직·분석적·SNS 트렌드 민감")
-        target_inputs.append({
-            "name": c_name,
-            "age": c_age, "gender": "", "lifestyle": c_life,
-            "preference": c_pref, "consumption": c_cons,
-            "loves": c_loves, "hates": c_hates,
-            "voice_tone": c_voice or "자연스러운 시각",
-        })
+    add_col, _ = st.columns([1, 5])
+    with add_col:
+        if st.button("➕ 리뷰어 추가", use_container_width=True):
+            st.session_state.custom_reviewers.append({})
+            st.rerun()
+
+    for idx, _slot in enumerate(st.session_state.custom_reviewers):
+        with st.container(border=True):
+            head_l, head_r = st.columns([5, 1])
+            with head_l:
+                st.markdown(f"**리뷰어 #{idx + 1}**")
+            with head_r:
+                if len(st.session_state.custom_reviewers) > 1:
+                    if st.button("🗑", key=f"del_rev_{idx}", help="이 리뷰어 삭제"):
+                        st.session_state.custom_reviewers.pop(idx)
+                        st.rerun()
+
+            c_name = st.text_input(
+                "그룹 라벨",
+                placeholder="예: 30대 도시 비혼 여성, OTT 헤비",
+                key=f"rev_name_{idx}",
+            )
+            if c_name:
+                c_age = st.text_input("연령대", key=f"rev_age_{idx}")
+                c_life = st.text_input("거주/직업", key=f"rev_life_{idx}")
+                c_pref = st.text_input("취향", key=f"rev_pref_{idx}")
+                c_cons = st.text_input("소비 패턴", key=f"rev_cons_{idx}")
+                c_loves = st.text_input("좋아하는 패턴", key=f"rev_loves_{idx}")
+                c_hates = st.text_input("싫어하는 패턴", key=f"rev_hates_{idx}")
+                c_voice = st.text_input(
+                    "관점/접근",
+                    placeholder="예: 솔직·분석적·SNS 트렌드 민감",
+                    key=f"rev_voice_{idx}",
+                )
+                target_inputs.append({
+                    "name": c_name,
+                    "age": c_age, "gender": "", "lifestyle": c_life,
+                    "preference": c_pref, "consumption": c_cons,
+                    "loves": c_loves, "hates": c_hates,
+                    "voice_tone": c_voice or "자연스러운 시각",
+                })
 
 if not target_inputs:
-    st.warning("리뷰어를 선택하거나 작성해주세요")
+    st.warning("리뷰어를 한 명 이상 선택하거나 작성해주세요")
 
 
 # ========== 2. 작품 첨부 ==========
