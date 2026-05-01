@@ -298,7 +298,20 @@ def render_logout_button():
         return
     user = st.session_state.auth_user
     st.sidebar.markdown(
-        f"<div style='font-size:11px; color:#888; padding:4px 8px;'>로그인: {user['email']}</div>",
+        f"""
+        <div style='
+            font-size: 11px;
+            color: #888;
+            padding: 12px 12px 6px;
+            margin-top: 16px;
+            border-top: 1px solid rgba(0,0,0,0.08);
+            line-height: 1.5;
+            word-break: break-all;
+        '>
+            <div style='font-size:10px; opacity:0.7; margin-bottom:2px;'>로그인 계정</div>
+            <div style='font-size:12px; color:#444; font-weight:500;'>{user['email']}</div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
     if st.sidebar.button("🚪 로그아웃", use_container_width=True):
