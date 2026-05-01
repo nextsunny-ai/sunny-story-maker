@@ -7,24 +7,17 @@
 
 import streamlit as st
 from pathlib import Path
-from datetime import datetime
+from modules.page_init import init_page
+init_page("리뷰 — SUNNY Story Maker")
+
 from modules import sori_client, file_parser, humanizer, exporter, storage, profile as prof, learning, reviewers
 from modules.genres import GENRES, list_genre_names, parse_genre_choice
 from modules.workflows import SCRIPT_FONTS
-
-# CSS
-css_path = Path(__file__).parent.parent / "assets" / "styles.css"
-if css_path.exists():
-    st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-
-
-from modules.sidebar import render_sidebar
-render_sidebar()
 # ========== 헤더 ==========
 st.markdown(
     """
     <div class="app-header">
-        <div class="app-header-title"><span class="app-header-title-emoji">🔍</span>리뷰 모드</div>
+        <div class="app-header-title"><span class="app-header-title-emoji">🔍</span>리뷰</div>
         <div class="app-header-version">배급사 다중 타겟 리뷰</div>
     </div>
     """,
@@ -33,16 +26,89 @@ st.markdown(
 
 st.markdown(
     """
-    <div style="background: var(--gradient-soft); padding: 16px 20px; border-radius: 12px; margin-bottom: 24px;">
-    <strong style="color: #2563EB;">왜 이 모드?</strong>
+    <div class="page-intro">
+    <strong>왜 이 모드?</strong>
     배급사가 작가에게 보내는 다중 타겟 리뷰를 그대로. 연령·라이프스타일·취향별로 3가지 타겟이 본다고 가정하고 별도 리뷰합니다. 작가가 가장 궁금해하는 영역을 즉시 무한 반복 가능하게.
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# ========== 1. 첨부 ==========
-st.markdown("## 1. 작품 첨부")
+# ========== 1. 리뷰어 + 장르 + 작품명 (먼저 — 시나리오 전에 골라두기) ==========
+st.markdown("## 1. 리뷰어 · 장르")
+st.caption("시나리오를 첨부하기 전에 누가 어떻게 볼지부터 정해두세요. 첨부 후 자동 식별 결과로 보정 가능.")
+
+col_g, col_p = st.columns([1, 1])
+with col_g:
+    genre_choice = st.selectbox(
+        "장르",
+        list_genre_names(),
+        index=0,
+        help="아래 시나리오 첨부 후 자동 식별되면 추천이 바뀝니다.",
+    )
+    genre_letter = parse_genre_choice(genre_choice)
+    genre = GENRES[genre_letter]
+
+with col_p:
+    project_name = st.text_input("작품명 (저장용)", placeholder="예: 트랑로제")
+
+st.markdown("### 리뷰어 선택")
+st.caption("한 명씩 받고, 다른 시각도 보고 싶으면 추가하세요. 한 번에 한 그룹의 시각을 깊게.")
+
+all_reviewers = reviewers.list_all()
+recommended = reviewers.recommend_for_genre(genre_letter, limit=1)
+default_id = recommended[0]["id"] if recommended else all_reviewers[0]["id"]
+
+select_mode = st.radio("선택 방식", ["라이브러리에서", "직접 작성"], horizontal=True)
+
+target_inputs = []
+
+if select_mode == "라이브러리에서":
+    all_options = [r["name"] for r in all_reviewers]
+    default_idx = next((i for i, r in enumerate(all_reviewers) if r["id"] == default_id), 0)
+    chosen_name = st.selectbox(
+        f"🎯 추천: 매체+장르 맞춤 ({genre['name']})",
+        all_options,
+        index=default_idx,
+    )
+    chosen = next(r for r in all_reviewers if r["name"] == chosen_name)
+
+    st.markdown(
+        f"""<div style="background: var(--card); border:1px solid var(--line); padding: 14px 18px; border-radius: 10px; margin-top: 10px;">
+        <div style="font-weight: 600; margin-bottom: 6px; color: var(--ink);">{chosen['name']}</div>
+        <div style="font-size: 13px; color: var(--ink-3);">
+        <strong style="color: var(--ink-2);">좋아함</strong>: {chosen['loves']}<br>
+        <strong style="color: var(--ink-2);">싫어함</strong>: {chosen['hates']}<br>
+        <strong style="color: var(--ink-2);">관점</strong>: {chosen['voice_tone']}
+        </div></div>""",
+        unsafe_allow_html=True,
+    )
+    target_inputs.append(reviewers.to_target_dict(chosen))
+
+else:  # 직접 작성
+    c_name = st.text_input("그룹 라벨", placeholder="예: 30대 도시 비혼 여성, OTT 헤비")
+    if c_name:
+        c_age = st.text_input("연령대")
+        c_life = st.text_input("거주/직업")
+        c_pref = st.text_input("취향")
+        c_cons = st.text_input("소비 패턴")
+        c_loves = st.text_input("좋아하는 패턴")
+        c_hates = st.text_input("싫어하는 패턴")
+        c_voice = st.text_input("관점/접근", placeholder="예: 솔직·분석적·SNS 트렌드 민감")
+        target_inputs.append({
+            "name": c_name,
+            "age": c_age, "gender": "", "lifestyle": c_life,
+            "preference": c_pref, "consumption": c_cons,
+            "loves": c_loves, "hates": c_hates,
+            "voice_tone": c_voice or "자연스러운 시각",
+        })
+
+if not target_inputs:
+    st.warning("리뷰어를 선택하거나 작성해주세요")
+
+
+# ========== 2. 작품 첨부 ==========
+st.markdown("## 2. 작품 첨부")
 
 upload_method = st.radio(
     "입력 방식",
@@ -64,7 +130,8 @@ if upload_method.startswith("파일"):
             project_name_default = Path(uploaded.name).stem
 
 elif upload_method.startswith("텍스트"):
-    project_name_default = st.text_input("작품 제목", placeholder="예: 트랑로제")
+    if not project_name:
+        project_name_default = st.text_input("작품 제목", placeholder="예: 트랑로제", key="title_inline")
     text_to_review = st.text_area(
         "본문 붙여넣기",
         height=300,
@@ -75,19 +142,22 @@ else:  # 저장된 프로젝트
     projects = storage.list_projects()
     if projects:
         proj_names = [p["name"] for p in projects]
-        chosen = st.selectbox("프로젝트 선택", proj_names)
-        proj = next(p for p in projects if p["name"] == chosen)
-        versions = storage.list_versions(chosen)
+        chosen_proj = st.selectbox("프로젝트 선택", proj_names)
+        versions = storage.list_versions(chosen_proj)
         v_options = [f"v{v['version']} ({v['saved_at'][:10]})" for v in versions]
         v_choice = st.selectbox("버전 선택", v_options)
         if v_choice:
             v_num = int(v_choice.split()[0][1:])
-            text_to_review = storage.load_version(chosen, v_num)
-            project_name_default = chosen
+            text_to_review = storage.load_version(chosen_proj, v_num)
+            project_name_default = chosen_proj
     else:
         st.info("저장된 프로젝트가 없습니다.")
 
+# 제목 비어 있으면 첨부에서 추출한 이름으로 보정
+if not project_name and project_name_default:
+    project_name = project_name_default
 
+# 텍스트 들어오면 메트릭 + 자동 식별 안내
 if text_to_review:
     word_stats = file_parser.get_word_count(text_to_review)
     auto_genre_letter = file_parser.estimate_genre(text_to_review)
@@ -99,113 +169,48 @@ if text_to_review:
     cols[2].metric("단락 수", f"{word_stats['paragraphs']:,}")
     cols[3].metric("자동 식별 장르", f"{auto_genre_letter}. {auto_genre['name']}" if auto_genre else "?")
 
+    if auto_genre and auto_genre_letter != genre_letter:
+        st.info(f"💡 자동 식별 장르는 **{auto_genre['name']}**입니다. 위에서 변경하실 수 있어요.")
+
     with st.expander("내용 미리보기"):
         st.text(text_to_review[:1500] + ("..." if len(text_to_review) > 1500 else ""))
 
 
-# ========== 2. 장르 + 타겟 설정 ==========
-if text_to_review:
-    st.markdown("## 2. 장르 + 타겟 설정")
+# ========== 3. 리뷰 실행 ==========
+st.markdown("## 3. 리뷰 실행")
+valid = bool(text_to_review) and bool(target_inputs) and all(t["name"] for t in target_inputs)
 
-    col_g, col_p = st.columns([1, 1])
-    with col_g:
-        auto_idx = list(GENRES.keys()).index(auto_genre_letter) if auto_genre_letter in GENRES else 0
-        genre_choice = st.selectbox(
-            "장르 (자동 식별 결과 — 수정 가능)",
-            list_genre_names(),
-            index=auto_idx,
+if not text_to_review:
+    st.caption("⬆ 먼저 작품을 첨부해주세요")
+elif not target_inputs:
+    st.caption("⬆ 리뷰어를 선택해주세요")
+
+if st.button(
+    "🚀 다중 타겟 리뷰 시작",
+    type="primary",
+    use_container_width=True,
+    disabled=not valid,
+):
+    with st.spinner("AI 작가가 타겟 시각으로 리뷰하는 중... (1~2분 소요)"):
+        prompt = sori_client.build_targeted_review_prompt(
+            text_to_review,
+            targets=target_inputs,
+            genre=genre,
         )
-        genre_letter = parse_genre_choice(genre_choice)
-        genre = GENRES[genre_letter]
+        review_result = sori_client.call_sori(prompt, max_tokens=8000)
 
-    with col_p:
-        project_name = st.text_input("작품명 (저장용)", value=project_name_default)
+        # AI투 검출 (원본 텍스트 대상)
+        findings = humanizer.detect(text_to_review)
 
-    st.markdown("### 리뷰어 선택")
-    st.caption("한 명씩 받고, 다른 시각도 보고 싶으면 추가하세요. 한 번에 한 그룹의 시각을 깊게.")
-
-    all_reviewers = reviewers.list_all()
-    recommended = reviewers.recommend_for_genre(genre_letter, limit=1)
-    default_id = recommended[0]["id"] if recommended else all_reviewers[0]["id"]
-
-    # 라디오 버튼: 라이브러리 / 직접 작성
-    select_mode = st.radio("선택 방식", ["라이브러리에서", "직접 작성"], horizontal=True)
-
-    target_inputs = []
-
-    if select_mode == "라이브러리에서":
-        all_options = [r["name"] for r in all_reviewers]
-        # 추천 1명을 기본 선택
-        default_idx = next((i for i, r in enumerate(all_reviewers) if r["id"] == default_id), 0)
-        chosen_name = st.selectbox(
-            f"🎯 추천: 매체+장르 맞춤 ({genre['name']})",
-            all_options,
-            index=default_idx,
-        )
-        chosen = next(r for r in all_reviewers if r["name"] == chosen_name)
-
-        # 선택된 리뷰어 정보 보여주기
-        st.markdown(
-            f"""<div style="background: var(--bg-secondary); padding: 14px 18px; border-radius: 10px; margin-top: 10px;">
-            <div style="font-weight: 600; margin-bottom: 6px;">{chosen['name']}</div>
-            <div style="font-size: 13px; color: #64748B;">
-            <strong>좋아함</strong>: {chosen['loves']}<br>
-            <strong>싫어함</strong>: {chosen['hates']}<br>
-            <strong>관점</strong>: {chosen['voice_tone']}
-            </div></div>""",
-            unsafe_allow_html=True,
-        )
-        target_inputs.append(reviewers.to_target_dict(chosen))
-
-    else:  # 직접 작성
-        c_name = st.text_input("그룹 라벨", placeholder="예: 30대 도시 비혼 여성, OTT 헤비")
-        if c_name:
-            c_age = st.text_input("연령대")
-            c_life = st.text_input("거주/직업")
-            c_pref = st.text_input("취향")
-            c_cons = st.text_input("소비 패턴")
-            c_loves = st.text_input("좋아하는 패턴")
-            c_hates = st.text_input("싫어하는 패턴")
-            c_voice = st.text_input("관점/접근", placeholder="예: 솔직·분석적·SNS 트렌드 민감")
-            target_inputs.append({
-                "name": c_name,
-                "age": c_age, "gender": "", "lifestyle": c_life,
-                "preference": c_pref, "consumption": c_cons,
-                "loves": c_loves, "hates": c_hates,
-                "voice_tone": c_voice or "자연스러운 시각",
-            })
-
-    if not target_inputs:
-        st.warning("리뷰어를 선택하거나 작성해주세요")
-
-    # ========== 3. 리뷰 실행 ==========
-    st.markdown("## 3. 리뷰 실행")
-    valid = all(t["name"] for t in target_inputs)
-
-    if not valid:
-        st.warning("3개 타겟 모두 이름을 입력해주세요.")
-    else:
-        if st.button("🚀 다중 타겟 리뷰 시작", type="primary", use_container_width=True):
-            with st.spinner("AI 작가가 3개 타겟의 시각으로 리뷰하는 중... (1~2분 소요)"):
-                prompt = sori_client.build_targeted_review_prompt(
-                    text_to_review,
-                    targets=target_inputs,
-                    genre=genre,
-                )
-                review_result = sori_client.call_sori(prompt, max_tokens=8000)
-
-                # AI투 검출 (원본 텍스트 대상)
-                findings = humanizer.detect(text_to_review)
-
-                st.session_state.last_review = {
-                    "project": project_name,
-                    "genre": genre,
-                    "targets": target_inputs,
-                    "review": review_result,
-                    "findings": findings,
-                    "ai_score": humanizer.severity_score(findings),
-                    "text": text_to_review,
-                }
+        st.session_state.last_review = {
+            "project": project_name,
+            "genre": genre,
+            "targets": target_inputs,
+            "review": review_result,
+            "findings": findings,
+            "ai_score": humanizer.severity_score(findings),
+            "text": text_to_review,
+        }
 
 # ========== 4. 결과 ==========
 if "last_review" in st.session_state:
@@ -235,7 +240,7 @@ if "last_review" in st.session_state:
             st.markdown("---")
             st.markdown("**원문 하이라이트**")
             st.markdown(
-                f'<div class="script-body" style="background: var(--bg-secondary); padding: 16px; border-radius: 8px;">'
+                f'<div class="script-body" style="background: var(--card-pure); border:1px solid var(--line); padding: 16px; border-radius: 8px;">'
                 f'{humanizer.highlight_html(r["text"][:3000], r["findings"][:30])}'
                 f'</div>',
                 unsafe_allow_html=True,

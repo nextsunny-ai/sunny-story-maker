@@ -10,6 +10,14 @@ def common_writing_fields(extra: list = None, exclude: list = None) -> list:
     exclude: 매체별로 빼고 싶은 키 (예: 유튜브는 first_hook 제외)"""
     exclude = exclude or []
     base = [
+        # ★ 작가가 쓰고 싶은 내용 — 모든 매체 공통 (가장 자유로운 입력)
+        {"key": "story_outline", "label": "쓰고 싶은 내용 / 스토리 개요 (자유 메모)", "type": "textarea",
+         "placeholder": (
+             "작품의 큰 줄거리 / 다루고 싶은 주제 / 인상적인 장면 / 결말 방향 / 영감 받은 작품 등 자유롭게.\n"
+             "예) 주인공이 어머니의 빚 때문에 야간 알바를 하다가 단골 손님의 일기장을 발견하면서 시작.\n"
+             "    중반에 그 손님이 사라지고 일기장의 내용이 점점 현실로 일어남.\n"
+             "    결말은 오픈으로 — 주인공이 일기를 계속 쓸지 말지 선택의 순간."
+         )},
         # ★ 타겟 — 톤을 결정하는 핵심 (작가가 명시적으로 정함)
         {"key": "target_audience", "label": "타겟 (연령/특성 — 톤 결정에 영향)", "type": "select",
          "options": [

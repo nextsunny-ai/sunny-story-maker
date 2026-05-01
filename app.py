@@ -60,8 +60,10 @@ if "mode" in qp:
         "chat": "pages/5_보조작가와_대화.py",
         "osmu": "pages/6_OSMU.py",
         "library": "pages/7_라이브러리.py",
+        # admin pill: 작가 프로필 + 시스템 설정 (탭) 통합
         "profile": "pages/9_작가_프로필.py",
-        "settings": "pages/8_설정.py",
+        "admin": "pages/9_작가_프로필.py",
+        "settings": "pages/9_작가_프로필.py",
     }
     if mode in target_map:
         st.switch_page(target_map[mode])
@@ -117,7 +119,7 @@ st.markdown(
     <header class="ssm-topbar">
       <div class="ssm-topbar-left">
         <h1 class="ssm-topbar-title">Today's Story<span class="accent-dot">.</span></h1>
-        <span class="ssm-topbar-sub">한국 시나리오 작가의 13가지 형식 통합 작업 도구</span>
+        <span class="ssm-topbar-sub">한국 시나리오 작가의 12가지 형식 통합 작업 도구</span>
       </div>
       <a href="?mode=profile" target="_self" class="ssm-admin">
         <div class="ssm-admin-avatar">{_writer_initial}</div>
@@ -161,14 +163,19 @@ def load_icon(letter: str) -> str:
     return ""
 
 
-def render_genre_card(letter: str, data: dict):
-    num = ord(letter) - ord("A") + 1
+ACTIVE_LETTERS = storage.active_letters()
+
+
+def render_genre_card(letter: str, data: dict, num: int, display_name: str = None):
     icon_svg = load_icon(letter)
     category = get_category(letter)
+    name = display_name or data["name"]
+    is_active = letter in ACTIVE_LETTERS or (letter == "D" and "E" in ACTIVE_LETTERS)
+    active_attr = ' data-active="true"' if is_active else ''
 
     html = (
         f'<a href="?genre={letter}" target="_self" class="genre-card-link">'
-        f'<div class="genre-card" data-cat="{category}">'
+        f'<div class="genre-card" data-cat="{category}"{active_attr}>'
         f'<div class="genre-card-head">'
         f'<div class="genre-card-icon">{icon_svg}</div>'
         f'<div class="genre-card-num-wrap">'
@@ -177,8 +184,7 @@ def render_genre_card(letter: str, data: dict):
         f'</div>'
         f'</div>'
         f'<div class="genre-card-meta">'
-        f'<div class="genre-card-title">{data["name"]}</div>'
-        f'<div class="genre-card-subtitle">{data["subtitle"]}</div>'
+        f'<div class="genre-card-title">{name}</div>'
         f'</div>'
         f'<div class="genre-card-arrow">→</div>'
         f'</div></a>'
@@ -186,91 +192,37 @@ def render_genre_card(letter: str, data: dict):
     st.markdown(html, unsafe_allow_html=True)
 
 
-def render_add_card():
-    """13장르 다음 자리에 + 추가 placeholder 카드"""
-    st.markdown(
-        '<div class="genre-card is-add">'
-        '<div class="genre-card-add-icon">+</div>'
-        '<div class="genre-card-add-label">매체 추가</div>'
-        '<div class="genre-card-add-hint">곧 출시</div>'
-        '</div>',
-        unsafe_allow_html=True,
-    )
+# E(애니메이션 시리즈)를 D 카드 안으로 통합 — 홈에서는 12장르만 노출
+# D 클릭 시 집필 페이지에서 극장용/단편/시리즈 선택
+HIDDEN_LETTERS = {"E"}
+DISPLAY_OVERRIDE = {"D": "애니메이션"}
 
-
-genre_letters = list(GENRES.keys())
+genre_letters = [l for l in GENRES.keys() if l not in HIDDEN_LETTERS]
 COLS_PER_ROW = 6
-total_cells = len(genre_letters) + 1  # 13장르 + add 카드 1
-for row_start in range(0, total_cells, COLS_PER_ROW):
+for row_start in range(0, len(genre_letters), COLS_PER_ROW):
     cols = st.columns(COLS_PER_ROW, gap="small")
     for i, col in enumerate(cols):
         idx = row_start + i
         with col:
             if idx < len(genre_letters):
                 letter = genre_letters[idx]
-                render_genre_card(letter, GENRES[letter])
-            elif idx == len(genre_letters):
-                render_add_card()
+                render_genre_card(
+                    letter,
+                    GENRES[letter],
+                    num=idx + 1,
+                    display_name=DISPLAY_OVERRIDE.get(letter),
+                )
             else:
                 st.empty()
 
 
 # ============================================================
-# 2. Mode cards
+# 2. Recent work (다른 작업 섹션은 좌측 nav 중복이라 제거)
 # ============================================================
 st.markdown('<div class="ssm-spacer-lg"></div>', unsafe_allow_html=True)
 
 st.markdown(
-    '<div class="ssm-section-head">'
-    '<div class="ssm-section-num">02</div>'
-    '<div class="ssm-section-title">또는, 다른 작업</div>'
-    '</div>',
-    unsafe_allow_html=True,
-)
-
-
-MODE_CARDS = [
-    {"key": "pitch",    "title": "AI Pitch", "ko": "AI 기획",       "desc": "한 줄 → 풀 시나리오"},
-    {"key": "adapt",    "title": "Adapt",    "ko": "각색",           "desc": "기존 작품 수정·반복"},
-    {"key": "review",   "title": "Review",   "ko": "리뷰",           "desc": "다중 타겟 배급사 양식"},
-    {"key": "osmu",     "title": "OSMU",     "ko": "OSMU",          "desc": "한 IP, 13매체 매트릭스"},
-    {"key": "library",  "title": "Library",  "ko": "IP 라이브러리",  "desc": "캐릭터·세계관 관리"},
-    {"key": "chat",     "title": "Chat",     "ko": "보조작가 대화",   "desc": "자유 채팅·아이디어 의뢰"},
-    # Profile / Settings → 우측 상단 Admin pill로 이전
-]
-
-
-def render_mode_card(mode: dict):
-    html = (
-        f'<a href="?mode={mode["key"]}" target="_self" class="mode-card-link">'
-        f'<div class="mode-card">'
-        f'<div class="mode-card-title">{mode["title"]}</div>'
-        f'<div class="mode-card-ko">{mode["ko"]}</div>'
-        f'<div class="mode-card-desc">{mode["desc"]}</div>'
-        f'<div class="mode-card-arrow">→</div>'
-        f'</div></a>'
-    )
-    st.markdown(html, unsafe_allow_html=True)
-
-
-for row_start in range(0, len(MODE_CARDS), 6):
-    cols = st.columns(6, gap="small")
-    for i, col in enumerate(cols):
-        idx = row_start + i
-        if idx >= len(MODE_CARDS):
-            continue
-        with col:
-            render_mode_card(MODE_CARDS[idx])
-
-
-# ============================================================
-# 3. Recent work
-# ============================================================
-st.markdown('<div class="ssm-spacer-lg"></div>', unsafe_allow_html=True)
-
-st.markdown(
-    '<div class="ssm-section-head">'
-    '<div class="ssm-section-num">03</div>'
+    '<div class="ssm-section-head" style="margin-top: 36px;">'
     '<div class="ssm-section-title">최근 작업</div>'
     '</div>',
     unsafe_allow_html=True,
@@ -302,7 +254,7 @@ else:
 
 
 # ============================================================
-# 4. Stats
+# 3. Stats
 # ============================================================
 st.markdown('<div class="ssm-spacer-lg"></div>', unsafe_allow_html=True)
 
@@ -312,7 +264,7 @@ st.markdown(
       <div class="ssm-stat"><div class="ssm-stat-label">Works</div><div class="ssm-stat-value">{len(projects)}</div></div>
       <div class="ssm-stat"><div class="ssm-stat-label">Versions</div><div class="ssm-stat-value">{sum(p["version_count"] for p in projects)}</div></div>
       <div class="ssm-stat"><div class="ssm-stat-label">IP Library</div><div class="ssm-stat-value">{len(storage.list_ips())}</div></div>
-      <div class="ssm-stat"><div class="ssm-stat-label">Media</div><div class="ssm-stat-value">13</div></div>
+      <div class="ssm-stat"><div class="ssm-stat-label">Media</div><div class="ssm-stat-value">12</div></div>
     </div>
     """,
     unsafe_allow_html=True,

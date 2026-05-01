@@ -9,12 +9,12 @@ runOnSave = true
 fileWatcherType = "auto"
 
 [theme]
-# 리안 디자인 토큰과 일치 (paper / ink / rust)
+# V3 Zajno 베이지 톤 — 페이지 전환 FOUC 방지 (custom CSS와 동일 색상)
 base = "light"
-primaryColor = "#C2410C"
-backgroundColor = "#FAF8F3"
-secondaryBackgroundColor = "#F4F0E6"
-textColor = "#1C1917"
+primaryColor = "#EE9A8B"              # coral 액센트
+backgroundColor = "#DCD2BD"            # 메인 베이스 (--bg)
+secondaryBackgroundColor = "#D5CAB3"   # 사이드바 (--bg-soft)
+textColor = "#1A1610"                  # 잉크 (--ink)
 font = "sans serif"
 
 [ui]

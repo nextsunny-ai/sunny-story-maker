@@ -1,9 +1,27 @@
 <svg viewBox="0 0 280 56" xmlns="http://www.w3.org/2000/svg" font-family="Pretendard, Apple SD Gothic Neo, sans-serif">
-  <rect x="0" y="8" width="40" height="40" rx="9" fill="#0A0A0A"/>
-  <path d="M9 25 H30" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
-  <path d="M9 33 H27" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
-  <circle cx="30" cy="40" r="2.5" fill="#E54D2E"/>
-  <text x="52" y="34" font-size="20" font-weight="800" fill="#0A0A0A" letter-spacing="-0.6">SUNNY</text>
-  <text x="120" y="34" font-size="20" font-weight="500" fill="#0A0A0A" letter-spacing="-0.4">Story Maker</text>
-  <circle cx="244" cy="36" r="3" fill="#E54D2E"/>
+  <defs>
+    <linearGradient id="ssm-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F8DDD4"/>
+      <stop offset="100%" stop-color="#EAE0CB"/>
+    </linearGradient>
+  </defs>
+  <!-- 배지 -->
+  <rect x="0" y="8" width="40" height="40" rx="9" fill="url(#ssm-bg)"/>
+  <rect x="0.6" y="8.6" width="38.8" height="38.8" rx="8.6" fill="none" stroke="#1A1610" stroke-width="0.9" opacity="0.9"/>
+  <!-- 광선 3개 -->
+  <line x1="20" y1="13" x2="20" y2="16" stroke="#1A1610" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="12" y1="16" x2="14.2" y2="18.2" stroke="#1A1610" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="28" y1="16" x2="25.8" y2="18.2" stroke="#1A1610" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- 떠오르는 해 -->
+  <path d="M 11.5 30 A 8.5 8.5 0 0 1 28.5 30 Z" fill="#EE9A8B"/>
+  <!-- 지평선 -->
+  <line x1="9" y1="30" x2="31" y2="30" stroke="#1A1610" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- 페이지 라인 2줄 -->
+  <line x1="13" y1="35" x2="27" y2="35" stroke="#1A1610" stroke-width="0.9" stroke-linecap="round" opacity="0.55"/>
+  <line x1="13" y1="38.5" x2="23" y2="38.5" stroke="#1A1610" stroke-width="0.9" stroke-linecap="round" opacity="0.4"/>
+
+  <!-- 워드마크 -->
+  <text x="52" y="34" font-size="20" font-weight="800" fill="#1A1610" letter-spacing="-0.6">SUNNY</text>
+  <circle cx="116" cy="36" r="2.5" fill="#EE9A8B"/>
+  <text x="124" y="34" font-size="18" font-style="italic" font-weight="400" fill="#5C5141" letter-spacing="-0.3" font-family="Fraunces, 'Times New Roman', serif">Story Maker</text>
 </svg>

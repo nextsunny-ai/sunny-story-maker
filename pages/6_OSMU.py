@@ -5,22 +5,16 @@
 import streamlit as st
 import time
 from pathlib import Path
+from modules.page_init import init_page
+init_page("OSMU — SUNNY Story Maker")
 
 from modules import sori_client, file_parser, storage
 from modules.genres import GENRES, list_genre_names, parse_genre_choice
 
-css_path = Path(__file__).parent.parent / "assets" / "styles.css"
-if css_path.exists():
-    st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-
-
-from modules.sidebar import render_sidebar
-render_sidebar()
-
 st.markdown(
     """
     <div class="app-header">
-        <div class="app-header-title"><span class="app-header-title-emoji">🌐</span>OSMU 모드</div>
+        <div class="app-header-title"><span class="app-header-title-emoji">🌐</span>OSMU</div>
         <div class="app-header-version">한 IP → 여러 매체 분석/변환</div>
     </div>
     """,
@@ -29,8 +23,8 @@ st.markdown(
 
 st.markdown(
     """
-    <div style="background: var(--gradient-soft, #ECFDF5); padding: 16px 20px; border-radius: 12px; margin-bottom: 24px;">
-    <strong style="color: #2563EB;">분석 + 매체별 변환</strong>
+    <div class="page-intro">
+    <strong>분석 + 매체별 변환</strong>
     한 IP를 어떤 매체로 풀어갈 때 어떻게 분배하면 좋을지 분석합니다.
     분석 후 [→ 이 매체로 작업하기]로 그 매체 집필/각색 모드로 이동.
     </div>

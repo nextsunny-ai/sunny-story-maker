@@ -2,23 +2,16 @@
 장르마다 단계와 입력 필드가 동적으로 변경됨."""
 
 import streamlit as st
-from pathlib import Path
-from datetime import datetime
+from modules.page_init import init_page
+init_page("집필 — SUNNY Story Maker")
+
 from modules import sori_client, exporter, storage
 from modules.genres import GENRES, list_genre_names, parse_genre_choice
 from modules.workflows import get_workflow
-
-css_path = Path(__file__).parent.parent / "assets" / "styles.css"
-if css_path.exists():
-    st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-
-
-from modules.sidebar import render_sidebar
-render_sidebar()
 st.markdown(
     """
     <div class="app-header">
-        <div class="app-header-title"><span class="app-header-title-emoji">✏️</span>집필 모드</div>
+        <div class="app-header-title"><span class="app-header-title-emoji">✏️</span>집필</div>
         <div class="app-header-version">단계별 작가 워크플로우</div>
     </div>
     """,
@@ -42,10 +35,15 @@ if st.session_state.get("prefilled_genre"):
     state["genre_letter"] = st.session_state.prefilled_genre
     st.session_state.prefilled_genre = None  # 한 번만 적용
 
-# ========== 0. 장르 선택 ==========
-st.markdown("## 0. 장르 + 작품명")
+# ========== 작품명 + 장르 (헤딩 없이 바로) ==========
 col1, col2 = st.columns([2, 1])
 with col1:
+    project_name = st.text_input(
+        "작품명",
+        value=state.get("project_name", ""),
+        placeholder="작품 제목을 입력하세요",
+    )
+with col2:
     genre_options = list_genre_names()
     current_letter = state.get("genre_letter") or "A"
     try:
@@ -53,10 +51,24 @@ with col1:
     except StopIteration:
         current_idx = 0
 
-    genre_choice = st.selectbox("장르 선택", genre_options, index=current_idx)
+    genre_choice = st.selectbox("장르", genre_options, index=current_idx)
     genre_letter = parse_genre_choice(genre_choice)
-with col2:
-    project_name = st.text_input("작품명", value=state.get("project_name", ""))
+
+# 애니메이션(D/E) 진입 시 형식 선택 — 극장용/단편/시리즈 (전체 폭 사용)
+if genre_letter in ("D", "E"):
+    anime_options = ["극장용", "단편", "시리즈"]
+    default_anime = "시리즈" if genre_letter == "E" else state.get("anime_format", "극장용")
+    if default_anime not in anime_options:
+        default_anime = "극장용"
+    anime_format = st.radio(
+        "애니메이션 형식",
+        anime_options,
+        index=anime_options.index(default_anime),
+        horizontal=True,
+        key="anime_format_radio",
+    )
+    state["anime_format"] = anime_format
+    genre_letter = "E" if anime_format == "시리즈" else "D"
 
 genre = GENRES[genre_letter]
 workflow = get_workflow(genre_letter)
@@ -69,27 +81,22 @@ if state["genre_letter"] != genre_letter:
 
 state["project_name"] = project_name
 
-# ========== 진행 단계 표시 ==========
-st.markdown("## 진행 단계")
+# ========== 진행 단계 표시 (헤딩 없이 바만) ==========
 steps_html = '<div class="process-bar">'
 for i, step in enumerate(workflow["steps"]):
     cls = "active" if i == state["stage_idx"] else ("done" if i < state["stage_idx"] else "")
     icon = "✓" if i < state["stage_idx"] else str(i + 1)
     steps_html += f'<div class="process-step {cls}"><div class="process-step-num">{icon}</div>{step}</div>'
-    if i < len(workflow["steps"]) - 1:
-        steps_html += ''
 steps_html += "</div>"
 st.markdown(steps_html, unsafe_allow_html=True)
 
 current_step = workflow["steps"][state["stage_idx"]]
-st.markdown(f"### 현재: {current_step}")
 
 # ========== 단계 1: 의뢰 분석 (필드 동적 입력) ==========
 if state["stage_idx"] == 0:
-    st.markdown(f"#### {genre['name']} 의 필수 입력")
     user_input = state["user_input"]
 
-    for field in workflow["fields"]:
+    def _render_field(field):
         key = field["key"]
         label = field["label"]
         f_type = field["type"]
@@ -110,6 +117,35 @@ if state["stage_idx"] == 0:
             user_input[key] = st.number_input(label, min_value=min_v, max_value=max_v, value=default_n, key=f"f_{key}")
         else:
             user_input[key] = st.text_input(label, value=user_input.get(key, ""), placeholder=field.get("placeholder", ""), key=f"f_{key}")
+
+    # textarea/multiselect는 풀폭, 나머지(select/text/number)는 2열 페어로 묶음.
+    # pending이 혼자 남으면 half-width 유지 (오른쪽 비움).
+    full_width_types = {"textarea", "multiselect"}
+
+    def _flush_pending_alone(p):
+        c1, _c2 = st.columns(2)
+        with c1:
+            _render_field(p)
+
+    pending = None
+    for field in workflow["fields"]:
+        if field["type"] in full_width_types:
+            if pending is not None:
+                _flush_pending_alone(pending)
+                pending = None
+            _render_field(field)
+        else:
+            if pending is None:
+                pending = field
+            else:
+                c1, c2 = st.columns(2)
+                with c1:
+                    _render_field(pending)
+                with c2:
+                    _render_field(field)
+                pending = None
+    if pending is not None:
+        _flush_pending_alone(pending)
 
     state["user_input"] = user_input
 

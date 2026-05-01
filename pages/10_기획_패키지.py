@@ -3,20 +3,13 @@
 모두 작품 폴더(output/<작품명>/artifacts/)에 자동 저장."""
 
 import streamlit as st
-from pathlib import Path
 from datetime import datetime
+from modules.page_init import init_page
+init_page("기획 패키지 — SUNNY Story Maker")
 
 from modules import sori_client, storage, exporter
 from modules.genres import GENRES, list_genre_names, parse_genre_choice
 from modules.workflows import get_workflow
-
-css_path = Path(__file__).parent.parent / "assets" / "styles.css"
-if css_path.exists():
-    st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-
-
-from modules.sidebar import render_sidebar
-render_sidebar()
 st.markdown(
     """
     <div class="app-header">

@@ -234,8 +234,84 @@ def _update_index(project_name: str, version_meta: dict):
         "direction": version_meta.get("direction", ""),
         "char_count": version_meta.get("char_count", 0),
     })
+    if version_meta.get("genre") and not idx.get("genre"):
+        idx["genre"] = version_meta["genre"]
     idx["last_modified"] = datetime.now().isoformat()
     idx_path.write_text(json.dumps(idx, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _chat_path(project_name: str = "", writer_name: str = "") -> Path:
+    """채팅 로그 경로 — 작가별 + 프로젝트별 분리.
+    - 프로젝트 지정: output/<project>/chat__<writer>.json
+    - 프로젝트 없음: output/_chat/<writer>.json
+    writer_name 비면 'guest'로 묶음.
+    """
+    w = slugify(writer_name) if writer_name else "guest"
+    if project_name and project_name != "(없음)":
+        d = project_dir(project_name)
+        return d / f"chat__{w}.json"
+    base = OUTPUT_DIR / "_chat"
+    base.mkdir(parents=True, exist_ok=True)
+    return base / f"{w}.json"
+
+
+def load_chat_log(project_name: str = "", writer_name: str = "") -> list:
+    """채팅 메시지 불러오기 (없으면 빈 리스트) — 작가별 분리"""
+    fp = _chat_path(project_name, writer_name)
+    if not fp.exists():
+        return []
+    try:
+        return json.loads(fp.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+
+
+def save_chat_log(messages: list, project_name: str = "", writer_name: str = "") -> None:
+    """채팅 메시지 전체 저장 — 작가별 분리"""
+    fp = _chat_path(project_name, writer_name)
+    fp.parent.mkdir(parents=True, exist_ok=True)
+    fp.write_text(json.dumps(messages, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def append_chat_message(message: dict, project_name: str = "", writer_name: str = "") -> None:
+    """메시지 한 개 추가 — 매 발화마다 호출"""
+    msgs = load_chat_log(project_name, writer_name)
+    msgs.append(message)
+    save_chat_log(msgs, project_name, writer_name)
+
+
+def active_letters() -> set:
+    """작업이 진행된 매체 letter 집합 — 홈 카드 강조용"""
+    if not OUTPUT_DIR.exists():
+        return set()
+    letters = set()
+    for p in OUTPUT_DIR.iterdir():
+        if not p.is_dir():
+            continue
+        idx_path = p / "index.json"
+        if not idx_path.exists():
+            continue
+        try:
+            idx = json.loads(idx_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            continue
+        g = idx.get("genre")
+        if g:
+            letters.add(g)
+            continue
+        # fallback: 가장 최근 버전 메타에서 추출
+        vdir = p / "versions"
+        if not vdir.exists():
+            continue
+        for jf in sorted(vdir.glob("v*.json"), reverse=True):
+            try:
+                vm = json.loads(jf.read_text(encoding="utf-8"))
+                if vm.get("genre"):
+                    letters.add(vm["genre"])
+                    break
+            except json.JSONDecodeError:
+                continue
+    return letters
 
 
 def list_projects() -> list[dict]:

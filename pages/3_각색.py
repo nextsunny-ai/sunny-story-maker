@@ -2,22 +2,16 @@
 
 import streamlit as st
 from pathlib import Path
-from datetime import datetime
+from modules.page_init import init_page
+init_page("각색 — SUNNY Story Maker")
+
 from modules import sori_client, file_parser, exporter, storage, profile as prof, learning
 from modules.genres import GENRES, list_genre_names, parse_genre_choice
 from modules.workflows import get_workflow
-
-css_path = Path(__file__).parent.parent / "assets" / "styles.css"
-if css_path.exists():
-    st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-
-
-from modules.sidebar import render_sidebar
-render_sidebar()
 st.markdown(
     """
     <div class="app-header">
-        <div class="app-header-title"><span class="app-header-title-emoji">🔄</span>각색 모드</div>
+        <div class="app-header-title"><span class="app-header-title-emoji">🔄</span>각색</div>
         <div class="app-header-version">같은 매체 무한+ / 다른 매체 변환</div>
     </div>
     """,

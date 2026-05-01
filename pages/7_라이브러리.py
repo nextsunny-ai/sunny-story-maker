@@ -1,16 +1,10 @@
 """IP 라이브러리 — 작가가 자기 작품/캐릭터/세계관 등록"""
 
 import streamlit as st
-from pathlib import Path
+from modules.page_init import init_page
+init_page("라이브러리 — SUNNY Story Maker")
+
 from modules import storage
-
-css_path = Path(__file__).parent.parent / "assets" / "styles.css"
-if css_path.exists():
-    st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-
-
-from modules.sidebar import render_sidebar
-render_sidebar()
 st.markdown(
     """
     <div class="app-header">

@@ -62,34 +62,34 @@
 }
 
 
-/* ---------- Design Tokens (V3 — Zajno Beige + Coral) ---------- */
+/* ---------- Design Tokens (V3 — Zajno Reference Match) ---------- */
 :root {
-  /* — Surface (베이지 페이퍼 톤) — */
-  --bg:           #E8DFCF;     /* 메인 베이스 — 따뜻한 베이지 */
-  --bg-soft:      #E2D7C3;     /* 사이드바 — 살짝 진한 */
-  --card:         #DFD4BE;     /* 카드 보조 */
-  --card-hover:   #D6CAB1;
-  --card-pure:    #F2EBDC;     /* 밝은 카드 (오프화이트 베이지) */
+  /* — Surface (Zajno warm grey-beige) — */
+  --bg:           #DCD2BD;     /* 메인 베이스 — Zajno 정확한 톤 */
+  --bg-soft:      #D5CAB3;     /* 사이드바 */
+  --card:         #D2C7B0;     /* 카드 보조 */
+  --card-hover:   #C9BDA3;
+  --card-pure:    #EAE0CB;     /* 밝은 카드 */
 
-  /* — Ink (베이지 위에서 너무 검지 않게) — */
-  --ink:          #1F1A14;     /* 메인 텍스트 (잉크 브라운) */
-  --ink-2:        #3A3328;     /* body */
-  --ink-3:        #6B5F4C;     /* secondary */
-  --ink-4:        #8E826E;     /* tertiary */
-  --ink-5:        #AC9F89;     /* meta */
+  /* — Ink (베이지 위 깊은 잉크 브라운) — */
+  --ink:          #1A1610;     /* 메인 텍스트 — 거의 검정 브라운 */
+  --ink-2:        #332D22;     /* body */
+  --ink-3:        #5C5141;     /* secondary */
+  --ink-4:        #837660;     /* tertiary */
+  --ink-5:        #A2967D;     /* meta */
 
-  --line:         #CFC2A6;     /* 베이지 라인 */
-  --line-soft:    #DCD0B5;
+  --line:         #BFB298;     /* 베이지 라인 */
+  --line-soft:    #CDC1A8;
 
-  /* — Single Accent: Zajno 다홍/연한 코랄 — */
-  --coral:        #E89589;     /* 메인 액센트 — 부드러운 다홍 */
-  --coral-deep:   #C76B5C;
-  --coral-soft:   #F4D9D0;
-  --coral-tint:   #F8E5DF;
-  --coral-glow:   rgba(232, 149, 137, 0.20);
+  /* — Single Accent: Zajno 다홍/살구 — */
+  --coral:        #EE9A8B;     /* Zajno spot accent — 살구 핑크 */
+  --coral-deep:   #C76C5C;
+  --coral-soft:   #F5DCD3;
+  --coral-tint:   #F9E8E1;
+  --coral-glow:   rgba(238, 154, 139, 0.22);
 
-  /* — Soft warm mesh (헤더 — 더 진한 베이지 그라데이션) — */
-  --mesh-warm:    radial-gradient(1200px circle at 50% -20%, #F2D8CE 0%, rgba(242,216,206,0) 60%);
+  /* — Soft warm mesh — */
+  --mesh-warm:    radial-gradient(1200px circle at 50% -20%, #EFD4C7 0%, rgba(239,212,199,0) 60%);
 
   /* — 4 카테고리 도트 (13장르 그룹) — */
   --dot-video:    #18181B;     /* 영상: TV/영화/숏드라마 */
@@ -211,7 +211,7 @@ section.main > div {
 [data-testid="stSidebar"] [aria-label*="ollapse"] {
   display: none !important;
 }
-[data-testid="stSidebar"] > div:first-child { padding-top: 0 !important; }
+[data-testid="stSidebar"] > div:first-child { padding-top: 24px !important; }
 
 footer { visibility: hidden; }
 #MainMenu { visibility: hidden; }
@@ -241,7 +241,7 @@ html, body, [class*="css"] {
 section.main > div,
 section.main > div:first-child {
   max-width: 1200px !important;
-  padding-top: 8px !important;
+  padding-top: 0 !important;       /* sidebar brand 라인과 정렬 위해 0 */
   padding-bottom: var(--s-9) !important;
   margin-top: 0 !important;
 }
@@ -250,11 +250,7 @@ section.main > div:first-child {
 [data-testid="stAppViewContainer"] > section.main {
   padding-top: 0 !important;
   margin-top: 0 !important;
-  background:
-    var(--mesh-warm),
-    var(--bg);
-  background-repeat: no-repeat;
-  background-size: 100% 320px, 100% 100%;
+  background: var(--bg) !important;   /* mesh 제거 — flat 베이지 (Zajno 톤) */
 }
 
 /* 메인 첫 element 위 margin 제거 */
@@ -270,46 +266,111 @@ section.main > div > div:first-child {
 
 
 /* ============================================================
-   App header — Soft warm mesh + display H1 (Ref 3 + Ref 4)
+   .app-header — V3 페이지 공통 헤더 (홈 ssm-topbar와 동기화)
    ============================================================ */
 .app-header {
-  background: transparent;
-  padding: var(--s-3) 0 var(--s-3);
-  margin: 0 0 var(--s-4) 0;
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  background: transparent !important;
+  padding: 12px 0 12px !important;
+  margin: 0 0 14px 0 !important;
+  border-bottom: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px;
+  min-height: 64px;
+  box-sizing: border-box;
   position: relative;
 }
 
 .app-header-title {
-  color: var(--ink);
-  font-family: var(--font-ui);
-  font-size: var(--fs-25);
-  font-weight: 800;
-  letter-spacing: var(--tk-tight);
-  line-height: var(--lh-tight);
+  color: var(--ink) !important;
+  font-family: var(--font-display) !important;
+  font-style: italic !important;
+  font-size: 32px !important;
+  font-weight: 400 !important;
+  letter-spacing: -0.025em !important;
+  line-height: 1 !important;
+  font-variation-settings: "opsz" 144, "SOFT" 80, "WONK" 100;
   display: flex;
-  align-items: baseline;
-  gap: var(--s-3);
+  align-items: center;
+  gap: 12px;
 }
 
 .app-header-title-emoji {
   font-family: var(--font-emoji);
-  font-size: var(--fs-20);
+  font-size: 22px;
+  font-style: normal;
 }
 
 .app-header-version {
-  color: var(--ink-4);
-  font-size: var(--fs-12);
-  font-weight: 600;
-  letter-spacing: var(--tk-wide);
-  text-transform: uppercase;
+  color: var(--ink-3) !important;
+  font-family: var(--font-ui) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.005em !important;
+  text-transform: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+
+/* page-intro — V3 베이지 톤 사용법 박스 (V1 gradient-soft 대체) */
+.page-intro {
   background: var(--card);
-  padding: 4px var(--s-3);
-  border-radius: var(--r-pill);
   border: 1px solid var(--line);
+  padding: 14px 18px;
+  border-radius: var(--r-2);
+  margin-bottom: 20px;
+  font-size: var(--fs-14);
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+.page-intro strong {
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: var(--fs-13);
+  letter-spacing: -0.005em;
+}
+
+
+/* ============================================================
+   Scrollbar hide — 사이드바 + 메인 영역 (스크롤은 가능, 바만 숨김)
+   ============================================================ */
+[data-testid="stSidebar"],
+[data-testid="stSidebar"] > div:first-child,
+[data-testid="stSidebar"] [data-testid="stSidebarContent"],
+section.main,
+.main,
+.main .block-container,
+[data-testid="stAppViewContainer"],
+[data-testid="stAppViewContainer"] > section,
+[data-testid="stAppViewContainer"] .main {
+  scrollbar-width: none !important;            /* Firefox */
+  -ms-overflow-style: none !important;          /* IE/old Edge */
+}
+[data-testid="stSidebar"]::-webkit-scrollbar,
+[data-testid="stSidebar"] *::-webkit-scrollbar,
+section.main::-webkit-scrollbar,
+.main::-webkit-scrollbar,
+.main .block-container::-webkit-scrollbar,
+[data-testid="stAppViewContainer"]::-webkit-scrollbar,
+[data-testid="stAppViewContainer"] *::-webkit-scrollbar,
+body::-webkit-scrollbar,
+html::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent !important;
+}
+html, body {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 
 
@@ -380,24 +441,28 @@ section.main > div > div:first-child {
 }
 
 .ssm-nav-section {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--ink-5);
   letter-spacing: var(--tk-wide);
   text-transform: uppercase;
-  padding: var(--s-3) var(--s-3) var(--s-1);
-  margin-top: var(--s-3);
+  padding: 6px var(--s-3) 2px;
+  margin-top: 4px;
+}
+
+.ssm-nav-section:first-of-type {
+  margin-top: 0;
 }
 
 [data-testid="stSidebar"] [data-testid="stPageLink"] {
-  margin-bottom: 2px !important;
+  margin-bottom: 0 !important;
 }
 
 [data-testid="stSidebar"] [data-testid="stPageLink"] a {
   display: flex !important;
   align-items: center !important;
   gap: var(--s-3) !important;
-  padding: var(--s-2) var(--s-3) !important;
+  padding: 5px var(--s-3) !important;
   border-radius: var(--r-1) !important;
   color: var(--ink-3) !important;
   font-size: var(--fs-13) !important;
@@ -482,6 +547,94 @@ p, li, span, label {
 [data-testid="stMarkdownContainer"] p {
   font-size: var(--fs-14);
   line-height: var(--lh-body);
+  margin-bottom: 6px;
+}
+
+
+/* ============================================================
+   섹션 페이지 컴팩트 spacing — 과도한 띄어쓰기 압축
+   ============================================================ */
+/* Streamlit 기본 1rem 세로 gap → 0.4rem */
+[data-testid="stVerticalBlock"] {
+  gap: 0.4rem !important;
+}
+[data-testid="stHorizontalBlock"] {
+  gap: 0.6rem !important;
+}
+
+/* element-container 자체 마진 축소 */
+[data-testid="stElementContainer"],
+.element-container {
+  margin-bottom: 0 !important;
+}
+
+/* heading 위아래 여백 압축 */
+[data-testid="stMain"] h1,
+[data-testid="stMain"] h2,
+[data-testid="stMain"] h3,
+[data-testid="stMain"] h4 {
+  margin-top: 8px !important;
+  margin-bottom: 4px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: 1.25 !important;
+}
+[data-testid="stMain"] h1 { font-size: 22px !important; font-weight: 700 !important; }
+[data-testid="stMain"] h2 { font-size: 18px !important; font-weight: 700 !important; }
+[data-testid="stMain"] h3 { font-size: 15px !important; font-weight: 700 !important; }
+[data-testid="stMain"] h4 { font-size: 14px !important; font-weight: 600 !important; }
+
+/* Streamlit 헤더 anchor link 공간 제거 */
+[data-testid="stHeadingWithActionElements"] {
+  margin: 0 !important;
+}
+
+/* widget label → input 사이 간격 축소 */
+[data-testid="stWidgetLabel"],
+.stTextInput label,
+.stTextArea label,
+.stSelectbox label,
+.stRadio label,
+.stMultiSelect label,
+.stNumberInput label,
+.stCheckbox label {
+  margin-bottom: 2px !important;
+  padding-bottom: 0 !important;
+}
+
+/* radio/checkbox 옵션 간 간격 */
+[data-testid="stRadio"] > div {
+  gap: 4px !important;
+}
+
+/* expander 컴팩트 */
+[data-testid="stExpander"] {
+  margin: 4px 0 !important;
+}
+[data-testid="stExpander"] details > summary {
+  padding: 6px 10px !important;
+}
+
+/* divider, hr 컴팩트 */
+[data-testid="stMain"] hr {
+  margin: 10px 0 !important;
+}
+
+/* caption 위 여백 제거 */
+[data-testid="stCaptionContainer"] {
+  margin-top: 0 !important;
+  margin-bottom: 4px !important;
+}
+
+/* button 위아래 여백 축소 (이미 있는 .stButton 룰 보강) */
+[data-testid="stMain"] .stButton {
+  margin: 2px 0 !important;
+}
+
+/* app-header 아래 첫 요소까지의 거리 압축 */
+.app-header + div,
+.app-header + [data-testid="stMarkdownContainer"] {
+  margin-top: 0 !important;
 }
 
 .caption,
@@ -742,74 +895,78 @@ input:focus {
 
 
 /* ============================================================
-   Process bar (5단계)
+   Process bar — 컴팩트 inline 스텝 (라인이 텍스트와 안 겹침)
    ============================================================ */
 .process-bar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   background: var(--card);
-  padding: var(--s-4) var(--s-5);
+  padding: 8px 12px;
   border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  margin-bottom: var(--s-6);
+  border-radius: var(--r-2);
+  margin-bottom: 12px;
+  gap: 0;
 }
 
 .process-step {
-  flex: 1;
-  text-align: center;
-  position: relative;
-  font-size: var(--fs-12);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px;
+  font-size: 11px;
   color: var(--ink-4);
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .process-step-num {
-  display: inline-block;
-  width: 24px;
-  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   border-radius: var(--r-pill);
   background: var(--card-pure);
   border: 1px solid var(--line);
-  line-height: 22px;
-  margin-bottom: var(--s-1);
-  font-weight: 600;
+  font-size: 9.5px;
+  font-weight: 700;
   color: var(--ink-4);
-}
-
-.process-step.active .process-step-num {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: #FFFFFF;
-  box-shadow: 0 0 0 3px var(--coral-glow);
+  flex: 0 0 16px;
 }
 
 .process-step.active {
   color: var(--ink);
   font-weight: 700;
 }
-
-.process-step.done .process-step-num {
-  background: var(--coral);
-  border-color: var(--coral);
+.process-step.active .process-step-num {
+  background: var(--ink);
+  border-color: var(--ink);
   color: #FFFFFF;
 }
 
 .process-step.done {
   color: var(--coral-deep);
 }
-
-.process-step:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  top: 12px;
-  right: -50%;
-  width: 100%;
-  height: 1px;
-  background: var(--line);
+.process-step.done .process-step-num {
+  background: var(--coral);
+  border-color: var(--coral);
+  color: #FFFFFF;
 }
 
-.process-step.done:not(:last-child)::after {
+/* 스텝 간 연결선 — 인접 스텝 사이에만 그어짐, 텍스트와 절대 안 겹침 */
+.process-step + .process-step::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 1px;
+  background: var(--line);
+  margin: 0 2px 0 -1px;
+  flex: 0 0 8px;
+}
+.process-step.done + .process-step::before,
+.process-step.done + .process-step.active::before {
   background: var(--coral);
 }
 
@@ -1364,15 +1521,30 @@ hr {
 
 
 /* ---------- Sidebar brand (한 줄 — 메인 topbar와 라인 정렬) ---------- */
+.ssm-brand-link {
+  display: block;
+  text-decoration: none !important;
+  color: inherit !important;
+  cursor: pointer;
+  transition: opacity 160ms var(--ease);
+}
+.ssm-brand-link:hover {
+  text-decoration: none !important;
+  opacity: 0.85;
+}
+.ssm-brand-link:hover .ssm-brand-name {
+  color: var(--coral) !important;
+}
+
 .ssm-brand {
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
-  margin: 0 0 8px;
+  padding: 10px 14px 12px;
+  margin: 0 0 4px;
   border-bottom: 1px solid var(--line);
-  min-height: 60px;
+  min-height: 64px;
   box-sizing: border-box;
 }
 
@@ -1380,27 +1552,27 @@ hr {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 32px;
+  flex: 0 0 38px;
 }
 
 .ssm-brand-symbol svg {
-  width: 32px !important;
-  height: 32px !important;
+  width: 38px !important;
+  height: 38px !important;
   display: block;
 }
 
 .ssm-brand-text {
   display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 6px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   line-height: 1;
 }
 
 .ssm-brand-name {
   font-family: var(--font-ui);
   font-weight: 800;
-  font-size: 15px;
+  font-size: 17px;
   color: var(--ink);
   letter-spacing: -0.035em;
   line-height: 1;
@@ -1459,9 +1631,11 @@ hr {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 0 0 10px;
-  margin: 0 0 12px;
+  padding: 12px 0 12px;
+  margin: 0 0 14px;
   border-bottom: 1px solid var(--line);
+  min-height: 64px;
+  box-sizing: border-box;
 }
 
 .ssm-topbar-left {
@@ -1475,13 +1649,13 @@ hr {
 .ssm-topbar-title {
   font-family: var(--font-display) !important;
   font-style: italic !important;
-  font-size: 38px !important;
+  font-size: 52px !important;
   font-weight: 400 !important;
   line-height: 1 !important;
   letter-spacing: -0.03em !important;
   color: var(--ink) !important;
   margin: 0 !important;
-  font-variation-settings: "opsz" 144, "SOFT" 50;
+  font-variation-settings: "opsz" 144, "SOFT" 80, "WONK" 100;
   white-space: nowrap;
   flex: 0 0 auto;
 }
@@ -1494,7 +1668,7 @@ hr {
 
 .ssm-topbar-sub {
   font-family: var(--font-ui);
-  font-size: 12.5px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--ink-3);
   letter-spacing: -0.005em;
@@ -1611,11 +1785,7 @@ hr {
 }
 
 .ssm-section-num {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-style: italic;
-  color: var(--ink-5);
-  letter-spacing: -0.02em;
+  display: none !important;
 }
 
 .ssm-section-title {
@@ -1646,8 +1816,8 @@ hr {
   background: var(--card-pure);
   border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 14px 14px 16px;
-  height: 142px;
+  padding: 14px 14px 14px;
+  height: 116px;
   display: flex;
   flex-direction: column;
   cursor: pointer;
@@ -1699,10 +1869,12 @@ hr {
   display: block;
 }
 
-.genre-card[data-cat="video"] .genre-card-dot { background: var(--ink); }
-.genre-card[data-cat="anim"]  .genre-card-dot { background: #2563EB; }
-.genre-card[data-cat="text"]  .genre-card-dot { background: var(--coral); }
-.genre-card[data-cat="media"] .genre-card-dot { background: #16A34A; }
+.genre-card .genre-card-dot { background: var(--ink-3, #8b8275); opacity: 0.5; }
+.genre-card[data-active="true"] .genre-card-dot {
+  background: var(--coral, #EE9A8B);
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(238, 154, 139, 0.22);
+}
 
 .genre-card-num {
   font-family: var(--font-display);
@@ -1724,7 +1896,7 @@ hr {
   color: var(--ink);
   letter-spacing: -0.02em;
   line-height: 1.25;
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .genre-card-subtitle {
@@ -1761,10 +1933,10 @@ hr {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   cursor: not-allowed;
-  height: 142px;
-  padding: 12px;
+  height: 116px;
+  padding: 10px;
   transition: border-color 160ms var(--ease);
 }
 
@@ -1776,7 +1948,7 @@ hr {
 
 .genre-card-add-icon {
   font-family: var(--font-ui);
-  font-size: 36px;
+  font-size: 28px;
   font-weight: 200;
   color: var(--ink-5);
   line-height: 1;
@@ -1946,13 +2118,13 @@ hr {
 }
 
 .ssm-empty {
-  padding: 32px 24px;
+  padding: 14px 18px;
   text-align: center;
   color: var(--ink-4);
-  font-size: 13px;
+  font-size: 12.5px;
   background: var(--card);
   border: 1px dashed var(--line);
-  border-radius: 14px;
+  border-radius: 10px;
 }
 
 
@@ -1960,15 +2132,16 @@ hr {
 .ssm-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 12px;
   border-top: 1px solid var(--line);
-  padding-top: 24px;
+  padding-top: 12px;
 }
 
 .ssm-stat {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .ssm-stat-label {
@@ -1982,10 +2155,11 @@ hr {
 
 .ssm-stat-value {
   font-family: var(--font-display);
-  font-size: 48px;
+  font-size: 18px;
+  font-style: italic;
   line-height: 1;
   color: var(--ink);
-  letter-spacing: -0.04em;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 

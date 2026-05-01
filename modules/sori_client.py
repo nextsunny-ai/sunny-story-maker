@@ -167,18 +167,22 @@ def _build_full_system() -> str:
     return "\n".join(parts)
 
 
-def call_sori(user_prompt: str, max_tokens: int = 4096, temperature: float = 0.7) -> str:
-    """프롬프트 보내고 응답 받음. 인증 모드 자동 분기."""
+def call_sori(user_prompt: str, max_tokens: int = 4096, temperature: float = 0.7, model: str = None) -> str:
+    """프롬프트 보내고 응답 받음. 인증 모드 자동 분기.
+    model: 명시 시 해당 모델 사용 (예: 'claude-haiku-4-5' 빠른 응답용). 미지정 시 DEFAULT_MODEL.
+    """
     mode = auth.get_auth_mode()
     if mode == "none":
         return _mock_response(user_prompt)
     if mode == "claude_code":
         return _call_via_claude_code(user_prompt, max_tokens=max_tokens)
-    return _call_via_sdk(user_prompt, max_tokens=max_tokens, temperature=temperature)
+    return _call_via_sdk(user_prompt, max_tokens=max_tokens, temperature=temperature, model=model)
 
 
-def stream_sori(user_prompt: str, max_tokens: int = 4096, temperature: float = 0.7) -> Iterator[str]:
-    """스트리밍 응답."""
+def stream_sori(user_prompt: str, max_tokens: int = 4096, temperature: float = 0.7, model: str = None) -> Iterator[str]:
+    """스트리밍 응답.
+    model: 명시 시 해당 모델 사용 (예: 'claude-haiku-4-5' 빠른 채팅용). 미지정 시 DEFAULT_MODEL.
+    """
     mode = auth.get_auth_mode()
     if mode == "none":
         for chunk in _mock_response(user_prompt).split():
@@ -201,7 +205,7 @@ def stream_sori(user_prompt: str, max_tokens: int = 4096, temperature: float = 0
     client = Anthropic(api_key=API_KEY)
     system = _build_full_system()
     with client.messages.stream(
-        model=DEFAULT_MODEL,
+        model=model or DEFAULT_MODEL,
         max_tokens=max_tokens,
         temperature=temperature,
         system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
@@ -211,13 +215,13 @@ def stream_sori(user_prompt: str, max_tokens: int = 4096, temperature: float = 0
             yield text
 
 
-def _call_via_sdk(user_prompt: str, max_tokens: int, temperature: float) -> str:
+def _call_via_sdk(user_prompt: str, max_tokens: int, temperature: float, model: str = None) -> str:
     """Anthropic SDK 직접 호출 (API 키)"""
     client = Anthropic(api_key=API_KEY)
     system = _build_full_system()
 
     response = client.messages.create(
-        model=DEFAULT_MODEL,
+        model=model or DEFAULT_MODEL,
         max_tokens=max_tokens,
         temperature=temperature,
         system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
