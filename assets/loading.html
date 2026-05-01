@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>SUNNY Story Maker — 작가 에이전트 깨우는 중...</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
+    color: #0F172A;
+    background: linear-gradient(135deg, #ECFDF5 0%, #EFF6FF 50%, #DBEAFE 100%);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  .container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+  }
+  .logo {
+    width: 120px;
+    height: 120px;
+    border-radius: 28px;
+    background: linear-gradient(135deg, #2DD4BF 0%, #0EA5E9 50%, #2563EB 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 56px;
+    box-shadow: 0 20px 60px rgba(37,99,235,0.25);
+    animation: float 3s ease-in-out infinite;
+    position: relative;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  .logo::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 32px;
+    background: linear-gradient(135deg, #2DD4BF, #2563EB);
+    opacity: 0.3;
+    z-index: -1;
+    filter: blur(20px);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.1); }
+  }
+  h1 {
+    font-size: 32px;
+    font-weight: 800;
+    margin-top: 40px;
+    letter-spacing: -0.5px;
+    background: linear-gradient(90deg, #0EA5E9, #2563EB);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .status {
+    margin-top: 16px;
+    color: #64748B;
+    font-size: 16px;
+    min-height: 24px;
+  }
+  .progress-bar {
+    margin-top: 32px;
+    width: 280px;
+    height: 4px;
+    background: rgba(15,23,42,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+  }
+  .progress-fill {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, #2DD4BF, #0EA5E9, #2563EB);
+    border-radius: 2px;
+    width: 30%;
+    animation: slide 1.5s ease-in-out infinite;
+  }
+  @keyframes slide {
+    0% { left: -30%; }
+    100% { left: 100%; }
+  }
+  .tip {
+    position: absolute;
+    bottom: 40px;
+    color: #94A3B8;
+    font-size: 13px;
+    opacity: 0;
+    animation: fadeIn 0.5s 1s forwards;
+  }
+  @keyframes fadeIn { to { opacity: 1; } }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">✍️</div>
+    <h1>SUNNY Story Maker</h1>
+    <div class="status" id="status">작가 에이전트 깨우는 중...</div>
+    <div class="progress-bar"><div class="progress-fill"></div></div>
+    <div class="tip">처음 실행은 3~5초 걸립니다. 두 번째부터는 즉시 떠요.</div>
+  </div>
+
+<script>
+const STREAMLIT_URL = "http://localhost:8501";
+const statusEl = document.getElementById("status");
+const messages = [
+  "작가 에이전트 깨우는 중...",
+  "13개 장르 매뉴얼 로드 중...",
+  "humanizer 룰 적용 중...",
+  "작가 프로필 불러오는 중...",
+  "거의 다 됐어요...",
+];
+let msgIdx = 0;
+
+setInterval(() => {
+  msgIdx = (msgIdx + 1) % messages.length;
+  statusEl.textContent = messages[msgIdx];
+}, 1500);
+
+// Streamlit 폴링 — 뜨자마자 즉시 전환
+async function check() {
+  try {
+    const res = await fetch(STREAMLIT_URL, { mode: "no-cors", cache: "no-store" });
+    // no-cors 모드는 status를 못 읽지만 fetch 자체는 성공
+    window.location.replace(STREAMLIT_URL);
+  } catch (e) {
+    setTimeout(check, 800);
+  }
+}
+
+// 0.5초 후부터 폴링 시작
+setTimeout(check, 500);
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+# 개인 정보 / 비밀
+.env
+.env.local
+*.key
+*.pem
+
+# 작가 작업 결과물 (개인 데이터)
+output/
+!output/.gitkeep
+
+# 가상환경
+venv/
+env/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# 변환된 아이콘 (PNG는 SVG에서 다시 생성)
+assets/icon.ico
+assets/icon.png
+
+# Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
+
+# 로그
+*.log
+logs/
+
+# 패키징 산출물
+dist/
+build/
+*.zip
+SUNNY_Story_Maker_v*.zip
+
+# 임시
+*.tmp
+*~

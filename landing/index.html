@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>SUNNY Story Maker — 한국 시나리오 작가의 AI 협업 툴</title>
+<meta name="description" content="13개 장르 시나리오 · 다중 타겟 리뷰 · 50회+ 각색 · humanizer 자동 검출. 한국 작가를 위한 시나리오 도구." />
+<link rel="icon" type="image/svg+xml" href="../assets/icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --bg-soft: #F8FAFC;
+    --text: #0F172A;
+    --text-muted: #64748B;
+    --border: #E2E8F0;
+    --accent: #2563EB;
+    --gradient: linear-gradient(90deg, #2DD4BF 0%, #0EA5E9 50%, #2563EB 100%);
+    --gradient-soft: linear-gradient(135deg, #ECFDF5 0%, #EFF6FF 100%);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* 헤더 */
+  header {
+    background: var(--gradient);
+    padding: 18px 40px;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .logo { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; display: flex; align-items: center; gap: 8px; }
+  .logo-emoji { font-size: 22px; }
+  .version-badge { font-size: 12px; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; }
+
+  /* 히어로 */
+  .hero {
+    text-align: center;
+    padding: 100px 24px 80px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .hero h1 {
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1.15;
+    margin-bottom: 24px;
+  }
+  .hero .accent {
+    background: var(--gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero p.lead {
+    font-size: 20px;
+    color: var(--text-muted);
+    max-width: 660px;
+    margin: 0 auto 40px;
+  }
+  .cta-row {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn-primary {
+    background: var(--gradient);
+    color: white;
+    padding: 16px 36px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 16px;
+    text-decoration: none;
+    box-shadow: 0 6px 20px rgba(37,99,235,0.25);
+    transition: transform 0.15s, box-shadow 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(37,99,235,0.35); }
+  .btn-secondary {
+    background: white;
+    color: var(--text);
+    padding: 16px 36px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 16px;
+    border: 1.5px solid var(--border);
+    text-decoration: none;
+    transition: border-color 0.15s;
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* 섹션 공통 */
+  section { padding: 80px 24px; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h2 {
+    font-size: 36px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 16px;
+    letter-spacing: -0.6px;
+  }
+  .section-lead { text-align: center; color: var(--text-muted); font-size: 17px; margin-bottom: 56px; max-width: 720px; margin-left: auto; margin-right: auto; }
+
+  /* 모드 카드 */
+  .mode-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+  }
+  .mode-card {
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .mode-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--gradient);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .mode-card:hover { border-color: transparent; box-shadow: 0 10px 30px rgba(15,23,42,0.08); transform: translateY(-3px); }
+  .mode-card:hover::before { opacity: 1; }
+  .mode-icon { font-size: 28px; margin-bottom: 14px; }
+  .mode-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .mode-desc { font-size: 14px; color: var(--text-muted); line-height: 1.55; }
+  .mode-badge {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: linear-gradient(90deg, #FCD34D 0%, #FB923C 100%);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 8px;
+    letter-spacing: 0.5px;
+  }
+
+  /* 장르 그리드 */
+  .genre-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .genre-tag {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 12px;
+    text-align: center;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+  .genre-tag:hover { border-color: var(--accent); color: var(--accent); background: white; }
+
+  /* 차별점 */
+  .diff-section {
+    background: var(--gradient-soft);
+    border-radius: 24px;
+    padding: 56px 40px;
+    margin: 40px 0;
+  }
+  .diff-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 28px;
+    margin-top: 32px;
+  }
+  .diff-item h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .diff-item p { color: var(--text-muted); font-size: 14px; }
+
+  /* 빠른 시작 */
+  .quickstart {
+    background: var(--text);
+    color: white;
+    border-radius: 24px;
+    padding: 48px 40px;
+    text-align: center;
+  }
+  .quickstart h2 { color: white; }
+  .step-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 24px;
+    margin: 40px 0;
+    text-align: left;
+  }
+  .step-num {
+    background: var(--gradient);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .step-text { color: rgba(255,255,255,0.85); font-size: 14px; }
+
+  /* 푸터 */
+  footer { padding: 40px 24px; text-align: center; color: var(--text-muted); font-size: 13px; border-top: 1px solid var(--border); }
+
+  /* 모바일 */
+  @media (max-width: 640px) {
+    .hero { padding: 60px 20px 50px; }
+    .hero h1 { font-size: 40px; }
+    .hero p.lead { font-size: 17px; }
+    .cta-row { flex-direction: column; }
+    .btn-primary, .btn-secondary { width: 100%; justify-content: center; }
+    section { padding: 56px 20px; }
+    h2 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><span class="logo-emoji">✍️</span> SUNNY Story Maker</div>
+  <div class="version-badge">v1.0</div>
+</header>
+
+<!-- 히어로 -->
+<section class="hero">
+  <h1>한국 시나리오 작가를<br><span class="accent">진짜 똑똑하게</span> 도와주는 도구</h1>
+  <p class="lead">
+    13개 장르 · 다중 타겟 리뷰 · 50번+ 각색 반복.<br>
+    배급사 알바 리뷰처럼, 보조작가가 옆에 앉은 것처럼.
+  </p>
+  <div class="cta-row">
+    <a href="#download" class="btn-primary">⬇ 무료 다운로드</a>
+    <a href="#features" class="btn-secondary">기능 보기</a>
+  </div>
+</section>
+
+<!-- 모드 -->
+<section id="features">
+  <div class="container">
+    <h2>한 도구로 7가지</h2>
+    <p class="section-lead">신규 집필부터 50번째 각색까지. 작가의 모든 작업 단계를 하나로.</p>
+    <div class="mode-grid">
+      <div class="mode-card">
+        <span class="mode-badge">MAGIC</span>
+        <div class="mode-icon">🪄</div>
+        <div class="mode-title">AI 기획 모드</div>
+        <div class="mode-desc">한 줄 아이디어만 입력하면 로그라인부터 트리트먼트, 시놉시스, 첫 부분 샘플까지.</div>
+      </div>
+      <div class="mode-card">
+        <div class="mode-icon">✏️</div>
+        <div class="mode-title">공동 집필 모드</div>
+        <div class="mode-desc">사용자 입력 + AI 협업. 5단계 프로세스로 단계별 진행. 장르마다 단계와 입력 자동 변경.</div>
+      </div>
+      <div class="mode-card">
+        <span class="mode-badge">★</span>
+        <div class="mode-icon">🔍</div>
+        <div class="mode-title">평가 모드</div>
+        <div class="mode-desc">배급사 알바 문항지 양식 그대로. 타겟 3개로 별도 리뷰. 제목 평가/추천, 캐릭터 호감도, 12개 정형 문항.</div>
+      </div>
+      <div class="mode-card">
+        <div class="mode-icon">🔄</div>
+        <div class="mode-title">각색 모드</div>
+        <div class="mode-desc">같은 장르 안에서 50번+ 반복. 자연어 디렉션. 부분 수정. 다른 장르 변환 옵션.</div>
+      </div>
+      <div class="mode-card">
+        <span class="mode-badge">PRO</span>
+        <div class="mode-icon">🌐</div>
+        <div class="mode-title">OSMU 모드</div>
+        <div class="mode-desc">한 IP를 13장르 매트릭스로 자동 전개. 미디어별 다른 매력 분배.</div>
+      </div>
+      <div class="mode-card">
+        <div class="mode-icon">👥</div>
+        <div class="mode-title">IP 라이브러리</div>
+        <div class="mode-desc">캐릭터/세계관 자동 관리. 등록한 IP가 모든 모드에 자동 반영.</div>
+      </div>
+      <div class="mode-card">
+        <div class="mode-icon">💬</div>
+        <div class="mode-title">소리와 대화</div>
+        <div class="mode-desc">보조작가처럼 자유로운 채팅. 캐릭터 이름/대사 추천/비유 의뢰까지.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 장르 -->
+<section style="background: var(--bg-soft);">
+  <div class="container">
+    <h2>13개 장르 한국 실무 표준</h2>
+    <p class="section-lead">각 장르마다 시장 데이터, 핵심 전략, 실패 요인, AI투 제거 룰, 한국 표준 양식 자동.</p>
+    <div class="genre-grid">
+      <div class="genre-tag">TV 드라마</div>
+      <div class="genre-tag">영화</div>
+      <div class="genre-tag">숏드라마</div>
+      <div class="genre-tag">극장 애니</div>
+      <div class="genre-tag">애니 시리즈</div>
+      <div class="genre-tag">웹툰</div>
+      <div class="genre-tag">다큐멘터리</div>
+      <div class="genre-tag">웹소설</div>
+      <div class="genre-tag">뮤지컬</div>
+      <div class="genre-tag">유튜브</div>
+      <div class="genre-tag">전시·체험</div>
+      <div class="genre-tag">게임</div>
+      <div class="genre-tag">예능</div>
+    </div>
+  </div>
+</section>
+
+<!-- 차별점 -->
+<section>
+  <div class="container">
+    <h2>왜 다른 도구와 다른가</h2>
+    <div class="diff-section">
+      <div class="diff-grid">
+        <div class="diff-item">
+          <h3>🇰🇷 한국어 humanizer</h3>
+          <p>AI 티 6패턴 자동 검출 — 번역투, 격언체, 관념어, 깔끔한 대구문, 메타포 과정리. Tier 1/2/3 단어 시스템.</p>
+        </div>
+        <div class="diff-item">
+          <h3>🎬 배급사 다중 타겟 리뷰</h3>
+          <p>10대/30대 직장인/40대 가족 — 타겟별 별도 리뷰. 알바 리서치 양식 그대로. 제목 평가, 다른 제목 추천 포함.</p>
+        </div>
+        <div class="diff-item">
+          <h3>🔄 50번+ 각색 반복</h3>
+          <p>영화·드라마는 수십 번 고친다. 자연어 디렉션 + 자동 버전 관리 + 변경 이력 추적.</p>
+        </div>
+        <div class="diff-item">
+          <h3>📐 13개 장르 표준 양식</h3>
+          <p>장르마다 다른 한국 실무 양식 자동 적용. 폰트, 페이지, 분량, 씬 헤딩까지.</p>
+        </div>
+        <div class="diff-item">
+          <h3>🧠 쓰면서 똑똑해짐</h3>
+          <p>좋아한 패턴/반려한 패턴 누적 학습. 작가 프로필 자동 반영.</p>
+        </div>
+        <div class="diff-item">
+          <h3>📝 워드/한글 룩앤필</h3>
+          <p>편집 영역은 함초롬바탕 11pt. 본문 폰트 8종 즉시 전환. 작가가 익숙한 양식 그대로.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 다운로드 -->
+<section id="download" style="background: var(--bg-soft);">
+  <div class="container">
+    <div class="quickstart">
+      <h2>지금 바로 시작</h2>
+      <p style="color: rgba(255,255,255,0.85); font-size: 17px; margin-bottom: 16px;">
+        다운로드 후 5분 이내에 첫 시나리오 작성 가능.
+      </p>
+      <div class="step-grid">
+        <div>
+          <div class="step-num">1</div>
+          <div style="font-weight: 600; margin-bottom: 6px;">ZIP 다운로드</div>
+          <div class="step-text">압축 풀기 → 폴더 안의 install_shortcut.bat 클릭</div>
+        </div>
+        <div>
+          <div class="step-num">2</div>
+          <div style="font-weight: 600; margin-bottom: 6px;">바탕화면 아이콘</div>
+          <div class="step-text">자동 생성된 아이콘 더블클릭</div>
+        </div>
+        <div>
+          <div class="step-num">3</div>
+          <div style="font-weight: 600; margin-bottom: 6px;">로그인</div>
+          <div class="step-text">Claude 구독자는 자동 / 키 보유자는 입력</div>
+        </div>
+        <div>
+          <div class="step-num">4</div>
+          <div style="font-weight: 600; margin-bottom: 6px;">시작</div>
+          <div class="step-text">7가지 모드 중 선택해서 작업</div>
+        </div>
+      </div>
+      <a href="#" class="btn-primary" style="margin-top: 16px;" id="downloadLink">
+        ⬇ SUNNY_Story_Maker_v1.0.zip 받기
+      </a>
+      <p style="color: rgba(255,255,255,0.6); font-size: 12px; margin-top: 16px;">
+        Windows 10/11 · Python 3.10+ 자동 설치 안내
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>SUNNY Story Maker v1.0 · 한국 시나리오 작가의 AI 협업 도구</p>
+  <p style="margin-top: 8px;">문의: <a href="mailto:contact@sunnytoon.com" style="color: var(--accent);">contact@sunnytoon.com</a></p>
+</footer>
+
+<script>
+  // 다운로드 링크는 배포 시 실제 ZIP URL로 교체
+  document.getElementById('downloadLink').href = '/downloads/SUNNY_Story_Maker_v1.0.zip';
+</script>
+
+</body>
+</html>
