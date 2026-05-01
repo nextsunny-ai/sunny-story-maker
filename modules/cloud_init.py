@@ -16,6 +16,8 @@ def init_cloud_env():
             "SORI_SKILL_DIR",
             "STORY_MAKER_OUTPUT",
             "FORCE_AUTH_MODE",
+            "SUPABASE_URL",
+            "SUPABASE_KEY",
         ]
         for k in secret_keys:
             if k in st.secrets and not os.environ.get(k):

@@ -1,12 +1,13 @@
-"""작가 프로필 시스템 — 사용자별 어드민
-각 작가가 자기 스타일/선호/노하우/작품 등록.
+"""작가 프로필 시스템 — Supabase + 파일 폴백
 모든 모드에서 이 프로필이 자동으로 컨텍스트로 들어감."""
 
 import json
+import os
 from pathlib import Path
 from datetime import datetime
 
-import os
+from . import db
+
 _ROOT = Path(__file__).resolve().parent.parent
 PROFILES_DIR = Path(os.getenv("STORY_MAKER_OUTPUT") or (_ROOT / "output")) / "_profiles"
 ACTIVE_PROFILE_FILE = PROFILES_DIR / "_active.txt"
@@ -16,8 +17,60 @@ def slugify(name: str) -> str:
     return "".join(c if c.isalnum() or c in "_가-힣" else "_" for c in name)[:50]
 
 
+# ============================================================
+# Supabase ↔ 프로필 dict 변환
+# ============================================================
+
+PROFILE_KEYS = [
+    "name", "tagline", "career", "preferred_genres", "preferred_tone",
+    "writing_style", "favorite_authors", "preferred_metaphor_systems",
+    "personal_anti_patterns", "preferred_font", "preferred_targets",
+    "default_export_format", "notes", "ip_count",
+    "created_at", "last_used", "last_modified", "is_active",
+]
+
+
+def _row_to_profile(row: dict) -> dict:
+    """Supabase 행 → 프로필 dict (기본값 채움)"""
+    if not row:
+        return None
+    out = {k: row.get(k) for k in PROFILE_KEYS}
+    out["preferred_genres"] = out.get("preferred_genres") or []
+    out["preferred_metaphor_systems"] = out.get("preferred_metaphor_systems") or []
+    out["personal_anti_patterns"] = out.get("personal_anti_patterns") or []
+    out["preferred_targets"] = out.get("preferred_targets") or []
+    out["preferred_formats"] = {}  # legacy 호환
+    return out
+
+
+def _profile_to_payload(profile: dict) -> dict:
+    """프로필 dict → Supabase 페이로드"""
+    payload = {k: profile.get(k) for k in PROFILE_KEYS if k in profile}
+    # 시간 필드 정리
+    for tk in ("created_at", "last_used", "last_modified"):
+        if payload.get(tk) == "":
+            payload[tk] = None
+    return payload
+
+
+# ============================================================
+# 프로필 CRUD
+# ============================================================
+
 def list_profiles() -> list[dict]:
     """등록된 작가 프로필 모두"""
+    sb = db.get_client()
+    if sb:
+        r = db.safe_call(
+            lambda: sb.table("writers")
+            .select("*")
+            .order("last_used", desc=True, nullsfirst=False)
+            .execute()
+        )
+        if r and r.data is not None:
+            return [_row_to_profile(row) for row in r.data]
+
+    # 파일 모드
     if not PROFILES_DIR.exists():
         return []
     profiles = []
@@ -33,16 +86,39 @@ def list_profiles() -> list[dict]:
 
 
 def save_profile(profile: dict):
-    """프로필 저장"""
+    """프로필 저장 (생성/업데이트)"""
+    profile["last_modified"] = datetime.now().isoformat()
+
+    sb = db.get_client()
+    if sb:
+        payload = _profile_to_payload(profile)
+        # upsert by name
+        db.safe_call(
+            lambda: sb.table("writers").upsert(payload, on_conflict="name").execute()
+        )
+        return
+
+    # 파일 모드
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
     name = slugify(profile["name"])
-    profile["last_modified"] = datetime.now().isoformat()
     path = PROFILES_DIR / f"{name}.json"
     path.write_text(json.dumps(profile, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def load_profile(name: str) -> dict:
     """이름으로 프로필 로드"""
+    if not name:
+        return None
+
+    sb = db.get_client()
+    if sb:
+        r = db.safe_call(
+            lambda: sb.table("writers").select("*").eq("name", name).limit(1).execute()
+        )
+        if r and r.data:
+            return _row_to_profile(r.data[0])
+
+    # 파일 모드
     path = PROFILES_DIR / f"{slugify(name)}.json"
     if not path.exists():
         return None
@@ -50,6 +126,12 @@ def load_profile(name: str) -> dict:
 
 
 def delete_profile(name: str) -> bool:
+    sb = db.get_client()
+    if sb:
+        db.safe_call(lambda: sb.table("writers").delete().eq("name", name).execute())
+        return True
+
+    # 파일 모드
     path = PROFILES_DIR / f"{slugify(name)}.json"
     if path.exists():
         path.unlink()
@@ -59,17 +141,46 @@ def delete_profile(name: str) -> bool:
 
 def set_active(name: str):
     """현재 활성 프로필 설정"""
+    sb = db.get_client()
+    if sb:
+        # 모든 작가 비활성화 후 해당만 활성화 + last_used 갱신
+        db.safe_call(
+            lambda: sb.table("writers").update({"is_active": False}).neq("name", "").execute()
+        )
+        db.safe_call(
+            lambda: sb.table("writers")
+            .update({
+                "is_active": True,
+                "last_used": datetime.now().isoformat(),
+            })
+            .eq("name", name)
+            .execute()
+        )
+
+    # 파일 모드 (병행 — 같은 PC에서 활성 프로필 빠르게 알기 위해)
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
     ACTIVE_PROFILE_FILE.write_text(name, encoding="utf-8")
-    # last_used 갱신
     p = load_profile(name)
-    if p:
+    if p and not sb:  # Supabase 모드면 위에서 갱신함, 파일 모드만 추가 갱신
         p["last_used"] = datetime.now().isoformat()
         save_profile(p)
 
 
 def get_active() -> dict:
-    """현재 활성 프로필 — 없으면 None"""
+    """현재 활성 프로필"""
+    sb = db.get_client()
+    if sb:
+        r = db.safe_call(
+            lambda: sb.table("writers")
+            .select("*")
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        )
+        if r and r.data:
+            return _row_to_profile(r.data[0])
+
+    # 파일 모드
     if not ACTIVE_PROFILE_FILE.exists():
         return None
     name = ACTIVE_PROFILE_FILE.read_text(encoding="utf-8").strip()
@@ -77,7 +188,7 @@ def get_active() -> dict:
 
 
 def empty_profile() -> dict:
-    """새 프로필 템플릿 — 모든 필드 비어있음"""
+    """새 프로필 템플릿"""
     return {
         "name": "",
         "tagline": "",
@@ -100,8 +211,7 @@ def empty_profile() -> dict:
 
 
 def build_profile_context(profile: dict) -> str:
-    """프로필을 system prompt에 추가할 컨텍스트로 변환.
-    소리에게 보낼 때 'who is the writer' 정보로 사용."""
+    """프로필을 system prompt에 추가할 컨텍스트로 변환."""
     if not profile:
         return ""
 

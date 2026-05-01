@@ -1,12 +1,22 @@
 """작품 저장 + 버전 관리 + Drive 동기화
-영화/드라마 무한 각색 반복 지원."""
+영화/드라마 무한 각색 반복 지원.
+
+Supabase 모드 (SUPABASE_URL + SUPABASE_KEY 설정 시):
+  - 모든 데이터 영구 저장됨 (Cloud 재배포에도 안 날아감)
+  - 작가별 격리 (RLS 트라이얼은 무 RLS, 한 달 후 잠금)
+
+파일 모드 (Supabase 미설정):
+  - output/<project>/ 로컬 저장 (기존 방식)
+"""
 
 import json
 import os
 import shutil
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
+
+from . import db
 
 load_dotenv()
 
@@ -21,14 +31,77 @@ def slugify(name: str) -> str:
     return "".join(c if c.isalnum() or c in "_가-힣" else "_" for c in name)[:50]
 
 
+def _now() -> str:
+    """ISO 시간 문자열"""
+    return datetime.now().isoformat()
+
+
+# ============================================================
+# Supabase 헬퍼 — 작가/프로젝트 ID 보장
+# ============================================================
+
+def _writer_name() -> str:
+    """현재 활성 작가명 — 없으면 'guest'"""
+    try:
+        from . import profile as prof
+        active = prof.get_active()
+        return active["name"] if active else "guest"
+    except Exception:
+        return "guest"
+
+
+def _ensure_project_row(project_name: str, writer_name: str = None, **fields):
+    """Supabase에 프로젝트 행 보장 — 있으면 반환, 없으면 생성"""
+    sb = db.get_client()
+    if not sb:
+        return None
+    writer = writer_name or _writer_name()
+    # 조회
+    r = db.safe_call(
+        lambda: sb.table("projects")
+        .select("*")
+        .eq("writer_name", writer)
+        .eq("name", project_name)
+        .limit(1)
+        .execute()
+    )
+    if r and r.data:
+        return r.data[0]
+    # 생성
+    payload = {"writer_name": writer, "name": project_name, **fields}
+    r = db.safe_call(lambda: sb.table("projects").insert(payload).execute())
+    return r.data[0] if r and r.data else None
+
+
+def _touch_project(project_id: str):
+    """프로젝트 last_modified 갱신"""
+    sb = db.get_client()
+    if not sb:
+        return
+    db.safe_call(
+        lambda: sb.table("projects")
+        .update({"last_modified": _now()})
+        .eq("id", project_id)
+        .execute()
+    )
+
+
+# ============================================================
+# 프로젝트 폴더 (파일 모드)
+# ============================================================
+
 def project_dir(project_name: str, ensure: bool = True) -> Path:
-    """프로젝트 폴더 — output/<프로젝트명>/"""
+    """프로젝트 폴더 — output/<프로젝트명>/ (파일 모드 + Drive 백업용)"""
     p = OUTPUT_DIR / slugify(project_name)
     if ensure:
         p.mkdir(parents=True, exist_ok=True)
         (p / "versions").mkdir(exist_ok=True)
     return p
 
+
+# ============================================================
+# 버전 저장 / 조회
+# ============================================================
 
 def save_version(
     project_name: str,
@@ -37,12 +110,59 @@ def save_version(
     direction: str = "",
     parent_version: int = None,
 ) -> dict:
-    """새 버전 저장. 자동 증가. 무한 반복 가능.
-    Returns: 저장된 버전 정보 dict."""
+    """새 버전 저장. Supabase 우선, 파일 백업."""
+    metadata = metadata or {}
+    char_count = len(body)
+    saved_at = _now()
+
+    sb = db.get_client()
+    if sb:
+        proj = _ensure_project_row(
+            project_name,
+            genre=metadata.get("genre", ""),
+            user_input=metadata.get("user_input", {}),
+        )
+        if proj:
+            # 다음 버전 번호
+            r = db.safe_call(
+                lambda: sb.table("versions")
+                .select("version")
+                .eq("project_id", proj["id"])
+                .order("version", desc=True)
+                .limit(1)
+                .execute()
+            )
+            next_v = (r.data[0]["version"] + 1) if (r and r.data) else 1
+
+            payload = {
+                "project_id": proj["id"],
+                "version": next_v,
+                "body": body,
+                "metadata": metadata,
+                "direction": direction,
+                "parent_version": parent_version,
+                "char_count": char_count,
+                "saved_at": saved_at,
+            }
+            db.safe_call(lambda: sb.table("versions").insert(payload).execute())
+            _touch_project(proj["id"])
+
+            return {
+                "version": next_v,
+                "saved_at": saved_at,
+                "char_count": char_count,
+                "direction": direction,
+                "parent_version": parent_version,
+                **metadata,
+            }
+
+    # 파일 모드 (또는 Supabase 실패 폴백)
+    return _file_save_version(project_name, body, metadata, direction, parent_version)
+
+
+def _file_save_version(project_name, body, metadata, direction, parent_version):
     p = project_dir(project_name)
     versions_dir = p / "versions"
-
-    # 다음 버전 번호 자동 계산
     existing = list(versions_dir.glob("v*.txt"))
     if existing:
         nums = [int(f.stem[1:]) for f in existing if f.stem[1:].isdigit()]
@@ -50,30 +170,49 @@ def save_version(
     else:
         next_num = 1
 
-    # 본문 저장
     body_path = versions_dir / f"v{next_num}.txt"
     body_path.write_text(body, encoding="utf-8")
 
-    # 메타데이터
     meta_path = versions_dir / f"v{next_num}.json"
     meta = {
         "version": next_num,
-        "saved_at": datetime.now().isoformat(),
+        "saved_at": _now(),
         "char_count": len(body),
         "direction": direction,
         "parent_version": parent_version,
         **(metadata or {}),
     }
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    # 인덱스 갱신
     _update_index(project_name, meta)
-
     return meta
 
 
 def list_versions(project_name: str) -> list[dict]:
     """프로젝트의 모든 버전 (최신순)"""
+    sb = db.get_client()
+    if sb:
+        proj = _ensure_project_row(project_name)
+        if proj:
+            r = db.safe_call(
+                lambda: sb.table("versions")
+                .select("version,saved_at,direction,char_count,metadata")
+                .eq("project_id", proj["id"])
+                .order("version", desc=True)
+                .execute()
+            )
+            if r and r.data is not None:
+                return [
+                    {
+                        "version": row["version"],
+                        "saved_at": row["saved_at"],
+                        "direction": row.get("direction") or "",
+                        "char_count": row.get("char_count") or 0,
+                        **(row.get("metadata") or {}),
+                    }
+                    for row in r.data
+                ]
+
+    # 파일 모드
     p = project_dir(project_name, ensure=False)
     if not p.exists():
         return []
@@ -92,6 +231,22 @@ def list_versions(project_name: str) -> list[dict]:
 
 def load_version(project_name: str, version: int) -> str:
     """특정 버전 본문 로드"""
+    sb = db.get_client()
+    if sb:
+        proj = _ensure_project_row(project_name)
+        if proj:
+            r = db.safe_call(
+                lambda: sb.table("versions")
+                .select("body")
+                .eq("project_id", proj["id"])
+                .eq("version", version)
+                .limit(1)
+                .execute()
+            )
+            if r and r.data:
+                return r.data[0].get("body") or ""
+
+    # 파일 모드
     p = project_dir(project_name, ensure=False)
     body_path = p / "versions" / f"v{version}.txt"
     if not body_path.exists():
@@ -109,8 +264,7 @@ def latest_version(project_name: str) -> tuple[int, str]:
 
 
 # ============================================================
-# 산출물 (Artifacts) — 작품별 다중 산출물 관리
-# 로그라인 / 시놉시스 / 트리트먼트 / 캐릭터시트 / 세계관 / 회차구성 / 기획안 / 대본
+# 산출물 (Artifacts)
 # ============================================================
 
 ARTIFACT_TYPES = [
@@ -137,10 +291,54 @@ def save_artifact(project_name: str, artifact_key: str, body: str, metadata: dic
     if not artifact:
         raise ValueError(f"Unknown artifact type: {artifact_key}")
 
+    metadata = metadata or {}
+    char_count = len(body)
+    saved_at = _now()
+
+    sb = db.get_client()
+    if sb:
+        proj = _ensure_project_row(
+            project_name,
+            genre=metadata.get("genre", ""),
+            user_input=metadata.get("user_input", {}),
+        )
+        if proj:
+            # 다음 버전
+            r = db.safe_call(
+                lambda: sb.table("artifacts")
+                .select("artifact_version")
+                .eq("project_id", proj["id"])
+                .eq("artifact_key", artifact_key)
+                .order("artifact_version", desc=True)
+                .limit(1)
+                .execute()
+            )
+            next_v = (r.data[0]["artifact_version"] + 1) if (r and r.data) else 1
+
+            payload = {
+                "project_id": proj["id"],
+                "artifact_key": artifact_key,
+                "body": body,
+                "metadata": metadata,
+                "artifact_version": next_v,
+                "char_count": char_count,
+                "saved_at": saved_at,
+            }
+            db.safe_call(lambda: sb.table("artifacts").insert(payload).execute())
+            _touch_project(proj["id"])
+
+            return {
+                "type": artifact_key,
+                "name": artifact["name"],
+                "version": next_v,
+                "saved_at": saved_at,
+                "char_count": char_count,
+                **metadata,
+            }
+
+    # 파일 모드
     a_dir = artifacts_dir(project_name)
     base_name = f"{artifact['order']:02d}_{artifact['key']}"
-
-    # 기존 버전 확인
     existing = list(a_dir.glob(f"{base_name}_v*.md"))
     if existing:
         nums = [int(f.stem.split("_v")[-1]) for f in existing if f.stem.split("_v")[-1].isdigit()]
@@ -150,14 +348,13 @@ def save_artifact(project_name: str, artifact_key: str, body: str, metadata: dic
 
     body_path = a_dir / f"{base_name}_v{next_v}.md"
     body_path.write_text(body, encoding="utf-8")
-
     meta_path = a_dir / f"{base_name}_v{next_v}.json"
     meta = {
         "type": artifact_key,
         "name": artifact["name"],
         "version": next_v,
-        "saved_at": datetime.now().isoformat(),
-        "char_count": len(body),
+        "saved_at": saved_at,
+        "char_count": char_count,
         **(metadata or {}),
     }
     meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -170,6 +367,34 @@ def load_artifact(project_name: str, artifact_key: str, version: int = None) -> 
     if not artifact:
         return "", {}
 
+    sb = db.get_client()
+    if sb:
+        proj = _ensure_project_row(project_name)
+        if proj:
+            q = (
+                sb.table("artifacts")
+                .select("body,metadata,artifact_version,saved_at,char_count")
+                .eq("project_id", proj["id"])
+                .eq("artifact_key", artifact_key)
+            )
+            if version is not None:
+                q = q.eq("artifact_version", version)
+            else:
+                q = q.order("artifact_version", desc=True).limit(1)
+            r = db.safe_call(lambda: q.execute())
+            if r and r.data:
+                row = r.data[0]
+                meta = {
+                    "type": artifact_key,
+                    "name": artifact["name"],
+                    "version": row["artifact_version"],
+                    "saved_at": row["saved_at"],
+                    "char_count": row.get("char_count", 0),
+                    **(row.get("metadata") or {}),
+                }
+                return row.get("body") or "", meta
+
+    # 파일 모드
     a_dir = artifacts_dir(project_name)
     base_name = f"{artifact['order']:02d}_{artifact['key']}"
 
@@ -190,7 +415,46 @@ def load_artifact(project_name: str, artifact_key: str, version: int = None) -> 
 
 
 def list_artifacts(project_name: str) -> dict:
-    """작품의 산출물 현황 — {type_key: {has, latest_version, char_count}}"""
+    """작품의 산출물 현황"""
+    sb = db.get_client()
+    if sb:
+        proj = _ensure_project_row(project_name)
+        if proj:
+            r = db.safe_call(
+                lambda: sb.table("artifacts")
+                .select("artifact_key,artifact_version,char_count,saved_at")
+                .eq("project_id", proj["id"])
+                .execute()
+            )
+            by_key = {}
+            if r and r.data:
+                for row in r.data:
+                    k = row["artifact_key"]
+                    if k not in by_key or row["artifact_version"] > by_key[k]["artifact_version"]:
+                        by_key[k] = row
+
+            result = {}
+            for artifact in ARTIFACT_TYPES:
+                k = artifact["key"]
+                if k in by_key:
+                    row = by_key[k]
+                    result[k] = {
+                        "has": True,
+                        "name": artifact["name"],
+                        "order": artifact["order"],
+                        "latest_version": row["artifact_version"],
+                        "char_count": row.get("char_count", 0),
+                        "saved_at": row.get("saved_at", ""),
+                    }
+                else:
+                    result[k] = {
+                        "has": False,
+                        "name": artifact["name"],
+                        "order": artifact["order"],
+                    }
+            return result
+
+    # 파일 모드
     a_dir = artifacts_dir(project_name)
     result = {}
     for artifact in ARTIFACT_TYPES:
@@ -217,35 +481,12 @@ def list_artifacts(project_name: str) -> dict:
     return result
 
 
-def _update_index(project_name: str, version_meta: dict):
-    """프로젝트 인덱스 — 모든 버전 한 눈에"""
-    p = project_dir(project_name)
-    idx_path = p / "index.json"
-    idx = {"project": project_name, "versions": []}
-    if idx_path.exists():
-        try:
-            idx = json.loads(idx_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            pass
-
-    idx["versions"].append({
-        "version": version_meta["version"],
-        "saved_at": version_meta["saved_at"],
-        "direction": version_meta.get("direction", ""),
-        "char_count": version_meta.get("char_count", 0),
-    })
-    if version_meta.get("genre") and not idx.get("genre"):
-        idx["genre"] = version_meta["genre"]
-    idx["last_modified"] = datetime.now().isoformat()
-    idx_path.write_text(json.dumps(idx, ensure_ascii=False, indent=2), encoding="utf-8")
-
+# ============================================================
+# 채팅 (보조작가 대화)
+# ============================================================
 
 def _chat_path(project_name: str = "", writer_name: str = "") -> Path:
-    """채팅 로그 경로 — 작가별 + 프로젝트별 분리.
-    - 프로젝트 지정: output/<project>/chat__<writer>.json
-    - 프로젝트 없음: output/_chat/<writer>.json
-    writer_name 비면 'guest'로 묶음.
-    """
+    """파일 모드 채팅 경로"""
     w = slugify(writer_name) if writer_name else "guest"
     if project_name and project_name != "(없음)":
         d = project_dir(project_name)
@@ -256,7 +497,26 @@ def _chat_path(project_name: str = "", writer_name: str = "") -> Path:
 
 
 def load_chat_log(project_name: str = "", writer_name: str = "") -> list:
-    """채팅 메시지 불러오기 (없으면 빈 리스트) — 작가별 분리"""
+    """채팅 메시지 불러오기 (작가별 분리)"""
+    sb = db.get_client()
+    if sb:
+        w = writer_name or "guest"
+        proj_name = project_name if (project_name and project_name != "(없음)") else ""
+        r = db.safe_call(
+            lambda: sb.table("chat_messages")
+            .select("role,content,ts")
+            .eq("writer_name", w)
+            .eq("project_name", proj_name)
+            .order("ts", desc=False)
+            .execute()
+        )
+        if r and r.data is not None:
+            return [
+                {"role": row["role"], "content": row["content"], "ts": row["ts"]}
+                for row in r.data
+            ]
+
+    # 파일 모드
     fp = _chat_path(project_name, writer_name)
     if not fp.exists():
         return []
@@ -267,21 +527,76 @@ def load_chat_log(project_name: str = "", writer_name: str = "") -> list:
 
 
 def save_chat_log(messages: list, project_name: str = "", writer_name: str = "") -> None:
-    """채팅 메시지 전체 저장 — 작가별 분리"""
+    """채팅 메시지 전체 저장 (작가별 분리)"""
+    sb = db.get_client()
+    if sb:
+        w = writer_name or "guest"
+        proj_name = project_name if (project_name and project_name != "(없음)") else ""
+        # 기존 행 삭제 후 재삽입 (단순화)
+        db.safe_call(
+            lambda: sb.table("chat_messages")
+            .delete()
+            .eq("writer_name", w)
+            .eq("project_name", proj_name)
+            .execute()
+        )
+        if messages:
+            payload = [
+                {
+                    "writer_name": w,
+                    "project_name": proj_name,
+                    "role": m.get("role", "user"),
+                    "content": m.get("content", ""),
+                    "ts": m.get("ts", _now()),
+                }
+                for m in messages
+            ]
+            db.safe_call(lambda: sb.table("chat_messages").insert(payload).execute())
+        return
+
+    # 파일 모드
     fp = _chat_path(project_name, writer_name)
     fp.parent.mkdir(parents=True, exist_ok=True)
     fp.write_text(json.dumps(messages, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def append_chat_message(message: dict, project_name: str = "", writer_name: str = "") -> None:
-    """메시지 한 개 추가 — 매 발화마다 호출"""
+    """메시지 한 개 추가"""
+    sb = db.get_client()
+    if sb:
+        w = writer_name or "guest"
+        proj_name = project_name if (project_name and project_name != "(없음)") else ""
+        payload = {
+            "writer_name": w,
+            "project_name": proj_name,
+            "role": message.get("role", "user"),
+            "content": message.get("content", ""),
+            "ts": message.get("ts", _now()),
+        }
+        db.safe_call(lambda: sb.table("chat_messages").insert(payload).execute())
+        return
+
     msgs = load_chat_log(project_name, writer_name)
     msgs.append(message)
     save_chat_log(msgs, project_name, writer_name)
 
 
+# ============================================================
+# 프로젝트 목록 + 활성 매체
+# ============================================================
+
 def active_letters() -> set:
-    """작업이 진행된 매체 letter 집합 — 홈 카드 강조용"""
+    """작업이 진행된 매체 letter 집합"""
+    sb = db.get_client()
+    if sb:
+        r = db.safe_call(
+            lambda: sb.table("projects").select("genre").execute()
+        )
+        if r and r.data is not None:
+            letters = {row["genre"] for row in r.data if row.get("genre")}
+            return letters
+
+    # 파일 모드
     if not OUTPUT_DIR.exists():
         return set()
     letters = set()
@@ -299,7 +614,6 @@ def active_letters() -> set:
         if g:
             letters.add(g)
             continue
-        # fallback: 가장 최근 버전 메타에서 추출
         vdir = p / "versions"
         if not vdir.exists():
             continue
@@ -316,6 +630,34 @@ def active_letters() -> set:
 
 def list_projects() -> list[dict]:
     """모든 프로젝트 (최근 수정순)"""
+    sb = db.get_client()
+    if sb:
+        r = db.safe_call(
+            lambda: sb.table("projects")
+            .select("id,name,last_modified")
+            .order("last_modified", desc=True)
+            .execute()
+        )
+        if r and r.data is not None:
+            # 버전 카운트는 별도 쿼리 (간단히, 작은 프로젝트 수면 OK)
+            result = []
+            for row in r.data:
+                vc_r = db.safe_call(
+                    lambda pid=row["id"]: sb.table("versions")
+                    .select("id", count="exact")
+                    .eq("project_id", pid)
+                    .execute()
+                )
+                vc = (vc_r.count if vc_r else 0) or 0
+                result.append({
+                    "name": row["name"],
+                    "path": "",
+                    "version_count": vc,
+                    "last_modified": row.get("last_modified", ""),
+                })
+            return result
+
+    # 파일 모드
     if not OUTPUT_DIR.exists():
         return []
 
@@ -341,17 +683,14 @@ def list_projects() -> list[dict]:
 
 
 def sync_to_drive(project_name: str) -> bool:
-    """프로젝트를 Google Drive로 동기화"""
+    """프로젝트를 Google Drive로 동기화 (파일 모드 한정)"""
     src = project_dir(project_name, ensure=False)
     if not src.exists():
         return False
-
     if not DRIVE_DIR.exists():
         return False
-
     dst = DRIVE_DIR / "Story_Maker_Works" / slugify(project_name)
     dst.parent.mkdir(parents=True, exist_ok=True)
-
     if dst.exists():
         shutil.rmtree(dst)
     shutil.copytree(src, dst)
@@ -359,10 +698,9 @@ def sync_to_drive(project_name: str) -> bool:
 
 
 def diff_versions(project_name: str, v1: int, v2: int) -> dict:
-    """두 버전 비교 — 작가가 무한 반복할 때 변경 추적용"""
+    """두 버전 비교"""
     body1 = load_version(project_name, v1)
     body2 = load_version(project_name, v2)
-
     return {
         "v1": v1,
         "v2": v2,
@@ -376,13 +714,36 @@ def diff_versions(project_name: str, v1: int, v2: int) -> dict:
     }
 
 
-# ============ IP 라이브러리 (4사 IP + 신규) ============
+def _update_index(project_name: str, version_meta: dict):
+    """파일 모드 인덱스 갱신"""
+    p = project_dir(project_name)
+    idx_path = p / "index.json"
+    idx = {"project": project_name, "versions": []}
+    if idx_path.exists():
+        try:
+            idx = json.loads(idx_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            pass
+    idx["versions"].append({
+        "version": version_meta["version"],
+        "saved_at": version_meta["saved_at"],
+        "direction": version_meta.get("direction", ""),
+        "char_count": version_meta.get("char_count", 0),
+    })
+    if version_meta.get("genre") and not idx.get("genre"):
+        idx["genre"] = version_meta["genre"]
+    idx["last_modified"] = _now()
+    idx_path.write_text(json.dumps(idx, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+# ============================================================
+# IP 라이브러리 (파일 모드만 — 차후 Supabase 추가)
+# ============================================================
 
 LIBRARY_DIR = OUTPUT_DIR / "_library"
 
 
 def save_ip(ip_data: dict):
-    """IP 시트 저장 (캐릭터/세계관)"""
     LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
     ip_path = LIBRARY_DIR / f"{slugify(ip_data['name'])}.json"
     ip_path.write_text(json.dumps(ip_data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -396,15 +757,12 @@ def load_ip(ip_name: str) -> dict:
 
 
 def list_ips() -> list[dict]:
-    """등록된 IP 모두 — 사용자가 라이브러리에서 직접 등록"""
     if not LIBRARY_DIR.exists():
         return []
-
     ips = []
     for p in LIBRARY_DIR.glob("*.json"):
         try:
             ips.append(json.loads(p.read_text(encoding="utf-8")))
         except json.JSONDecodeError:
             continue
-
     return ips
