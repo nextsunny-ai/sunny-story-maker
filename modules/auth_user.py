@@ -140,3 +140,59 @@ def email_to_writer_name(email: str) -> str:
     if not email:
         return "guest"
     return email.split("@")[0]
+
+
+# ============================================================
+# Google OAuth
+# ============================================================
+
+DEFAULT_REDIRECT = "https://sunny-storymaker.streamlit.app"
+
+
+def get_app_url() -> str:
+    """앱 URL — env 우선, 없으면 기본값"""
+    return _get_secret("APP_URL", DEFAULT_REDIRECT)
+
+
+def get_google_oauth_url() -> str:
+    """Google OAuth 시작 URL — 사용자를 이 URL로 보내면 Google 로그인 후 우리 앱으로 돌아옴.
+    Returns: OAuth URL 문자열, 실패 시 빈 문자열.
+    """
+    sb = db.get_client()
+    if not sb:
+        return ""
+    try:
+        result = sb.auth.sign_in_with_oauth({
+            "provider": "google",
+            "options": {
+                "redirect_to": get_app_url(),
+            },
+        })
+        return getattr(result, "url", "") or ""
+    except Exception as e:
+        import logging
+        logging.warning(f"[auth] Google OAuth URL 생성 실패: {e}")
+        return ""
+
+
+def exchange_code_for_session(code: str) -> dict:
+    """OAuth 콜백에서 받은 code를 세션으로 교환.
+    Returns: {"ok": bool, "user": dict|None, "session": ..., "error": str}
+    """
+    sb = db.get_client()
+    if not sb:
+        return {"ok": False, "user": None, "error": "Supabase 미연결"}
+    try:
+        result = sb.auth.exchange_code_for_session({"auth_code": code})
+        user = result.user
+        session = result.session
+        if user is None:
+            return {"ok": False, "user": None, "error": "사용자 정보 가져오기 실패"}
+        return {
+            "ok": True,
+            "user": {"id": user.id, "email": user.email or ""},
+            "session": session,
+            "error": "",
+        }
+    except Exception as e:
+        return {"ok": False, "user": None, "error": f"코드 교환 실패: {e}"}
