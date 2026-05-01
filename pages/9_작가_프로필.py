@@ -71,9 +71,13 @@ with tab_writer:
             st.session_state.show_form = True
             st.rerun()
 
-    # ---------- 다른 작가로 전환 ----------
-    if profiles and len(profiles) > 1:
-        with st.expander(f"👥 등록된 작가 {len(profiles)}명 — 전환·관리", expanded=False):
+    # ---------- 등록된 작가 목록 (1명이라도 보여줘야 활성화 가능) ----------
+    if profiles:
+        # 활성 작가 없으면 자동으로 펼쳐서 활성화 유도
+        with st.expander(
+            f"👥 등록된 작가 {len(profiles)}명 — 전환·관리",
+            expanded=(active is None),
+        ):
             for p in profiles:
                 is_active = active and p["name"] == active["name"]
                 cols = st.columns([5, 1, 1, 1])
@@ -131,10 +135,19 @@ with tab_writer:
     # ---------- 편집/신규 폼 (show_form일 때만) ----------
     if st.session_state.get("show_form"):
         editing = "editing_profile" in st.session_state
-        target_profile = (
-            prof.load_profile(st.session_state.editing_profile)
-            if editing else prof.empty_profile()
-        )
+        if editing:
+            loaded = prof.load_profile(st.session_state.editing_profile)
+            if loaded is None:
+                # Supabase에 있는데 못 불러왔으면 빈 폼 + 이름 채워줌
+                loaded = prof.empty_profile()
+                loaded["name"] = st.session_state.editing_profile
+                st.warning(
+                    f"⚠ '{st.session_state.editing_profile}' 프로필을 불러오지 못했습니다. "
+                    "이름만 채워둔 빈 폼을 띄웠어요. 정보 채우고 다시 저장하세요."
+                )
+            target_profile = loaded
+        else:
+            target_profile = prof.empty_profile()
 
         st.markdown("---")
         st.markdown(
