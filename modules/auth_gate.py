@@ -26,11 +26,12 @@ COOKIE_EXPIRY_DAYS = 30
 
 
 def _cookie_manager():
-    """CookieManager 인스턴스. cache_resource 사용 금지 (내부 위젯 호출).
-    Streamlit이 같은 key로 자동 dedupe."""
+    """CookieManager 인스턴스. session_state에 한 번만 생성."""
     if not _COOKIES_AVAILABLE:
         return None
-    return stx.CookieManager(key="ssm_cookie_manager")
+    if "_ssm_cm" not in st.session_state:
+        st.session_state["_ssm_cm"] = stx.CookieManager(key="ssm_cookie_manager")
+    return st.session_state["_ssm_cm"]
 
 
 def _expiry():
