@@ -450,6 +450,53 @@ html, body {
   margin-top: 4px;
 }
 
+/* 작업 중 표시기 (사이드바) — 작가가 절대 못 떠나는 신호 */
+.ssm-busy-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #FEF1E8 0%, #FCE3D5 100%);
+  border: 1px solid var(--coral, #EE9A8B);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 12px 8px 4px;
+  box-shadow: 0 2px 6px rgba(238, 154, 139, 0.15);
+}
+.ssm-busy-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(238, 154, 139, 0.25);
+  border-top-color: var(--coral, #EE9A8B);
+  border-radius: 50%;
+  animation: ssm-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes ssm-spin {
+  to { transform: rotate(360deg); }
+}
+.ssm-busy-text { flex: 1; min-width: 0; }
+.ssm-busy-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #C2410C;
+  margin-bottom: 2px;
+}
+.ssm-busy-detail {
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ssm-busy-warn {
+  font-size: 10.5px;
+  color: #C2410C;
+  text-align: center;
+  margin: 0 8px 8px;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
 .ssm-nav-section:first-of-type {
   margin-top: 0;
 }

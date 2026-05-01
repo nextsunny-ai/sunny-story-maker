@@ -59,6 +59,25 @@ def render_sidebar():
             unsafe_allow_html=True,
         )
 
+        # 작업 중 표시기 — 세션 상태로 추적, 모든 페이지에서 보이게
+        busy = st.session_state.get("ssm_busy")
+        if busy:
+            label = busy.get("label", "작업 중")
+            detail = busy.get("detail", "")
+            st.markdown(
+                f"""
+                <div class="ssm-busy-badge">
+                    <div class="ssm-busy-spinner"></div>
+                    <div class="ssm-busy-text">
+                        <div class="ssm-busy-label">⏳ {label}</div>
+                        <div class="ssm-busy-detail">{detail}</div>
+                    </div>
+                </div>
+                <div class="ssm-busy-warn">⚠ 페이지 떠나면 중단됨</div>
+                """,
+                unsafe_allow_html=True,
+            )
+
         st.markdown('<div class="ssm-nav-section">Workspace</div>', unsafe_allow_html=True)
         st.page_link("app.py", label="Home")
 

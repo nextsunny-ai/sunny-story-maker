@@ -275,11 +275,22 @@ if st.button(
         progress = st.progress(0, text=f"0 / {total} 시작 중...")
         live_box = st.empty()  # 현재 작업 하나만 표시
 
+        # 사이드바에 작업 중 뱃지 켜기 (전역)
+        st.session_state.ssm_busy = {
+            "label": "패키지 생성 중",
+            "detail": f"{project_name}",
+        }
+
         for i, key in enumerate(selected_keys):
             artifact_name = next(
                 (label for k2, label, _, _ in ARTIFACT_INFO if k2 == key), key
             )
             progress.progress(i / total, text=f"{i+1} / {total} · {artifact_name} 작성 중...")
+            # 사이드바 detail 업데이트
+            st.session_state.ssm_busy = {
+                "label": f"패키지 생성 ({i+1}/{total})",
+                "detail": f"{artifact_name}",
+            }
 
             builder = builders[key]
             prior = {
@@ -337,6 +348,9 @@ if st.button(
                 st.toast(f"❌ {artifact_name} 실패", icon="⚠️")
 
             progress.progress((i + 1) / total, text=f"{i+1} / {total} 완료")
+
+        # 작업 끝 — 사이드바 뱃지 끄기
+        st.session_state.pop("ssm_busy", None)
 
         # ---- 최종 알림 + 폴더 열기 ----
         a_dir = storage.artifacts_dir(project_name)

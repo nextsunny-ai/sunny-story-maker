@@ -72,7 +72,13 @@ def has_api_key() -> bool:
 
 def get_auth_mode() -> str:
     """현재 사용 가능한 인증 방식.
-    'claude_code' | 'api_key' | 'none'"""
+    'claude_code' | 'api_key' | 'none'
+
+    우선순위: API 키 > Claude Code CLI
+    - API 키가 설정돼 있으면 무조건 그쪽 사용 (속도/스트리밍 우수)
+    - 없으면 Claude Code CLI 폴백 (Pro 구독자용)
+    - FORCE_AUTH_MODE env로 강제 가능
+    """
     # 사용자 설정 우선
     forced = os.getenv("FORCE_AUTH_MODE", "").strip().lower()
     if forced in ("claude_code", "api_key"):
@@ -81,11 +87,11 @@ def get_auth_mode() -> str:
         if forced == "api_key" and has_api_key():
             return "api_key"
 
-    # 자동 감지 — Claude Code 우선 (작가 친화)
-    if detect_claude_code():
-        return "claude_code"
+    # 자동 감지 — API 키 우선 (HTTP 직통, 빠름)
     if has_api_key():
         return "api_key"
+    if detect_claude_code():
+        return "claude_code"
     return "none"
 
 

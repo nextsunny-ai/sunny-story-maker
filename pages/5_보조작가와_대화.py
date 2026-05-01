@@ -403,6 +403,7 @@ with right_col:
                 full = ""
                 # 보조작가는 짧은 답이 핵심 — Haiku 4.5로 빠르게 (Opus 대비 ~3배 빠름)
                 CHAT_MODEL = "claude-haiku-4-5"
+                st.session_state.ssm_busy = {"label": "보조작가 응답 중", "detail": ""}
                 if sori_client.is_configured():
                     try:
                         for chunk in sori_client.stream_sori(
@@ -417,6 +418,7 @@ with right_col:
                 else:
                     full = sori_client.call_sori(prompt, max_tokens=1500, model=CHAT_MODEL)
                     placeholder.markdown(full)
+                st.session_state.pop("ssm_busy", None)
 
         # 마지막에 session + 파일에 저장 (재진입해도 보존, 작가별 분리)
         st.session_state.chat_messages.append({
