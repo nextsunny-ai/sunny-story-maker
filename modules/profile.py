@@ -43,6 +43,7 @@ PROFILE_KEYS = [
     "default_export_format", "notes", "ip_count",
     "created_at", "last_used", "last_modified", "is_active",
     "auth_email",  # 한 메일에 여러 작가 가능
+    "skill_md",    # 작가 노하우 MD (시스템 프롬프트에 포함)
 ]
 
 
@@ -276,4 +277,13 @@ def build_profile_context(profile: dict) -> str:
         parts.append(f"- **추가 노트**:\n{profile['notes']}")
 
     parts.append("\n→ 이 작가의 스타일에 맞춰 작업해. 작가 톤 침범 X. 작가 안티패턴 절대 사용 X.")
+
+    # 작가가 직접 작성한 학습 MD 자료 — 시스템 프롬프트 끝에 추가
+    skill_md = (profile.get("skill_md") or "").strip()
+    if skill_md:
+        parts.append("\n## 작가 본인이 작성한 학습 자료 (MD)")
+        parts.append("아래 내용은 이 작가가 직접 작성한 노하우/스타일 가이드. 모든 출력에 반영해.")
+        parts.append("")
+        parts.append(skill_md)
+
     return "\n".join(parts)

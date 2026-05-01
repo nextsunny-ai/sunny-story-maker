@@ -66,60 +66,16 @@ with tab_writer:
             unsafe_allow_html=True,
         )
 
-    # ---------- 액션 줄 ----------
+    # ---------- 액션 줄 — 편집 버튼 하나만 ----------
     if active:
-        # 1명만 등록돼 있으면 편집 버튼만. 여러 명이면 전환 옵션도.
-        if len(profiles) == 1:
-            if st.button(
-                "✏️ 내 정보 편집",
-                use_container_width=True,
-                type="primary" if not st.session_state.get("show_form") else "secondary",
-            ):
-                st.session_state.editing_profile = active["name"]
-                st.session_state.show_form = True
-                st.rerun()
-        else:
-            action_l, action_r = st.columns([1, 1])
-            with action_l:
-                if st.button("✏️ 내 정보 편집", use_container_width=True):
-                    st.session_state.editing_profile = active["name"]
-                    st.session_state.show_form = True
-                    st.rerun()
-            with action_r:
-                if st.button("➕ 다른 작가 추가", use_container_width=True):
-                    st.session_state.pop("editing_profile", None)
-                    st.session_state.show_form = True
-                    st.rerun()
-
-    # ---------- 다른 작가 전환 (2명 이상일 때만) ----------
-    if profiles and len(profiles) > 1:
-        with st.expander(
-            f"👥 등록된 작가 {len(profiles)}명 — 전환·관리",
-            expanded=False,
+        if st.button(
+            "✏️ 내 정보 편집",
+            use_container_width=True,
+            type="primary" if not st.session_state.get("show_form") else "secondary",
         ):
-            for p in profiles:
-                is_active = active and p["name"] == active["name"]
-                cols = st.columns([5, 1, 1, 1])
-                with cols[0]:
-                    badge = " 🟢" if is_active else ""
-                    st.markdown(f"**{p['name']}**{badge}")
-                    st.caption(
-                        f"{p.get('tagline') or '소개 없음'} · "
-                        f"마지막 사용: {p.get('last_used', '')[:10] or '-'}"
-                    )
-                with cols[1]:
-                    if not is_active and st.button("활성화", key=f"act_{p['name']}"):
-                        prof.set_active(p["name"])
-                        st.rerun()
-                with cols[2]:
-                    if st.button("편집", key=f"edt_{p['name']}"):
-                        st.session_state.editing_profile = p["name"]
-                        st.session_state.show_form = True
-                        st.rerun()
-                with cols[3]:
-                    if st.button("🗑", key=f"del_{p['name']}", help="삭제"):
-                        prof.delete_profile(p["name"])
-                        st.rerun()
+            st.session_state.editing_profile = active["name"]
+            st.session_state.show_form = True
+            st.rerun()
 
     # ---------- 활성 정보 표시 (편집폼이 닫혀 있을 때) ----------
     if active and not st.session_state.get("show_form"):
@@ -293,6 +249,32 @@ with tab_writer:
                 ),
             )
 
+            # ---------- 학습 MD (추가 전용) ----------
+            st.markdown("##### 📚 추가 학습 자료 (MD)")
+            existing_md = target_profile.get("skill_md", "") or ""
+            if existing_md.strip():
+                st.caption("이미 누적된 학습 내용 (지울 수 없음, 참조용)")
+                with st.expander(f"📖 기존 학습 보기 ({len(existing_md):,}자)", expanded=False):
+                    st.markdown(existing_md)
+            else:
+                st.caption("아직 누적된 학습 내용이 없습니다. 아래에 입력하시면 시작됩니다.")
+
+            new_md_addition = st.text_area(
+                "✍ 새로 추가할 내용 (저장 시 위에 누적됨)",
+                value="",
+                height=180,
+                placeholder=(
+                    "예시 — 시나리오 노하우/표현 가이드 등 자유롭게:\n\n"
+                    "## 좋은 첫 장면 패턴\n"
+                    "- 일상의 사소한 동작에서 시작 (커피 따르기, 신발 벗기 등)\n"
+                    "- 캐릭터 설명 X, 행동만으로 보여주기\n\n"
+                    "## 안 쓰는 표현\n"
+                    "- '운명이었다' '그렇게 시간이 흘렀다'\n"
+                    "- 갑작스러운 회상 씬\n"
+                ),
+                help="새 내용은 기존 학습 끝에 추가됩니다. 기존 내용은 지워지지 않습니다.",
+            )
+
             col_save, col_cancel = st.columns([3, 1])
             with col_save:
                 saved = st.form_submit_button("💾 저장", type="primary", use_container_width=True)
@@ -300,6 +282,19 @@ with tab_writer:
                 cancel = st.form_submit_button("취소", use_container_width=True)
 
             if saved and name:
+                # 학습 MD: 기존 + 새 추가 (덮어쓰기 X, append만)
+                new_skill_md = existing_md
+                if new_md_addition.strip():
+                    today = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    if new_skill_md:
+                        new_skill_md = (
+                            new_skill_md.rstrip()
+                            + f"\n\n---\n## {today} 추가\n\n"
+                            + new_md_addition.strip()
+                        )
+                    else:
+                        new_skill_md = f"## {today}\n\n" + new_md_addition.strip()
+
                 new_profile = {
                     **target_profile,
                     "name": name,
@@ -320,6 +315,7 @@ with tab_writer:
                         s.strip() for s in preferred_targets_str.split(",") if s.strip()
                     ],
                     "notes": notes,
+                    "skill_md": new_skill_md,
                     "last_modified": datetime.now().isoformat(),
                 }
                 if not new_profile.get("created_at"):
@@ -362,114 +358,91 @@ with tab_system:
 
     env = read_env()
     status = auth.get_status_for_writer()
-
-    # ---------- Claude 연결 상태 (한 줄) ----------
-    if status["ready"]:
-        st.success(f"✓ Claude 연결됨 — {status['label']}")
-    else:
-        st.warning(f"⚠ Claude 미연결 — {status['label']}")
-    st.caption(status["detail"])
-
-    # ---------- Supabase (영구 저장) 진단 ----------
     sb_diag = ssm_db.diagnose()
-    if sb_diag["client_created"]:
-        st.success("✓ Supabase 연결됨 — 작품·프로필·채팅 영구 저장 활성화")
-    else:
+
+    # 문제 있을 때만 빨간 경고 띄움 (정상이면 화면 깨끗)
+    if not status["ready"]:
+        st.warning(f"⚠ Claude 미연결 — {status['label']}")
+    if not sb_diag["client_created"]:
         st.error("⚠ Supabase 미연결 — 데이터가 임시 저장됨 (재배포 시 사라짐)")
-        with st.expander("🛠 Supabase 진단 정보 (왜 안 되는지 보기)", expanded=True):
-            st.json(sb_diag)
-            st.caption(
-                "원인:\n"
-                "- supabase_module_imported = False → requirements.txt에 supabase 없음 (재배포 필요)\n"
-                "- url_set 또는 key_set = False → Streamlit Cloud Secrets에 SUPABASE_URL/KEY 입력 누락\n"
-                "- is_enabled = True인데 client_created = False → URL/KEY 값이 잘못됐거나 네트워크 오류"
-            )
 
-    with st.expander("❓ Claude 연결 방법", expanded=not status["ready"]):
-        st.markdown(
-            """
-**방법 1 — Claude 앱 (권장, 작가 추가 설정 0)**
-1. [claude.ai](https://claude.ai) 가입 + Pro/Max 구독 ($20/월)
-2. [Claude Desktop 앱](https://claude.ai/download) 설치 + 로그인
-3. 자동 감지됨
+    # ---------- 모든 설정 / 진단 / 안내를 한 expander 안으로 ----------
+    with st.expander("🛠 고급 설정 / 진단 (보통 안 봐도 됨)", expanded=False):
 
-**방법 2 — API 키 직접 (사용량 청구)**
-1. [console.anthropic.com](https://console.anthropic.com) 가입
-2. 결제수단 등록 → API 키 발급
-3. 아래에 붙여넣기 (작품 1편당 약 $0.5~$2)
-            """
+        # 연결 상태
+        st.markdown("##### 연결 상태")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if status["ready"]:
+                st.success("✓ Claude 연결됨")
+            else:
+                st.warning(f"⚠ {status['label']}")
+        with col_b:
+            if sb_diag["client_created"]:
+                st.success("✓ Supabase 연결됨")
+            else:
+                st.error("⚠ Supabase 미연결")
+
+        st.markdown("---")
+        st.markdown("##### 모델 변경")
+        model = st.selectbox(
+            "기본 응답 품질",
+            ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
+            index=["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"].index(
+                env.get("DEFAULT_MODEL", "claude-opus-4-7")
+            ) if env.get("DEFAULT_MODEL") in ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"] else 0,
+            format_func=lambda m: {
+                "claude-opus-4-7": "Opus — 최고 품질 (시나리오 권장)",
+                "claude-sonnet-4-6": "Sonnet — 균형",
+                "claude-haiku-4-5-20251001": "Haiku — 빠름 (보조작가 채팅 전용)",
+            }.get(m, m),
+            label_visibility="collapsed",
+            help="보조작가 채팅은 항상 Haiku 사용. 그 외 모드 기본값을 여기서.",
         )
 
-    # ---------- 핵심 설정 ----------
-    st.markdown("### 설정")
+        st.markdown("---")
+        st.markdown("##### 자체 API 키 (선택)")
+        api_key = st.text_input(
+            "API 키",
+            value=env.get("ANTHROPIC_API_KEY", ""),
+            type="password",
+            placeholder="비워두면 자동 연결 사용",
+            label_visibility="collapsed",
+        )
 
-    api_key = st.text_input(
-        "API 키 (방법 2 사용 시만)",
-        value=env.get("ANTHROPIC_API_KEY", ""),
-        type="password",
-        placeholder="sk-ant-... · 비워두면 Claude 앱(방법 1) 자동 사용",
-    )
-
-    model = st.selectbox(
-        "기본 응답 품질",
-        ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"],
-        index=["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"].index(
-            env.get("DEFAULT_MODEL", "claude-opus-4-7")
-        ) if env.get("DEFAULT_MODEL") in ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"] else 0,
-        format_func=lambda m: {
-            "claude-opus-4-7": "Opus — 최고 품질 (시나리오 권장)",
-            "claude-sonnet-4-6": "Sonnet — 균형",
-            "claude-haiku-4-5-20251001": "Haiku — 빠름 (보조작가 채팅 전용)",
-        }.get(m, m),
-        help="보조작가 채팅은 항상 Haiku 사용. 그 외 모드 기본값을 여기서.",
-    )
-
-    drive_dir = st.text_input(
-        "외부 동기화 폴더 (선택)",
-        value=env.get("DRIVE_OUTPUT_DIR", ""),
-        placeholder="예: G:/내 드라이브/내 작품 (비워두면 로컬만)",
-    )
-
-    if st.button("💾 설정 저장", type="primary", use_container_width=True):
-        write_env({
-            "ANTHROPIC_API_KEY": api_key,
-            "DEFAULT_MODEL": model,
-            "DRIVE_OUTPUT_DIR": drive_dir,
-            "SORI_SKILL_DIR": env.get("SORI_SKILL_DIR", ""),
-        })
-        st.success("✓ 저장. 페이지 새로고침 시 적용.")
-
-    # ---------- 고급 / 진단 (접어둠) ----------
-    with st.expander("🛠 고급 — 노하우 폴더 / 진단"):
-        st.markdown("**외부 노하우 폴더** (거의 안 씀, 비워두면 내장 사용)")
+        st.markdown("---")
+        st.markdown("##### 외부 노하우 폴더 (거의 안 씀)")
         sori_skill_dir = st.text_input(
             "노하우 폴더 경로",
             value=env.get("SORI_SKILL_DIR", ""),
-            placeholder="(비워두면 내장 자동 사용)",
+            placeholder="비워두면 내장 자동 사용",
             label_visibility="collapsed",
         )
-        if sori_skill_dir != env.get("SORI_SKILL_DIR", ""):
-            if st.button("저장", key="save_skill_dir"):
-                write_env({
-                    "ANTHROPIC_API_KEY": api_key,
-                    "DEFAULT_MODEL": model,
-                    "DRIVE_OUTPUT_DIR": drive_dir,
-                    "SORI_SKILL_DIR": sori_skill_dir,
-                })
-                st.success("✓ 저장")
+
+        if st.button("💾 설정 저장", type="primary", use_container_width=True):
+            write_env({
+                "ANTHROPIC_API_KEY": api_key,
+                "DEFAULT_MODEL": model,
+                "DRIVE_OUTPUT_DIR": "",
+                "SORI_SKILL_DIR": sori_skill_dir,
+            })
+            st.success("✓ 저장. 페이지 새로고침 시 적용.")
 
         st.markdown("---")
-        st.markdown("**진단 정보**")
+        st.markdown("##### 진단 정보 (문제 생겼을 때 참고)")
         st.code(
-            f"""인증 모드:     {auth.get_auth_mode()}
-Claude 앱 감지: {auth.detect_claude_code()}
-API 키 등록:   {auth.has_api_key()}
-저장 폴더:     {drive_dir or '(로컬만)'}
-노하우 폴더:   {sori_skill_dir or '(내장)'}"""
+            f"""인증 모드:        {auth.get_auth_mode()}
+Claude 앱 감지:    {auth.detect_claude_code()}
+API 키 등록:      {auth.has_api_key()}
+Supabase 모듈:    {sb_diag['supabase_module_imported']}
+Supabase URL:    {sb_diag['url_set']}
+Supabase KEY:    {sb_diag['key_set']}
+Supabase 클라이언트: {sb_diag['client_created']}
+노하우 폴더:       {sori_skill_dir or '(내장)'}"""
         )
 
         st.markdown("---")
-        st.markdown("**본문 폰트**")
+        st.markdown("##### 폰트 안내")
         st.caption(
             "메뉴/UI 폰트: Pretendard 고정. "
             "본문(대본 입력)은 위 작가 프로필에서 8종 중 선택."
