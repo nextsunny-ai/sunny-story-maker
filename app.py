@@ -55,6 +55,7 @@ if "mode" in qp:
     st.query_params.clear()
     target_map = {
         "pitch": "pages/1_AI_기획.py",
+        "package": "pages/10_기획_패키지.py",
         "adapt": "pages/3_각색.py",
         "review": "pages/4_리뷰.py",
         "chat": "pages/5_보조작가와_대화.py",

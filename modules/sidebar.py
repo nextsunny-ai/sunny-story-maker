@@ -64,6 +64,7 @@ def render_sidebar():
 
         st.markdown('<div class="ssm-nav-section">Create</div>', unsafe_allow_html=True)
         st.page_link("pages/1_AI_기획.py", label="AI Pitch")
+        st.page_link("pages/10_기획_패키지.py", label="Plan Package")
         st.page_link("pages/2_집필.py", label="Write")
         st.page_link("pages/3_각색.py", label="Adapt")
         st.page_link("pages/5_보조작가와_대화.py", label="Chat")
