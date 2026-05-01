@@ -58,6 +58,12 @@ def _consume_route_param(key: str):
     if key in st.query_params:
         del st.query_params[key]
 
+if "project" in qp:
+    project_name = qp.get("project")
+    _consume_route_param("project")
+    st.session_state.detail_project = project_name
+    st.switch_page("pages/8_작품_상세.py")
+
 if "genre" in qp:
     letter = qp.get("genre")
     _consume_route_param("genre")
@@ -250,15 +256,19 @@ if projects:
     st.markdown('<div class="ssm-work-list">', unsafe_allow_html=True)
     for proj in projects[:8]:
         last_mod = proj["last_modified"][:10] if proj["last_modified"] else ""
+        # 작품 클릭 → 상세 페이지
+        proj_href = f"?project={proj['name']}{_AUTH_QS}"
         st.markdown(
             f"""
-            <div class="ssm-work-item">
-              <div class="ssm-work-left">
-                <span class="ssm-work-title">{proj['name']}</span>
-                <span class="ssm-badge">v{proj['version_count']}</span>
+            <a href="{proj_href}" target="_self" class="ssm-work-link" style="text-decoration:none; color:inherit;">
+              <div class="ssm-work-item" style="cursor:pointer;">
+                <div class="ssm-work-left">
+                  <span class="ssm-work-title">{proj['name']}</span>
+                  <span class="ssm-badge">v{proj['version_count']}</span>
+                </div>
+                <span class="ssm-work-meta">{last_mod}</span>
               </div>
-              <span class="ssm-work-meta">{last_mod}</span>
-            </div>
+            </a>
             """,
             unsafe_allow_html=True,
         )
