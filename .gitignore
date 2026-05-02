@@ -1,53 +1,44 @@
-# 개인 정보 / 비밀
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# Testing
+coverage/
+
+# Next.js
+.next/
+out/
+build/
+next-env.d.ts
+
+# Production
+dist/
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Env
 .env
 .env.local
-*.key
-*.pem
-.streamlit/secrets.toml
+.env*.local
+!.env.example
 
-# 작가 작업 결과물 (개인 데이터)
+# Vercel
+.vercel
+
+# Old V1 leftover (kept locally, gitignored)
 output/
 !output/.gitkeep
-
-# 가상환경
 venv/
-env/
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.egg-info/
-
-# 변환된 아이콘 (PNG는 SVG에서 다시 생성)
-assets/icon.ico
-assets/icon.png
-
-# Python
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-.DS_Store
-Thumbs.db
-
-# Streamlit
-.streamlit/secrets.toml
-
-# 로그
-*.log
-logs/
-
-# 패키징 산출물
-dist/
-build/
+sync_to_drive_inline.ps1
 *.zip
-SUNNY_Story_Maker_v*.zip
-
-# 임시
-*.tmp
-*~
+STORY_MAKER/
+STORY_MAKER_DESIGN/
