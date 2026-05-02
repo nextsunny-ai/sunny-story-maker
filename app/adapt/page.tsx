@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
 import { GENRES } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
@@ -32,6 +33,7 @@ const TONE_CHIPS: ToneChip[] = [
 ];
 
 function AdaptMain() {
+  const router = useRouter();
   const I = ICONS;
 
   const [mode, setMode] = useState<"same" | "cross">("same");
@@ -123,7 +125,13 @@ function AdaptMain() {
             <span>96쪽 · 42,180자</span>
           </div>
         </div>
-        <button className="adapt-source-bar-change">{I.library}<span>다른 작품으로 변경</span></button>
+        <button
+          className="adapt-source-bar-change"
+          type="button"
+          onClick={() => router.push("/library")}
+        >
+          {I.library}<span>다른 작품으로 변경</span>
+        </button>
       </div>
 
       {mode === "same" ? (

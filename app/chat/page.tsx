@@ -1,9 +1,26 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { ICONS } from "@/lib/icons";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { Field, Btn } from "@/components/ui";
+import { streamAgent } from "@/lib/stream-agent";
+
+interface Message {
+  id: string;
+  from: "writer" | "ai";
+  text: string;
+}
+
+const QUICK_PROMPTS: Record<string, string> = {
+  name: "주인공 이름 후보 5개만 추천해줘. 컨셉/직업/인상에 맞춰서.",
+  line: "방금 쓴 대사 한 줄, 더 인물답게 다듬어줘. 원본은 내가 다음 메시지에 붙여넣을게.",
+  meta: "이 장면에 어울리는 비유나 묘사 한 가지만 짧게 제안해줘.",
+  scene: "지금 이 컨셉으로 짧은 한 컷 장면을 만들어줘. 4~6줄, 액션/대사 섞어서.",
+  review: "방금 쓴 한 단락 검토해줘. 약점 1가지 + 강점 1가지 + 한 줄 제안.",
+  head: "이 장면에 맞는 씬 헤딩(INT/EXT, 장소, 시간)을 한 줄로 만들어줘.",
+};
 
 export default function ChatPage() {
   return (
@@ -24,11 +41,107 @@ function ChatMain() {
     { id: "head", label: "씬 헤딩" },
   ];
 
-  const messages = [
-    { from: "writer", text: "주인공 이름 후보 5개만. 30대 여성, 직업은 광고기획자, 차분하지만 단단한 인상." },
-    { from: "ai", text: "차분하면서도 단단한 느낌으로 5개 추천드립니다.\n\n· 한지원 — 무난·실용·드라마 톤\n· 윤서아 — 차분 + 현대적\n· 정해린 — 단정 + 광고업계 톤\n· 이도윤 — 중성적, 단단\n· 박세영 — 균형감 있음 (현실적)\n\n이 중에 끌리는 게 있으시면 그 이름으로 캐릭터 시트 더 깊게 짜드릴게요." },
-    { from: "writer", text: "이도윤 좋네. 그럼 이도윤이 옛 연인을 결혼식에서 다시 만나는 첫 만남 신, 짧게 한 컷만." },
-  ];
+  const [messages, setMessages] = useState<Message[]>([
+    { id: "seed1", from: "ai", text: "안녕하세요. SUNNY 보조작가입니다. 작품·매체·메모를 좌측에서 잡아두면 더 정확하게 답해드릴게요. 한 번에 한 가지씩 물으시면 좋습니다." },
+  ]);
+  const [input, setInput] = useState("");
+  const [project, setProject] = useState("트랑로제");
+  const [medium, setMedium] = useState("TV 드라마 (16부작)");
+  const [memo, setMemo] = useState("시대: 현대 서울. 주인공: 이도윤(여, 30대, 광고기획자). 첫사랑 재회 후 매일 마주침. 톤: 차분 · 무거움 · 로맨틱.");
+  const [busy, setBusy] = useState(false);
+  const [startedAt] = useState(() => new Date());
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const fmtTime = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+  const sendMessage = async (raw?: string) => {
+    const text = (raw ?? input).trim();
+    if (!text || busy) return;
+
+    const userMsg: Message = { id: "u" + Date.now(), from: "writer", text };
+    const aiId = "a" + Date.now();
+    setMessages(prev => [...prev, userMsg, { id: aiId, from: "ai", text: "" }]);
+    setInput("");
+    setBusy(true);
+
+    const ac = new AbortController();
+    abortRef.current = ac;
+
+    try {
+      await streamAgent({
+        body: {
+          mode: "collaborate",
+          stage: "chat",
+          fast: true,
+          userInput: {
+            content: text,
+            project,
+            medium,
+            memo,
+          },
+        },
+        signal: ac.signal,
+        onDelta: (chunk) => {
+          setMessages(prev => prev.map(m => m.id === aiId ? { ...m, text: m.text + chunk } : m));
+        },
+        onError: (msg) => {
+          setMessages(prev => prev.map(m =>
+            m.id === aiId ? { ...m, text: (m.text || "") + `\n\n⚠ AI 호출 오류: ${msg}` } : m
+          ));
+        },
+      });
+    } catch {
+      // streamAgent 안에서 onError 처리됨
+    } finally {
+      setBusy(false);
+      abortRef.current = null;
+    }
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const onQuick = (id: string) => {
+    const preset = QUICK_PROMPTS[id];
+    if (!preset) return;
+    setInput(preset);
+  };
+
+  const onClear = () => {
+    if (busy) {
+      abortRef.current?.abort();
+    }
+    setMessages([
+      { id: "seed_clear", from: "ai", text: "대화가 초기화되었습니다. 새로 시작해주세요." },
+    ]);
+  };
+
+  const onSave = () => {
+    setSavedAt(new Date());
+    if (typeof window !== "undefined") {
+      try {
+        const payload = { project, medium, memo, messages, savedAt: new Date().toISOString() };
+        window.localStorage.setItem("sunny.chat.lastSession", JSON.stringify(payload));
+      } catch {
+        // localStorage 실패는 무시
+      }
+    }
+  };
+
+  const writerCount = messages.filter(m => m.from === "writer").length;
 
   return (
     <main className="main">
@@ -42,13 +155,32 @@ function ChatMain() {
         <aside className="write-aside">
           <div className="aside-block">
             <div className="aside-h">작업 컨텍스트</div>
-            <Field label="작품"><select className="field-select"><option>트랑로제</option><option>(없음)</option></select></Field>
-            <Field label="매체"><select className="field-select"><option>TV 드라마 (16부작)</option><option>(미지정)</option></select></Field>
+            <Field label="작품">
+              <input
+                className="field-input"
+                value={project}
+                onChange={e => setProject(e.target.value)}
+                placeholder="작품명"
+              />
+            </Field>
+            <Field label="매체">
+              <input
+                className="field-input"
+                value={medium}
+                onChange={e => setMedium(e.target.value)}
+                placeholder="예) TV 드라마 (16부작)"
+              />
+            </Field>
           </div>
 
           <div className="aside-block">
             <div className="aside-h">기억해야 할 것</div>
-            <textarea className="field-textarea" rows={4} defaultValue="시대: 현대 서울. 주인공: 이도윤(여, 30대, 광고기획자). 첫사랑 재회 후 매일 마주침. 톤: 차분 · 무거움 · 로맨틱." />
+            <textarea
+              className="field-textarea"
+              rows={4}
+              value={memo}
+              onChange={e => setMemo(e.target.value)}
+            />
             <div className="field-help">보조작가가 답할 때 항상 참고합니다.</div>
           </div>
 
@@ -56,7 +188,13 @@ function ChatMain() {
             <div className="aside-h">빠른 의뢰</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
               {quick.map(q => (
-                <button key={q.id} className="btn" style={{ padding: "8px 12px", fontSize: 12, justifyContent: "center" }}>
+                <button
+                  key={q.id}
+                  className="btn"
+                  style={{ padding: "8px 12px", fontSize: 12, justifyContent: "center" }}
+                  onClick={() => onQuick(q.id)}
+                  disabled={busy}
+                >
                   {q.label}
                 </button>
               ))}
@@ -65,27 +203,32 @@ function ChatMain() {
 
           <div className="aside-block">
             <div className="aside-h">현재 세션</div>
-            <div className="kv"><div className="kv-k">메시지</div><div className="kv-v">12</div></div>
-            <div className="kv"><div className="kv-k">시작</div><div className="kv-v">14:22</div></div>
-            <div className="kv"><div className="kv-k">저장됨</div><div className="kv-v">방금</div></div>
+            <div className="kv"><div className="kv-k">메시지</div><div className="kv-v">{writerCount}</div></div>
+            <div className="kv"><div className="kv-k">시작</div><div className="kv-v">{fmtTime(startedAt)}</div></div>
+            <div className="kv"><div className="kv-k">저장됨</div><div className="kv-v">{savedAt ? fmtTime(savedAt) : "—"}</div></div>
             <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-              <Btn icon={I.trash}>비우기</Btn>
-              <Btn icon={I.save}>저장</Btn>
+              <Btn icon={I.trash} onClick={onClear}>비우기</Btn>
+              <Btn icon={I.save} onClick={onSave}>저장</Btn>
             </div>
           </div>
         </aside>
 
         <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{
-            display: "flex", flexDirection: "column", gap: 14,
-            padding: "24px",
-            background: "var(--card)",
-            border: "1px solid var(--line)",
-            borderRadius: 14,
-            minHeight: 460,
-          }}>
-            {messages.map((m, i) => (
-              <div key={i} style={{
+          <div
+            ref={scrollRef}
+            style={{
+              display: "flex", flexDirection: "column", gap: 14,
+              padding: "24px",
+              background: "var(--card)",
+              border: "1px solid var(--line)",
+              borderRadius: 14,
+              minHeight: 460,
+              maxHeight: "calc(100vh - 320px)",
+              overflowY: "auto",
+            }}
+          >
+            {messages.map((m) => (
+              <div key={m.id} style={{
                 display: "flex", flexDirection: "column",
                 alignItems: m.from === "writer" ? "flex-end" : "flex-start",
               }}>
@@ -109,7 +252,7 @@ function ChatMain() {
                   fontFamily: m.from === "ai" ? "var(--font-display)" : "var(--font-ui)",
                   fontStyle: m.from === "ai" ? "italic" : "normal",
                 }}>
-                  {m.text}
+                  {m.text || (m.from === "ai" && busy ? "…" : "")}
                 </div>
               </div>
             ))}
@@ -127,10 +270,19 @@ function ChatMain() {
               className="field-input"
               placeholder="보조작가에게 말 걸기 — 이름·대사·장면·검토 무엇이든"
               style={{ border: "none", boxShadow: "none", background: "transparent", flex: 1 }}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              disabled={busy}
             />
-            <button className="btn btn-coral" style={{ padding: "10px 14px", borderRadius: 999 }}>
+            <button
+              className="btn btn-coral"
+              style={{ padding: "10px 14px", borderRadius: 999, opacity: busy ? 0.6 : 1 }}
+              onClick={() => sendMessage()}
+              disabled={busy || !input.trim()}
+            >
               <span style={{ display: "inline-flex", width: 14, height: 14 }}>{I.send}</span>
-              보내기
+              {busy ? "응답 중…" : "보내기"}
             </button>
           </div>
 

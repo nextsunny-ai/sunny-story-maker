@@ -2,7 +2,7 @@
 chcp 65001 | Out-Null
 
 $src = "C:\SUNNY_Story_Maker"
-$drive_root = "G:\내 드라이브\SUNNY_TEAM\05_콘텐츠IP\시나리오\SUNNY_Story_Maker_FINAL"
+$drive_root = "G:\내 드라이브\SUNNY_TEAM\SUNNY_Story_Maker_FINAL"
 $drive_files = Join-Path $drive_root "current"
 $timestamp = Get-Date -Format "yyyyMMdd_HHmm"
 $zip_name = "SUNNY_Story_Maker_$timestamp.zip"

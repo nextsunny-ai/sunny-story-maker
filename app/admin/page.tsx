@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
 import { Field, Btn } from "@/components/ui";
+import { KEY, usePersistedState } from "@/lib/persist";
 
 export default function AdminPage() {
   return (
@@ -60,21 +61,121 @@ const SKILL_CATEGORIES = [
   { id: "free", label: "자유 메모", hint: "분류 없는 노하우 — 스타일·룰 무엇이든" },
 ];
 
+interface WriterProfile {
+  name: string;
+  penName: string;
+  role: string;
+  email: string;
+  mainGenre: string;
+  career: string;
+  works: string;
+  avoid: string;
+  likes: string;
+}
+
+const EMPTY_PROFILE: WriterProfile = {
+  name: "",
+  penName: "",
+  role: "작가 · 감독",
+  email: "",
+  mainGenre: "",
+  career: "1~5년",
+  works: "",
+  avoid: "",
+  likes: "",
+};
+
+interface LearningEntry {
+  date: string;        // YYYY-MM-DD
+  category: string;    // loved | rejected | direction | metaphor | free
+  text: string;
+}
+
 function WriterTab() {
   const I = ICONS;
   const [skillCat, setSkillCat] = useState<string>("loved");
   const cur = SKILL_CATEGORIES.find(c => c.id === skillCat) || SKILL_CATEGORIES[0];
+
+  const [profile, setProfile] = usePersistedState<WriterProfile>(KEY.adminProfile, EMPTY_PROFILE);
+  const [learning, setLearning] = usePersistedState<LearningEntry[]>(KEY.adminLearning, []);
+  const [draft, setDraft] = useState<string>("");
+
+  const updateProfile = <K extends keyof WriterProfile>(key: K, value: WriterProfile[K]) => {
+    setProfile(prev => ({ ...prev, [key]: value }));
+  };
+
+  const onSaveLearning = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      alert("학습시킬 내용을 입력해 주세요.");
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    setLearning(prev => [...prev, { date: today, category: skillCat, text: trimmed }]);
+    setDraft("");
+  };
+
+  const learningStats = (() => {
+    const counts: Record<string, number> = { loved: 0, rejected: 0, direction: 0, metaphor: 0, free: 0 };
+    let chars = 0;
+    for (const e of learning) {
+      counts[e.category] = (counts[e.category] ?? 0) + 1;
+      chars += e.text.length;
+    }
+    const lastDate = learning.length ? learning[learning.length - 1].date : "—";
+    return { count: learning.length, chars, counts, lastDate };
+  })();
+
+  const learningHistory = learning.length === 0
+    ? "(아직 학습 기록이 없습니다.)"
+    : [...learning].reverse().map(e => {
+        const label = SKILL_CATEGORIES.find(c => c.id === e.category)?.label ?? e.category;
+        return `## ${e.date}\n[${label}] ${e.text}`;
+      }).join("\n\n");
+
+  const downloadLearningMd = () => {
+    if (learning.length === 0) {
+      alert("아직 누적된 학습이 없습니다.");
+      return;
+    }
+    const author = profile.penName || profile.name || "작가";
+    const header = `# ${author} 누적 학습\n\n총 ${learning.length}건 · ${learningStats.chars.toLocaleString()}자\n생성일: ${new Date().toISOString().slice(0, 10)}\n\n---\n\n`;
+    const body = learningHistory;
+    const blob = new Blob([header + body], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${author}_학습_${new Date().toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const showAllLearning = () => {
+    if (learning.length === 0) {
+      alert("아직 누적된 학습이 없습니다.\n\n새 학습을 추가하면 여기에서 전체 목록을 볼 수 있어요.");
+      return;
+    }
+    alert(`전체 학습 — ${learning.length}건 · ${learningStats.chars.toLocaleString()}자\n\n` + learningHistory.slice(0, 1500) + (learningHistory.length > 1500 ? "\n\n…(이하 생략 — .md 다운로드로 전체 보기)" : ""));
+  };
+
+  const initial = (profile.name || "작").trim().charAt(0);
+  const displayName = profile.penName || profile.name || "이름을 입력해주세요";
+  const displayRole = profile.role || "역할 미정";
+  const displayBio = profile.works || "대표 작품을 입력하면 여기에 표시됩니다.";
+
   return (
     <Fragment>
       <div className="adm-profile">
         <div className="adm-profile-avatar">
-          <span>유</span>
+          <span>{initial}</span>
         </div>
         <div className="adm-profile-text">
           <div className="adm-profile-eyebrow">내 프로필</div>
-          <div className="adm-profile-name">유희정</div>
-          <div className="adm-profile-role">작가 · 감독</div>
-          <div className="adm-profile-bio">현대 드라마 · 멜로 중심. SBS 단막극 1편. KBS 드라마 스페셜 작가 데뷔. OTT 12부작 진행 중.</div>
+          <div className="adm-profile-name">{displayName}</div>
+          <div className="adm-profile-role">{displayRole}</div>
+          <div className="adm-profile-bio">{displayBio}</div>
         </div>
         <div className="adm-profile-side">
           <Btn kind="primary" icon={I.write}>편집</Btn>
@@ -85,13 +186,27 @@ function WriterTab() {
 
       <div className="form-grid">
         <Field label="이름" required>
-          <input className="field-input" defaultValue="유희정" />
+          <input
+            className="field-input"
+            value={profile.name}
+            placeholder="예: 홍길동"
+            onChange={e => updateProfile("name", e.target.value)}
+          />
         </Field>
         <Field label="작가명 / 필명">
-          <input className="field-input" defaultValue="유희정" />
+          <input
+            className="field-input"
+            value={profile.penName}
+            placeholder="예: 홍작가"
+            onChange={e => updateProfile("penName", e.target.value)}
+          />
         </Field>
         <Field label="역할">
-          <select className="field-select">
+          <select
+            className="field-select"
+            value={profile.role}
+            onChange={e => updateProfile("role", e.target.value)}
+          >
             <option>작가 · 감독</option>
             <option>작가</option>
             <option>감독</option>
@@ -99,7 +214,12 @@ function WriterTab() {
           </select>
         </Field>
         <Field label="이메일" help="공모전 제출용 연락처">
-          <input className="field-input" defaultValue="nextsunny@gmail.com" />
+          <input
+            className="field-input"
+            value={profile.email}
+            placeholder="example@email.com"
+            onChange={e => updateProfile("email", e.target.value)}
+          />
         </Field>
       </div>
 
@@ -107,18 +227,33 @@ function WriterTab() {
 
       <div className="form-grid">
         <Field label="주력 장르" help="3개까지 선택">
-          <select className="field-select"><option>TV 드라마, 영화, 웹소설</option></select>
+          <input
+            className="field-input"
+            value={profile.mainGenre}
+            placeholder="예: TV 드라마, 영화, 웹소설"
+            onChange={e => updateProfile("mainGenre", e.target.value)}
+          />
         </Field>
         <Field label="경력 연차">
-          <select className="field-select">
-            <option>5~10년</option>
-            <option>1~5년</option>
-            <option>10년 이상</option>
+          <select
+            className="field-select"
+            value={profile.career}
+            onChange={e => updateProfile("career", e.target.value)}
+          >
             <option>지망생</option>
+            <option>1~5년</option>
+            <option>5~10년</option>
+            <option>10년 이상</option>
           </select>
         </Field>
         <Field label="대표 작품" span={2}>
-          <textarea className="field-textarea" rows={3} defaultValue="단막 「봄밤의 메일」 (SBS, 2021) / 미니시리즈 「작은 빛으로」 (KBS, 2023, 4부작) / OTT 「트랑로제」 (제작 중, 16부작)" />
+          <textarea
+            className="field-textarea"
+            rows={3}
+            value={profile.works}
+            placeholder="예: 단막 「작품명」 (방송사, 연도) / 미니시리즈 「작품명」 (방송사, 연도, n부작)"
+            onChange={e => updateProfile("works", e.target.value)}
+          />
         </Field>
       </div>
 
@@ -126,10 +261,22 @@ function WriterTab() {
 
       <div className="form-grid cols-1">
         <Field label="피하고 싶은 표현 · 스타일" help="AI투, 클리셰, 어휘 등 자유롭게.">
-          <textarea className="field-textarea" rows={3} defaultValue="격언체 대사 ✗ / 영어 번역체 ✗ / '당신' 호명 ✗ / 대사로 감정 직접 설명 ✗" />
+          <textarea
+            className="field-textarea"
+            rows={3}
+            value={profile.avoid}
+            placeholder="예: 격언체 대사 ✗ / 영어 번역체 ✗ / '당신' 호명 ✗"
+            onChange={e => updateProfile("avoid", e.target.value)}
+          />
         </Field>
         <Field label="좋아하는 작가 · 작품" help="레퍼런스로 톤을 맞춥니다.">
-          <textarea className="field-textarea" rows={3} defaultValue="박해영 작가 (나의 아저씨), 노희경 작가 (디어 마이 프렌즈), 김영하 (살인자의 기억법). 차분하고 깊은 인물 내면." />
+          <textarea
+            className="field-textarea"
+            rows={3}
+            value={profile.likes}
+            placeholder="예: 박해영 작가 (나의 아저씨), 노희경 작가 (디어 마이 프렌즈)"
+            onChange={e => updateProfile("likes", e.target.value)}
+          />
         </Field>
       </div>
 
@@ -140,14 +287,16 @@ function WriterTab() {
       />
 
       <div className="adm-plan">
-        <div className="adm-plan-tag">유희정 작가의 누적 학습</div>
-        <div className="adm-plan-name">42<em>건</em> · 1,820자</div>
-        <div className="adm-plan-meta">좋아함 16 · 피함 12 · 디렉션 9 · 비유 5 — 마지막 추가 4일 전</div>
-        <div className="adm-plan-side">
-          <div className="kv"><div className="kv-k">총 사용 횟수</div><div className="kv-v">128회</div></div>
-          <div className="kv"><div className="kv-k">최근 적용</div><div className="kv-v">방금</div></div>
+        <div className="adm-plan-tag">{(profile.penName || profile.name || "작가")} 누적 학습</div>
+        <div className="adm-plan-name">{learningStats.count}<em>건</em> · {learningStats.chars.toLocaleString()}자</div>
+        <div className="adm-plan-meta">
+          좋아함 {learningStats.counts.loved} · 피함 {learningStats.counts.rejected} · 디렉션 {learningStats.counts.direction} · 비유 {learningStats.counts.metaphor} — 마지막 추가 {learningStats.lastDate}
         </div>
-        <Btn icon={I.download}>다운로드 (.md)</Btn>
+        <div className="adm-plan-side">
+          <div className="kv"><div className="kv-k">총 사용 횟수</div><div className="kv-v">{learningStats.count}회</div></div>
+          <div className="kv"><div className="kv-k">최근 적용</div><div className="kv-v">{learningStats.lastDate}</div></div>
+        </div>
+        <Btn icon={I.download} onClick={downloadLearningMd}>다운로드 (.md)</Btn>
       </div>
 
       <div className="form-grid cols-1">
@@ -173,6 +322,8 @@ function WriterTab() {
           <textarea
             className="field-textarea"
             rows={4}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
             placeholder={
               skillCat === "loved" ? "예: 인물 첫 등장은 동작·물건으로 묘사 (외모 형용사 대신)" :
               skillCat === "rejected" ? "예: '~라고 할 수 있다' 같은 결론 자동화 표현 ✗" :
@@ -185,8 +336,8 @@ function WriterTab() {
       </div>
 
       <div className="btn-row">
-        <Btn kind="coral" icon={I.spark}>{cur.label}으로 학습</Btn>
-        <Btn icon={I.write}>전체 학습 보기</Btn>
+        <Btn kind="coral" icon={I.spark} onClick={onSaveLearning}>{cur.label}으로 학습</Btn>
+        <Btn icon={I.write} onClick={showAllLearning}>전체 학습 보기</Btn>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-4)" }}>
           누적된 학습은 다음 작업부터 SUNNY가 자동 참고합니다 — {cur.label}만 골라서 적용 가능
         </span>
@@ -198,15 +349,7 @@ function WriterTab() {
             className="field-textarea script"
             rows={6}
             readOnly
-            defaultValue={`## 2026-04-28
-[좋아함] 결혼식 신은 5분 안에 1차 갈등 트리거. 배경 묘사 길게 X.
-[피함] "당신" 호명 안 씀. 이름 / 직책 / 호칭 (선배·언니·과장님) 으로 부름.
-
-## 2026-04-22
-[디렉션] 회상 시퀀스는 1인칭 일기체. 본 시점은 3인칭 제한.
-
-## 2026-04-15
-[비유] 미드포인트는 "물리적 거리가 가까워지는 순간"으로 설계.`}
+            value={learningHistory}
           />
         </Field>
       </div>
@@ -214,19 +357,19 @@ function WriterTab() {
       <div className="stats" style={{ marginTop: 36 }}>
         <div className="stat">
           <div className="stat-label">완성 작품</div>
-          <div className="stat-value">12<span className="unit">편</span></div>
+          <div className="stat-value">0<span className="unit">편</span></div>
         </div>
         <div className="stat">
           <div className="stat-label">활동 기간</div>
-          <div className="stat-value">8<span className="unit">년</span></div>
+          <div className="stat-value">0<span className="unit">년</span></div>
         </div>
         <div className="stat">
           <div className="stat-label">SUNNY 사용</div>
-          <div className="stat-value">128<span className="unit">회</span></div>
+          <div className="stat-value">0<span className="unit">회</span></div>
         </div>
         <div className="stat">
           <div className="stat-label">총 작성</div>
-          <div className="stat-value">847<span className="unit">p</span></div>
+          <div className="stat-value">0<span className="unit">p</span></div>
         </div>
       </div>
     </Fragment>
@@ -235,6 +378,20 @@ function WriterTab() {
 
 function SystemTab() {
   const I = ICONS;
+  const onManualLearn = () =>
+    alert("자동 학습은 글로벌 launchd 작업으로 운영됩니다 — 다음 업데이트 예정");
+  const onShowGlobalLog = () =>
+    alert("전체 학습 로그는 lib/skills/learned.md 파일에서 관리됩니다 — 곧 출시");
+  const onDownloadSkill = () =>
+    alert("SKILL.md 다운로드는 다음 업데이트에서 제공됩니다.");
+  const onChangePlan = () =>
+    alert("플랜 변경은 결제 연동 이후 제공됩니다 — 곧 출시");
+  const onExportData = () =>
+    alert("데이터 내보내기는 다음 업데이트에서 제공됩니다.");
+  const onDeleteAccount = () => {
+    if (!confirm("정말 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
+    alert("계정 삭제는 결제 연동 이후 제공됩니다 — 곧 출시");
+  };
   return (
     <Fragment>
       <SectionHead
@@ -307,12 +464,12 @@ function SystemTab() {
       <div className="adm-plan">
         <div className="adm-plan-tag">자동 학습 상태</div>
         <div className="adm-plan-name">주 <em>2회</em> · 월·목 새벽 4시</div>
-        <div className="adm-plan-meta">최근 추가 — 12개 항목 · 4월 25일 21:32</div>
+        <div className="adm-plan-meta">서버 측 자동 학습 — 사용자 데이터와 무관</div>
         <div className="adm-plan-side">
-          <div className="kv"><div className="kv-k">마지막 실행</div><div className="kv-v">3일 전</div></div>
-          <div className="kv"><div className="kv-k">다음 예정</div><div className="kv-v">5월 5일 04:00</div></div>
+          <div className="kv"><div className="kv-k">마지막 실행</div><div className="kv-v">—</div></div>
+          <div className="kv"><div className="kv-k">다음 예정</div><div className="kv-v">—</div></div>
         </div>
-        <Btn icon={I.spark} kind="coral">지금 수동 학습</Btn>
+        <Btn icon={I.spark} kind="coral" onClick={onManualLearn}>지금 수동 학습</Btn>
       </div>
 
       <div className="form-grid">
@@ -334,27 +491,9 @@ function SystemTab() {
         </Field>
       </div>
 
-      <div className="form-grid cols-1">
-        <Field label="이번 회차에 추가된 학습 (요약)" help="lib/skills/learned.md에 누적된 최근 12건. 클릭하면 전체 보기.">
-          <textarea
-            className="field-textarea script"
-            rows={5}
-            readOnly
-            defaultValue={`## 2026-04-25 (자동 학습 추가)
-- 웹툰 장르: 컷 단위 호흡은 평균 1.5초. 첫 컷·마지막 컷에 하이라이트.
-- 숏드라마: 회당 후크는 마지막 5초에 SNS·전화·만남 트리거 중 하나.
-- 다큐 큐시트: 인터뷰 컷은 한 사람 평균 18초.
-
-## 2026-04-22 (자동 학습 추가)
-- 미드포인트 정의 — 주인공의 욕망이 뒤집히는 순간 (이전 클로드 정리).
-- 안티패턴 #25: "마침내 깨달았다" 같은 결론 자동화 표현.`}
-          />
-        </Field>
-      </div>
-
       <div className="btn-row">
-        <Btn icon={I.write}>전체 학습 로그 보기</Btn>
-        <Btn icon={I.download}>SKILL.md 다운로드</Btn>
+        <Btn icon={I.write} onClick={onShowGlobalLog}>전체 학습 로그 보기</Btn>
+        <Btn icon={I.download} onClick={onDownloadSkill}>SKILL.md 다운로드</Btn>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-4)" }}>
           launchd 작업 — sunny-sori/auto_update.sh
         </span>
@@ -366,10 +505,10 @@ function SystemTab() {
         <div className="adm-plan-name">SUNNY <em>Pro</em></div>
         <div className="adm-plan-meta">월 39,000원 · 무제한 의뢰 · 라이브러리 100GB</div>
         <div className="adm-plan-side">
-          <div className="kv"><div className="kv-k">다음 결제일</div><div className="kv-v">2026.05.28</div></div>
-          <div className="kv"><div className="kv-k">이번 달 사용</div><div className="kv-v">128회</div></div>
+          <div className="kv"><div className="kv-k">다음 결제일</div><div className="kv-v">—</div></div>
+          <div className="kv"><div className="kv-k">이번 달 사용</div><div className="kv-v">0회</div></div>
         </div>
-        <Btn>플랜 변경</Btn>
+        <Btn onClick={onChangePlan}>플랜 변경</Btn>
       </div>
 
       <SectionHead num={6} title="계정" />
@@ -390,8 +529,8 @@ function SystemTab() {
       </div>
 
       <div style={{ display: "flex", gap: 10, marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--line)" }}>
-        <Btn icon={I.download}>데이터 내보내기</Btn>
-        <Btn icon={I.trash} kind="default">계정 삭제</Btn>
+        <Btn icon={I.download} onClick={onExportData}>데이터 내보내기</Btn>
+        <Btn icon={I.trash} kind="default" onClick={onDeleteAccount}>계정 삭제</Btn>
       </div>
     </Fragment>
   );

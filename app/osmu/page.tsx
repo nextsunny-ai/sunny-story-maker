@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
 import { GENRES } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
+import { streamAgent } from "@/lib/stream-agent";
 
 export default function OsmuPage() {
   return (
@@ -29,6 +30,15 @@ function OsmuMain() {
 
   const [source, setSource] = useState("F");
   const [depth, setDepth] = useState<"A" | "B" | "C">("A");
+  const [title, setTitle] = useState("달빛 정원");
+  const [body, setBody] = useState(
+    "달빛이 비치는 정원에서 사라진 소녀를 찾아 나선 정원사. 잃어버린 기억을 가진 인물과 함께 정원의 비밀을 풀어가며 서로의 진짜 이름을 되찾아 간다. 로맨스 + 미스터리 + 성장 서사의 3축 구조."
+  );
+  const [running, setRunning] = useState(false);
+  const [streamText, setStreamText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const targetCount = GENRES.length - 1; // 원본 제외
   const depthInfo = {
@@ -56,6 +66,57 @@ function OsmuMain() {
 
   const sourceGenre = GENRES.find(g => g.letter === source) || GENRES[0];
 
+  const startMatrix = async () => {
+    if (running) return;
+    if (!body.trim()) {
+      setError("원본 작품 본문을 입력해주세요.");
+      return;
+    }
+    setError(null);
+    setStreamText("");
+    setRunning(true);
+    const ac = new AbortController();
+    abortRef.current = ac;
+
+    try {
+      await streamAgent({
+        body: {
+          mode: "osmu",
+          idea: body,
+          sourceIp: title || "원본 작품",
+          genreLetter: source,
+          fast: false,
+        },
+        signal: ac.signal,
+        onDelta: (chunk) => setStreamText(prev => prev + chunk),
+        onError: (msg) => setError(msg),
+      });
+    } finally {
+      setRunning(false);
+      abortRef.current = null;
+    }
+  };
+
+  const stopMatrix = () => {
+    abortRef.current?.abort();
+    setRunning(false);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const text = String(ev.target?.result || "");
+      setBody(text.slice(0, 50_000));
+      if (!title || title === "달빛 정원") {
+        setTitle(file.name.replace(/\.[^.]+$/, ""));
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
   const resultRows = GENRES
     .filter(g => g.letter !== source)
     .map(g => ({ g, r: sampleResults[g.letter] }))
@@ -81,7 +142,8 @@ function OsmuMain() {
               <input
                 type="text"
                 className="osmu-input-source-title"
-                defaultValue="달빛 정원"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
                 placeholder="작품명"
               />
               <div className="osmu-input-source-tags">
@@ -94,12 +156,32 @@ function OsmuMain() {
             <textarea
               className="osmu-input-source-text"
               rows={4}
-              defaultValue="달빛이 비치는 정원에서 사라진 소녀를 찾아 나선 정원사. 잃어버린 기억을 가진 인물과 함께 정원의 비밀을 풀어가며 서로의 진짜 이름을 되찾아 간다. 로맨스 + 미스터리 + 성장 서사의 3축 구조."
+              value={body}
+              onChange={e => setBody(e.target.value)}
               placeholder="시놉시스 또는 1화 본문 — 자유롭게 붙여넣기"
             />
             <div className="osmu-input-source-actions">
-              <button className="osmu-link-btn">{I.library}<span>라이브러리에서 가져오기</span></button>
-              <button className="osmu-link-btn">{I.upload}<span>파일 업로드</span></button>
+              <button
+                className="osmu-link-btn"
+                type="button"
+                onClick={() => router.push("/library")}
+              >
+                {I.library}<span>라이브러리에서 가져오기</span>
+              </button>
+              <button
+                className="osmu-link-btn"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {I.upload}<span>파일 업로드</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.md,.markdown,text/plain"
+                style={{ display: "none" }}
+                onChange={handleFileUpload}
+              />
             </div>
           </div>
 
@@ -145,14 +227,54 @@ function OsmuMain() {
               </div>
             </div>
 
-            <button className="osmu-run-cta">
+            <button
+              className="osmu-run-cta"
+              type="button"
+              onClick={running ? stopMatrix : startMatrix}
+              disabled={!body.trim() && !running}
+            >
               <span className="osmu-run-cta-icon">{I.spark}</span>
-              <span className="osmu-run-cta-label">12개 매체 매트릭스 시작</span>
-              <span className="osmu-run-cta-meta">{cur.eta}</span>
+              <span className="osmu-run-cta-label">
+                {running ? "중지" : "12개 매체 매트릭스 시작"}
+              </span>
+              <span className="osmu-run-cta-meta">
+                {running ? "스트리밍 중…" : cur.eta}
+              </span>
             </button>
+            {error && (
+              <div style={{ marginTop: 10, fontSize: 12, color: "var(--coral, #d96a5a)" }}>
+                ⚠ {error}
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {(running || streamText) && (
+        <div style={{ marginTop: 24 }}>
+          <SectionHead
+            title="매트릭스 분석 결과"
+            sub={running ? "스트리밍 중 — Opus 4.7가 12개 매체로 분석 중" : `완료 · ${streamText.length.toLocaleString()}자`}
+          />
+          <div
+            style={{
+              padding: 20,
+              background: "var(--surface-2, #fafaf7)",
+              border: "1px solid var(--line)",
+              borderRadius: 12,
+              whiteSpace: "pre-wrap",
+              fontFamily: "var(--font-script, ui-monospace, monospace)",
+              fontSize: 13,
+              lineHeight: 1.7,
+              color: "var(--ink-1, #111)",
+              maxHeight: 560,
+              overflow: "auto",
+            }}
+          >
+            {streamText || "잠시만요…"}
+          </div>
+        </div>
+      )}
 
       {/* RESULT MATRIX */}
       <SectionHead

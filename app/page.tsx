@@ -7,6 +7,7 @@ import { GENRES } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
+import { KEY, loadJSON, usePersistedState } from "@/lib/persist";
 
 export default function HomePage() {
   return (
@@ -16,11 +17,24 @@ export default function HomePage() {
   );
 }
 
+interface LibraryWork {
+  id: number | string;
+  title: string;
+  genre: string;
+  letter: string;
+  stage?: string;
+  prog: number;
+  updated: string;
+  size?: string;
+  next?: string;
+  meta?: string;
+}
+
 function HomeMain() {
   const router = useRouter();
   const I = ICONS;
   const G = GENRES;
-  const [idea, setIdea] = useState("");
+  const [idea, setIdea] = usePersistedState<string>(KEY.homeIdea, "");
   const [genre, setGenre] = useState("A");
   const [formatIdx, setFormatIdx] = useState(0);
   useEffect(() => { setFormatIdx(0); }, [genre]);
@@ -31,12 +45,24 @@ function HomeMain() {
     "엘리트 입시 학원 1등 학생이, 어느 날 자기 시험지가 백지로 제출됐다는 걸 알게 된다",
   ];
 
-  // TODO: DB와 연결 — 실제 작가의 최근 작품 fetchProjects() 사용
-  const recent = [
-    { title: "트랑로제", genre: "TV 드라마", letter: "A", prog: 0.62, meta: "5부 / 8부", updated: "2시간 전", next: "5부 60p — 회상 시퀀스 이어쓰기" },
-    { title: "마지막 인사", genre: "영화", letter: "B", prog: 0.34, meta: "24p / 70p", updated: "어제", next: "2막 진입 — 대결 시퀀스 트리트먼트" },
-    { title: "회귀한 황녀", genre: "웹소설", letter: "H", prog: 0.18, meta: "36화 / 200화", updated: "3일 전", next: "황궁 도착 — 36화 이어쓰기" },
-  ];
+  // 진행 중인 작품 — library에 누적된 데이터에서 최근 3개 (없으면 빈 상태)
+  const [recent, setRecent] = useState<LibraryWork[]>([]);
+  useEffect(() => {
+    const works = loadJSON<LibraryWork[]>(KEY.libraryWorks, []);
+    const inProgress = works
+      .filter(w => (w.prog ?? 0) < 1)
+      .slice(0, 3);
+    setRecent(inProgress);
+  }, []);
+
+  // STATS — library 누적 기반 실시간 계산
+  const [stats, setStats] = useState({ done: 0, wip: 0, pages: 0, calls: 0 });
+  useEffect(() => {
+    const works = loadJSON<LibraryWork[]>(KEY.libraryWorks, []);
+    const done = works.filter(w => (w.prog ?? 0) >= 1).length;
+    const wip = works.filter(w => (w.prog ?? 0) < 1).length;
+    setStats({ done, wip, pages: 0, calls: 0 });
+  }, []);
 
   const currentGenre = G.find(g => g.letter === genre) || G[0];
 
@@ -132,35 +158,47 @@ function HomeMain() {
         }
       />
 
-      <div className="home-continue-grid">
-        {recent.map((w, i) => (
-          <div key={i} className="home-continue-card"
-            onClick={() => router.push(`/write?mode=continue&project=${encodeURIComponent(w.title)}`)}>
-            <div className="home-continue-top">
-              <div className="home-continue-icon">{I[w.letter]}</div>
-              <div className="home-continue-genre">{w.genre}</div>
-            </div>
-            <div className="home-continue-title">{w.title}</div>
-            <div className="home-continue-next">
-              <span className="home-continue-next-label">NEXT</span>
-              <span className="home-continue-next-text">{w.next}</span>
-            </div>
-            <div className="home-continue-prog">
-              <div className="home-continue-prog-bar">
-                <div className="home-continue-prog-fill" style={{ width: (w.prog * 100) + "%" }}></div>
+      {recent.length === 0 ? (
+        <div style={{
+          padding: "40px 24px", textAlign: "center", color: "var(--ink-3)",
+          border: "1px dashed var(--line)", borderRadius: 14, background: "var(--card-soft)",
+          fontSize: 14, lineHeight: 1.7,
+        }}>
+          아직 진행 중인 작품이 없습니다.
+          <br />
+          위에서 한 줄 아이디어로 시작해보세요.
+        </div>
+      ) : (
+        <div className="home-continue-grid">
+          {recent.map((w, i) => (
+            <div key={w.id ?? i} className="home-continue-card"
+              onClick={() => router.push(`/write?mode=continue&project=${encodeURIComponent(w.title)}`)}>
+              <div className="home-continue-top">
+                <div className="home-continue-icon">{I[w.letter]}</div>
+                <div className="home-continue-genre">{w.genre}</div>
               </div>
-              <span className="home-continue-prog-meta">{w.meta} · {Math.round(w.prog * 100)}%</span>
+              <div className="home-continue-title">{w.title}</div>
+              <div className="home-continue-next">
+                <span className="home-continue-next-label">NEXT</span>
+                <span className="home-continue-next-text">{w.next ?? "이어쓰기 위치 미정"}</span>
+              </div>
+              <div className="home-continue-prog">
+                <div className="home-continue-prog-bar">
+                  <div className="home-continue-prog-fill" style={{ width: (w.prog * 100) + "%" }}></div>
+                </div>
+                <span className="home-continue-prog-meta">{w.meta ?? w.size ?? ""} · {Math.round(w.prog * 100)}%</span>
+              </div>
+              <div className="home-continue-foot">
+                <span className="home-continue-updated">{w.updated}</span>
+                <span className="home-continue-cta">
+                  이어쓰기
+                  <span className="home-continue-cta-arrow">{I.arrow}</span>
+                </span>
+              </div>
             </div>
-            <div className="home-continue-foot">
-              <span className="home-continue-updated">{w.updated}</span>
-              <span className="home-continue-cta">
-                이어쓰기
-                <span className="home-continue-cta-arrow">{I.arrow}</span>
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* GENRE GRID */}
       <SectionHead
@@ -187,19 +225,19 @@ function HomeMain() {
       <div className="stats" style={{ marginTop: 36 }}>
         <div className="stat">
           <div className="stat-label">완성 작품</div>
-          <div className="stat-value">12<span className="unit">편</span></div>
+          <div className="stat-value">{stats.done}<span className="unit">편</span></div>
         </div>
         <div className="stat">
           <div className="stat-label">진행 중</div>
-          <div className="stat-value">4<span className="unit">편</span></div>
+          <div className="stat-value">{stats.wip}<span className="unit">편</span></div>
         </div>
         <div className="stat">
           <div className="stat-label">누적 분량</div>
-          <div className="stat-value">847<span className="unit">p</span></div>
+          <div className="stat-value">{stats.pages}<span className="unit">p</span></div>
         </div>
         <div className="stat">
           <div className="stat-label">SUNNY 사용</div>
-          <div className="stat-value">128<span className="unit">회</span></div>
+          <div className="stat-value">{stats.calls}<span className="unit">회</span></div>
         </div>
       </div>
 

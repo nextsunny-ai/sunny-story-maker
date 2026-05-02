@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { GENRES } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
 import { WriteCanvas, type Para, type WorkInfo } from "@/components/WriteCanvas";
 import { WriteWorkbook, type Note, type FlowItem, type ChatMsg } from "@/components/WriteWorkbook";
+import { KEY, loadJSON, saveJSON } from "@/lib/persist";
 
 export default function WritePage() {
   return (
@@ -188,6 +189,28 @@ function NoProjectGate() {
   );
 }
 
+interface PersistedProject {
+  work: WorkInfo;
+  notes: Note[];
+  flow: FlowItem[];
+  paras: Para[];
+  chat: ChatMsg[];
+  updatedAt: string;
+}
+
+function projectKeyFor(mode: string | null, isDemo: boolean, projectParam: string, ideaParam: string): string | null {
+  if (isDemo) return null;
+  if (mode === "continue" && projectParam) return projectParam;
+  if (mode === "new" && ideaParam) {
+    // idea의 첫 24자를 슬러그로 사용 (안정적)
+    return "new:" + ideaParam.slice(0, 40);
+  }
+  if ((mode === "adapt-same" || mode === "adapt-cross") && projectParam) {
+    return mode + ":" + projectParam;
+  }
+  return null;
+}
+
 function WriteMain() {
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode");
@@ -201,10 +224,20 @@ function WriteMain() {
     return <NoProjectGate />;
   }
 
-  // 컨텍스트 빌드
+  // 영속화 키
+  const persistKey = projectKeyFor(mode, isDemo, projectParam, ideaParam);
+  const storageKey = persistKey ? KEY.writeProject(persistKey) : null;
+
+  // 컨텍스트 빌드 — 우선 localStorage 복원, 없으면 모드별 초기 컨텍스트
   const initial = (() => {
     if (isDemo) {
       return { work: DEMO_WORK, notes: DEMO_NOTES, flow: DEMO_FLOW, paras: DEMO_PARAS, chat: DEMO_CHAT };
+    }
+    if (storageKey) {
+      const saved = loadJSON<PersistedProject | null>(storageKey, null);
+      if (saved && saved.paras && saved.paras.length > 0) {
+        return { work: saved.work, notes: saved.notes, flow: saved.flow, paras: saved.paras, chat: saved.chat };
+      }
     }
     if (mode === "new") {
       return buildNewWorkContext(ideaParam, genreParam);
@@ -219,7 +252,12 @@ function WriteMain() {
     // fallback
     return buildNewWorkContext(ideaParam, genreParam);
   })();
-  const isNewWork = mode === "new" || mode === "continue" || mode === "adapt-same" || mode === "adapt-cross";
+
+  // 복원된 데이터인지 판별 (그러면 AI 첫 호출 스킵)
+  const wasRestored = !isDemo && !!storageKey && (() => {
+    const saved = loadJSON<PersistedProject | null>(storageKey, null);
+    return !!(saved && saved.paras && saved.paras.length > 0);
+  })();
 
   const [work] = useState<WorkInfo>(initial.work);
   const [notes, setNotes] = useState<Note[]>(initial.notes);
@@ -229,6 +267,19 @@ function WriteMain() {
   const [paused, setPaused] = useState(false);
   const [input, setInput] = useState("");
 
+  // 변경 시 자동 저장 (debounced)
+  useEffect(() => {
+    if (!storageKey) return;
+    const timer = setTimeout(() => {
+      const snapshot: PersistedProject = {
+        work, notes, flow, paras, chat,
+        updatedAt: new Date().toISOString(),
+      };
+      saveJSON(storageKey, snapshot);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [storageKey, work, notes, flow, paras, chat]);
+
   // 워크북 패널 토글
   const [bookOpen, setBookOpen] = useState<boolean>(true);
   useEffect(() => {
@@ -237,8 +288,9 @@ function WriteMain() {
     }
   }, []);
 
-  // 스트리밍 시뮬 — TODO: /api/agent/stream SSE로 교체
+  // ─── 데모 모드: mock streaming (시연용) ───
   useEffect(() => {
+    if (!isDemo) return;
     if (paused) return;
     const streamingIdx = paras.findIndex(p => p.status === "streaming");
     if (streamingIdx === -1) return;
@@ -247,18 +299,15 @@ function WriteMain() {
     if (p.text.length >= p.streamTarget.length) {
       const next = [...paras];
       next[streamingIdx] = { ...p, status: "done" };
-      // 데모 모드에서만 다음 단락 자동 전환 (새 작품은 첫 단락만 시연)
-      if (!isNewWork) {
-        const nextIdx = next.findIndex((x, i) => i > streamingIdx && x.status === "pending");
-        if (nextIdx !== -1) {
-          next[nextIdx] = {
-            ...next[nextIdx],
-            status: "streaming",
-            streamTarget: nextIdx === 4
-              ? "발자국을 따라간 도윤 앞에 정원의 가장 깊은 곳이 열렸다. 그곳에는 거울처럼 잔잔한 작은 연못이 있었고, 수면 위로 떠오른 것은 자신의 얼굴이 아니었다."
-              : "연못에 비친 얼굴은 서아의 것이었다. 도윤은 비명을 삼키고 한 발 물러섰지만, 발걸음은 멈추지 않았다. 정원이 그를 끌어당기고 있었다.",
-          };
-        }
+      const nextIdx = next.findIndex((x, i) => i > streamingIdx && x.status === "pending");
+      if (nextIdx !== -1) {
+        next[nextIdx] = {
+          ...next[nextIdx],
+          status: "streaming",
+          streamTarget: nextIdx === 4
+            ? "발자국을 따라간 도윤 앞에 정원의 가장 깊은 곳이 열렸다. 그곳에는 거울처럼 잔잔한 작은 연못이 있었고, 수면 위로 떠오른 것은 자신의 얼굴이 아니었다."
+            : "연못에 비친 얼굴은 서아의 것이었다. 도윤은 비명을 삼키고 한 발 물러섰지만, 발걸음은 멈추지 않았다. 정원이 그를 끌어당기고 있었다.",
+        };
       }
       setParas(next);
       return;
@@ -271,7 +320,93 @@ function WriteMain() {
       ));
     }, 35);
     return () => clearTimeout(id);
-  }, [paras, paused, isNewWork]);
+  }, [paras, paused, isDemo]);
+
+  // ─── 새 작품 모드: 진짜 /api/agent/stream SSE 호출 (한 번만) ───
+  const aiStartedRef = useRef(false);
+  useEffect(() => {
+    if (isDemo) return;
+    if (mode !== "new" || !ideaParam.trim()) return;
+    if (aiStartedRef.current) return;
+    // 복원된 작품이면 첫 AI 호출 스킵 (이미 본문이 저장돼있음)
+    if (wasRestored) {
+      aiStartedRef.current = true;
+      return;
+    }
+    aiStartedRef.current = true;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        // 첫 단락 생성용 — script 모드로 첫 부분 샘플 요청
+        const res = await fetch("/api/agent/stream", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            mode: "logline",
+            idea: ideaParam,
+            genreLetter: genreParam,
+            fast: true, // Haiku로 빠른 첫 응답
+          }),
+        });
+        if (!res.body) throw new Error("응답 없음");
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+
+        while (!cancelled) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+
+          const events = buf.split("\n\n");
+          buf = events.pop() || "";
+
+          for (const evt of events) {
+            const lines = evt.split("\n");
+            const eventType = lines.find(l => l.startsWith("event:"))?.slice(6).trim();
+            const dataLine = lines.find(l => l.startsWith("data:"))?.slice(5).trim();
+            if (!eventType || !dataLine) continue;
+
+            try {
+              const data = JSON.parse(dataLine);
+              if (eventType === "delta" && data.text) {
+                setParas(prev => prev.map((x, i) =>
+                  i === 0 ? { ...x, text: x.text + data.text } : x
+                ));
+              } else if (eventType === "done") {
+                setParas(prev => prev.map((x, i) =>
+                  i === 0 ? { ...x, status: "done" as const } : x
+                ));
+              } else if (eventType === "error") {
+                setChat(prev => [...prev, {
+                  id: "err_" + Date.now(),
+                  role: "ai",
+                  text: `⚠ AI 호출 오류: ${data.message}`,
+                  t: "방금",
+                }]);
+                setParas(prev => prev.map((x, i) =>
+                  i === 0 ? { ...x, status: "done" as const,
+                    text: x.text || "(AI 응답을 받지 못했습니다. 우측 채팅에서 다시 시도해주세요.)" } : x
+                ));
+              }
+            } catch {
+              // ignore parse errors
+            }
+          }
+        }
+      } catch (err) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "네트워크 오류";
+        setChat(prev => [...prev, {
+          id: "err_" + Date.now(), role: "ai", text: `⚠ 호출 실패: ${msg}`, t: "방금",
+        }]);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [isDemo, mode, ideaParam, genreParam]);
 
   const onRewrite = (id: string) => {
     setParas(prev => prev.map(p => {
