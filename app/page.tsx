@@ -195,7 +195,7 @@ function HomeMain() {
         <div className="footer-band-left">
           <span>SUNNY Story Maker</span>
           <span>·</span>
-          <span>v1.0</span>
+          <span>v2.1 (워크룸)</span>
         </div>
         <div>마지막 동기화 — 방금 전</div>
       </div>
