@@ -1,8 +1,30 @@
-import { type NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
+// 인증 없이 접근 가능한 경로
+const PUBLIC_PATHS = ["/login", "/download", "/api/upload", "/api/download"];
+
 export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+  const { pathname } = request.nextUrl;
+  const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + "/"));
+
+  // Supabase 세션 갱신 시도 (cookie 있으면 유지)
+  const response = await updateSession(request);
+
+  // 임시: 진짜 Auth 연결 전까지 단순 cookie 체크로 redirect
+  // (다음 라운드: Supabase user 객체로 정식 검증)
+  const hasAuthCookie = request.cookies.getAll().some(c =>
+    c.name.startsWith("sb-") && c.value.length > 10
+  );
+
+  if (!isPublic && !hasAuthCookie) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("from", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  return response;
 }
 
 export const config = {
