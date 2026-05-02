@@ -17,6 +17,7 @@ export interface Genre {
   pages: string;
   formatOptions: string[];
   standard: string;
+  rhythm?: string;
   steps: GenreStep[];
 }
 
