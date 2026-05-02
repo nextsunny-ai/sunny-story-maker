@@ -248,5 +248,3 @@ export const ICONS: Record<string, React.ReactNode> = {
     </svg>
   ),
 };
-
-export { ICONS };

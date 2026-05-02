@@ -14,8 +14,9 @@
 
 import type { Genre } from "../genres";
 
-interface Workflow {
+export interface Workflow {
   fields?: Array<{ key: string; label: string }>;
+  steps?: Array<{ n: number; name: string }>;
   [k: string]: unknown;
 }
 
