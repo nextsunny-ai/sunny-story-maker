@@ -17,8 +17,9 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const expected = process.env.DOWNLOAD_PASSWORD || "sunny2026@";
-  if (body.password !== expected) {
+  const expected = (process.env.DOWNLOAD_PASSWORD || "sunny2026@").trim();
+  const provided = (body.password || "").trim();
+  if (provided !== expected) {
     return new Response(JSON.stringify({ error: "암호가 올바르지 않습니다. 사장님께 문의해주세요." }), {
       status: 401, headers: { "content-type": "application/json" },
     });
