@@ -39,6 +39,18 @@ export default function LoginPage() {
           <div className="login-quote-by">— {q.by}</div>
         </div>
 
+        <div style={{ marginTop: 28, padding: "16px 18px", background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.15)", borderRadius: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "rgba(255,255,255,0.55)", textTransform: "uppercase", marginBottom: 6 }}>
+            — Claude Pro 구독자라면
+          </div>
+          <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", lineHeight: 1.55, marginBottom: 10 }}>
+            본인 PC에 설치해서 <strong>API 비용 0원</strong>으로 사용 가능
+          </div>
+          <a href="/download" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--coral)", fontWeight: 600, textDecoration: "none" }}>
+            로컬 버전 다운로드 →
+          </a>
+        </div>
+
         <div className="login-brand-foot">
           <div className="login-brand-foot-row">
             <span className="login-brand-foot-k">Built for writers</span>
