@@ -237,7 +237,23 @@ function SystemTab() {
   const I = ICONS;
   return (
     <Fragment>
-      <SectionHead num={1} title="AI 설정" sub="SUNNY의 동작 방식." />
+      <SectionHead
+        num={1}
+        title="로컬에서 무료로 사용"
+        sub="Claude Pro/Max 구독자라면 본인 PC에 Story Maker를 설치해서 API 비용 0원으로 사용할 수 있습니다."
+      />
+      <div className="adm-plan">
+        <div className="adm-plan-tag">LOCAL VERSION</div>
+        <div className="adm-plan-name">본인 PC에서 <em>무료</em></div>
+        <div className="adm-plan-meta">Claude Pro $20/월 안에서 무제한 — Story Maker 추가 비용 없음</div>
+        <div className="adm-plan-side">
+          <div className="kv"><div className="kv-k">파일 크기</div><div className="kv-v">~290KB</div></div>
+          <div className="kv"><div className="kv-k">셋업</div><div className="kv-v">5분</div></div>
+        </div>
+        <a href="/download" className="btn btn-coral" style={{ textDecoration: "none" }}>다운로드</a>
+      </div>
+
+      <SectionHead num={2} title="AI 설정" sub="SUNNY의 동작 방식." />
       <div className="form-grid">
         <Field label="AI 모델">
           <select className="field-select">
@@ -268,7 +284,7 @@ function SystemTab() {
         </Field>
       </div>
 
-      <SectionHead num={2} title="저장 · 내보내기" sub="기본 파일 포맷과 저장 위치." />
+      <SectionHead num={3} title="저장 · 내보내기" sub="기본 파일 포맷과 저장 위치." />
       <div className="form-grid">
         <Field label="기본 출력 포맷">
           <select className="field-select">
@@ -283,7 +299,7 @@ function SystemTab() {
       </div>
 
       <SectionHead
-        num={3}
+        num={4}
         title="글로벌 자동 학습"
         sub="모든 작가 공용 노하우(SKILL.md)를 주기적으로 자동 업데이트 — 새 장르 매뉴얼·안티패턴 등."
       />
@@ -344,7 +360,7 @@ function SystemTab() {
         </span>
       </div>
 
-      <SectionHead num={4} title="구독 · 결제" />
+      <SectionHead num={5} title="구독 · 결제" />
       <div className="adm-plan">
         <div className="adm-plan-tag">현재 플랜</div>
         <div className="adm-plan-name">SUNNY <em>Pro</em></div>
@@ -356,7 +372,7 @@ function SystemTab() {
         <Btn>플랜 변경</Btn>
       </div>
 
-      <SectionHead num={5} title="계정" />
+      <SectionHead num={6} title="계정" />
       <div className="form-grid">
         <Field label="이메일 알림">
           <select className="field-select">
