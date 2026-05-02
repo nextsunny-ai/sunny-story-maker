@@ -19,8 +19,7 @@ $xf_files = @(
     ".env", ".env.local",
     "app\api\agent\stream\route.ts",  # LOCAL은 Claude Code subprocess 분기 들어있음
     "package.json",                   # LOCAL은 port 3001 + name 다름
-    "package-lock.json",              # LOCAL은 의존성 같지만 lock 별도
-    "SETUP_FOR_WRITERS.md"            # LOCAL 전용 가이드
+    "package-lock.json"               # LOCAL은 의존성 같지만 lock 별도
 )
 $xd_dirs = @("node_modules", ".next", ".vercel", ".git", "__pycache__", "output", "_private_downloads", "scripts")
 

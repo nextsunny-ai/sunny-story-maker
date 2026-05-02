@@ -1,13 +1,9 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-// 인증 없이 접근 가능한 경로
-const PUBLIC_PATHS = ["/login", "/download", "/api/upload", "/api/download"];
-
 export async function middleware(request: NextRequest) {
-  // 베타 단계: 누구나 접근 가능 (Auth 미연결).
-  // 진짜 Auth 연결되면 PUBLIC_PATHS + cookie 체크 redirect 다시 활성화.
-  void PUBLIC_PATHS;
+  // 베타 단계: 누구나 접근 가능 (Auth 미연결). 다음 라운드 Supabase Auth 연결 시
+  // PUBLIC_PATHS = ["/login", "/download", "/api/upload", "/api/download"] + cookie 체크 redirect 활성화.
   return await updateSession(request);
 }
 
