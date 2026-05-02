@@ -40,5 +40,8 @@ output/
 venv/
 sync_to_drive_inline.ps1
 *.zip
+!_private_downloads/sunny-story-maker-local.zip
 STORY_MAKER/
 STORY_MAKER_DESIGN/
+
+.vercel

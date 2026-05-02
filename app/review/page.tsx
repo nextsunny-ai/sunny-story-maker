@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { ICONS } from "@/lib/icons";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
@@ -16,6 +17,33 @@ export default function ReviewPage() {
 
 function ReviewMain() {
   const I = ICONS;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [text, setText] = useState("");
+  const [uploadStatus, setUploadStatus] = useState<{ kind: "idle" | "loading" | "error" | "ok"; message?: string }>({ kind: "idle" });
+
+  const onPickFile = () => fileInputRef.current?.click();
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ""; // 같은 파일 재선택 가능
+
+    setUploadStatus({ kind: "loading", message: `${file.name} 분석 중…` });
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) {
+        setUploadStatus({ kind: "error", message: json.error || "업로드 실패" });
+        return;
+      }
+      setText(prev => (prev ? prev + "\n\n" : "") + json.text);
+      setUploadStatus({ kind: "ok", message: `${json.meta.filename} — ${json.meta.chars.toLocaleString()}자 추가됨` });
+    } catch (err) {
+      setUploadStatus({ kind: "error", message: err instanceof Error ? err.message : "네트워크 오류" });
+    }
+  };
   const personas = [
     { id: 1, name: "30대 도시 직장인 여성", tags: ["멜로", "드라마", "웹툰"], on: true,
       likes: "긴 디테일, 위로받는 결말, 캐릭터의 성장",
@@ -94,17 +122,44 @@ function ReviewMain() {
         ))}
       </div>
 
-      <SectionHead num={3} title="작품 첨부" sub="텍스트로 붙여넣거나, 한글·워드 파일을 업로드하세요." />
+      <SectionHead num={3} title="작품 첨부" sub="텍스트 붙여넣기 또는 파일 업로드 — PDF · Word(.docx) · 텍스트(.txt) 지원." />
 
       <div className="form-grid cols-1">
-        <Field label="시나리오 본문">
-          <textarea className="field-textarea script" rows={8} placeholder="시나리오 전체 또는 일부를 붙여넣어 주세요. 회차 단위, 또는 한 씬 단위도 가능합니다." />
+        <Field label="시나리오 본문" help={text ? `${text.length.toLocaleString()}자` : undefined}>
+          <textarea
+            className="field-textarea script"
+            rows={8}
+            placeholder="시나리오 전체 또는 일부를 붙여넣어 주세요. 회차 단위, 또는 한 씬 단위도 가능합니다."
+            value={text}
+            onChange={e => setText(e.target.value)}
+          />
         </Field>
       </div>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.docx,.txt,.md,.fountain,.fdx"
+        style={{ display: "none" }}
+        onChange={onFileChange}
+      />
+
+      {uploadStatus.kind !== "idle" && (
+        <div style={{
+          marginTop: 10, padding: "10px 14px", borderRadius: 8, fontSize: 13,
+          background: uploadStatus.kind === "error" ? "var(--coral-soft)" : "var(--card-soft)",
+          color: uploadStatus.kind === "error" ? "var(--coral-deep)" : "var(--ink-2)",
+          border: "1px solid " + (uploadStatus.kind === "error" ? "var(--coral)" : "var(--line)"),
+        }}>
+          {uploadStatus.kind === "loading" && <span>⏳ {uploadStatus.message}</span>}
+          {uploadStatus.kind === "ok" && <span>✓ {uploadStatus.message} (텍스트 영역 끝에 추가됨)</span>}
+          {uploadStatus.kind === "error" && <span>⚠ {uploadStatus.message}</span>}
+        </div>
+      )}
+
       <div className="btn-row">
         <Btn kind="coral" icon={I.spark}>리뷰 받기</Btn>
-        <Btn icon={I.download}>파일 업로드</Btn>
+        <Btn icon={I.download} onClick={onPickFile}>파일 업로드</Btn>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-4)" }}>선택된 리뷰어 — {personas.filter(p => p.on).length}명</span>
       </div>
 
