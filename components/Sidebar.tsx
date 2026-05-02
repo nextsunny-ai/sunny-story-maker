@@ -51,7 +51,7 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
     const activeStepIdx = 2; // 임시 — DB와 연결 시 작품의 현재 단계로
     return (
       <aside className="sb">
-        <div className="sb-brand">
+        <div className="sb-brand" onClick={() => router.push("/")} style={{ cursor: "pointer" }}>
           <div className="sb-brand-icon"><Symbol /></div>
           <div className="sb-brand-text">
             <div className="sb-brand-name">Story Maker<span className="dot">.</span></div>
@@ -137,7 +137,7 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
 
   return (
     <aside className="sb">
-      <div className="sb-brand">
+      <div className="sb-brand" onClick={() => router.push("/")} style={{ cursor: "pointer" }}>
         <div className="sb-brand-icon"><Symbol /></div>
         <div className="sb-brand-text">
           <div className="sb-brand-name">Story Maker<span className="dot">.</span></div>

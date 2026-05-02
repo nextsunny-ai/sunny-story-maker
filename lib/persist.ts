@@ -28,6 +28,16 @@ export const KEY = {
   reviewPersonas: `${PREFIX}.review.${USER}.personas`,
   reviewLastResult: `${PREFIX}.review.${USER}.lastResult`,
 
+  // adapt
+  adaptText: `${PREFIX}.adapt.${USER}.text`,
+  adaptTitle: `${PREFIX}.adapt.${USER}.title`,
+  adaptGenre: `${PREFIX}.adapt.${USER}.genre`,
+
+  // osmu
+  osmuText: `${PREFIX}.osmu.${USER}.text`,
+  osmuTitle: `${PREFIX}.osmu.${USER}.title`,
+  osmuGenre: `${PREFIX}.osmu.${USER}.genre`,
+
   // write — keyed per project (title or slug)
   writeProject: (id: string) => `${PREFIX}.write.${USER}.project.${id}`,
 } as const;

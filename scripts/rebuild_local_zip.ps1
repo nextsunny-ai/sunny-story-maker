@@ -18,6 +18,7 @@ Write-Host "[1/4] V2 -> LOCAL sync (LOCAL 전용 파일은 보존)..."
 $xf_files = @(
     ".env", ".env.local",
     "app\api\agent\stream\route.ts",  # LOCAL은 Claude Code subprocess 분기 들어있음
+    "middleware.ts",                  # LOCAL은 redirect 없는 단순 버전 (V2는 정공법 redirect)
     "package.json",                   # LOCAL은 port 3001 + name 다름
     "package-lock.json"               # LOCAL은 의존성 같지만 lock 별도
 )

@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
 import { GENRES } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
+import { SectionHead } from "@/components/SectionHead";
+import { Field, Btn } from "@/components/ui";
 import { AdaptSameMode, type ToneChip, type AdaptVersion } from "@/components/AdaptSameMode";
 import { AdaptCrossMode, type AdaptScore } from "@/components/AdaptCrossMode";
+import { KEY, usePersistedState } from "@/lib/persist";
 
 export default function AdaptPage() {
   return (
@@ -37,7 +40,37 @@ function AdaptMain() {
   const I = ICONS;
 
   const [mode, setMode] = useState<"same" | "cross">("same");
-  const [sourceLetter] = useState("B"); // 영화
+
+  // 원본 작품 (영속화)
+  const [sourceTitle, setSourceTitle] = usePersistedState<string>(KEY.adaptTitle, "");
+  const [sourceText, setSourceText] = usePersistedState<string>(KEY.adaptText, "");
+  const [sourceLetter, setSourceLetter] = usePersistedState<string>(KEY.adaptGenre, "B");
+
+  // 파일 업로드
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadStatus, setUploadStatus] = useState<{ kind: "idle" | "loading" | "error" | "ok"; message?: string }>({ kind: "idle" });
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploadStatus({ kind: "loading", message: `${file.name} 분석 중…` });
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) {
+        setUploadStatus({ kind: "error", message: json.error || "업로드 실패" });
+        return;
+      }
+      setSourceText(prev => (prev ? prev + "\n\n" : "") + json.text);
+      if (!sourceTitle) setSourceTitle(file.name.replace(/\.[^.]+$/, ""));
+      setUploadStatus({ kind: "ok", message: `${json.meta.filename} — ${json.meta.chars.toLocaleString()}자 추가됨` });
+    } catch (err) {
+      setUploadStatus({ kind: "error", message: err instanceof Error ? err.message : "네트워크 오류" });
+    }
+  };
 
   // 같은 매체
   const [activeChips, setActiveChips] = useState<string[]>(["darker", "first"]);
@@ -113,25 +146,64 @@ function AdaptMain() {
         </button>
       </div>
 
-      <div className="adapt-source-bar is-demo">
-        <div className="adapt-source-bar-icon">{I[sourceLetter]}</div>
-        <div className="adapt-source-bar-body">
-          <div className="adapt-source-bar-title">달빛 정원</div>
-          <div className="adapt-source-bar-meta">
-            <span>{sourceLetter}. {sourceGenre.name}</span>
-            <span>·</span>
-            <span>v3 · 11월 20일 (최신)</span>
-            <span>·</span>
-            <span>96쪽 · 42,180자</span>
-          </div>
+      {/* 원본 작품 — 직접 입력 또는 파일 업로드 */}
+      <SectionHead num={0} title="원본 작품" sub="시나리오 본문을 붙여넣거나 파일 업로드 (PDF · Word · TXT)" />
+
+      <div className="form-grid">
+        <Field label="작품명" required>
+          <input
+            className="field-input"
+            value={sourceTitle}
+            onChange={e => setSourceTitle(e.target.value)}
+            placeholder="예: 달빛 정원"
+          />
+        </Field>
+        <Field label="원본 매체">
+          <select className="field-select" value={sourceLetter} onChange={e => setSourceLetter(e.target.value)}>
+            {GENRES.map(g => <option key={g.letter} value={g.letter}>{g.letter}. {g.name}</option>)}
+          </select>
+        </Field>
+      </div>
+
+      <div className="form-grid cols-1">
+        <Field label="원본 본문" help={sourceText ? `${sourceText.length.toLocaleString()}자` : "붙여넣기 또는 파일 업로드"}>
+          <textarea
+            className="field-textarea script"
+            rows={6}
+            value={sourceText}
+            onChange={e => setSourceText(e.target.value)}
+            placeholder="시나리오 전체 또는 일부를 붙여넣어 주세요."
+          />
+        </Field>
+      </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.docx,.txt,.md,.fountain,.fdx"
+        style={{ display: "none" }}
+        onChange={onFileChange}
+      />
+
+      {uploadStatus.kind !== "idle" && (
+        <div style={{
+          marginTop: 10, padding: "10px 14px", borderRadius: 8, fontSize: 13,
+          background: uploadStatus.kind === "error" ? "var(--coral-soft)" : "var(--card-soft)",
+          color: uploadStatus.kind === "error" ? "var(--coral-deep)" : "var(--ink-2)",
+          border: "1px solid " + (uploadStatus.kind === "error" ? "var(--coral)" : "var(--line)"),
+        }}>
+          {uploadStatus.kind === "loading" && <span>⏳ {uploadStatus.message}</span>}
+          {uploadStatus.kind === "ok" && <span>✓ {uploadStatus.message}</span>}
+          {uploadStatus.kind === "error" && <span>⚠ {uploadStatus.message}</span>}
         </div>
-        <button
-          className="adapt-source-bar-change"
-          type="button"
-          onClick={() => router.push("/library")}
-        >
-          {I.library}<span>다른 작품으로 변경</span>
-        </button>
+      )}
+
+      <div className="btn-row">
+        <Btn icon={I.download} onClick={() => fileInputRef.current?.click()}>파일 업로드</Btn>
+        <Btn icon={I.library} onClick={() => router.push("/library")}>라이브러리에서 가져오기</Btn>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-4)" }}>
+          {sourceTitle ? `${sourceTitle} — ${sourceLetter}. ${sourceGenre.name}` : "작품명 입력 필요"}
+        </span>
       </div>
 
       {mode === "same" ? (

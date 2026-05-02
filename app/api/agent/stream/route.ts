@@ -1,4 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { spawn } from "node:child_process";
+import { writeFileSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { NextRequest } from "next/server";
 import { GENRES, type Genre } from "@/lib/genres";
 import { getSystemPrompt } from "@/lib/storymaker/system-prompt";
@@ -115,11 +119,97 @@ function buildUserPrompt(b: RequestBody): string {
   }
 }
 
+// ─── Claude Code CLI subprocess (LOCAL = 본인 구독, API 비용 0) ───
+function streamViaClaudeCode(systemPrompt: string, userMessage: string, model: string): ReadableStream {
+  return new ReadableStream({
+    async start(controller) {
+      const enc = new TextEncoder();
+      const send = (event: string, data: unknown) => {
+        controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      };
+
+      const cliModel = model.includes("haiku") ? "haiku" : model.includes("sonnet") ? "sonnet" : "opus";
+
+      // System prompt를 임시 파일에 쓰기 (Windows command line 길이 제한 회피 — ENAMETOOLONG)
+      const sysPromptFile = path.join(tmpdir(), `sm_sys_${Date.now()}_${Math.random().toString(36).slice(2)}.txt`);
+      try {
+        writeFileSync(sysPromptFile, systemPrompt, "utf-8");
+      } catch (e) {
+        send("error", { message: `시스템 프롬프트 임시 파일 생성 실패: ${e instanceof Error ? e.message : String(e)}` });
+        controller.close();
+        return;
+      }
+
+      // NOTE: --bare 옵션은 OAuth/keychain 무시 = API 키 필수 → LOCAL에선 빼야 본인 구독 사용 가능
+      // --verbose는 stream-json 출력에 필수 (Claude Code v2.1+)
+      const args = [
+        "--print",
+        "--verbose",
+        "--system-prompt-file", sysPromptFile,
+        "--output-format", "stream-json",
+        "--include-partial-messages",
+        "--model", cliModel,
+      ];
+
+      const child = spawn("claude", args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true, shell: true });
+      child.stdin.write(userMessage);
+      child.stdin.end();
+
+      let buffer = "";
+      child.stdout.on("data", (chunk: Buffer) => {
+        buffer += chunk.toString("utf-8");
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const obj = JSON.parse(line);
+            if (obj.type === "stream_event" && obj.event?.type === "content_block_delta") {
+              const delta = obj.event.delta;
+              if (delta?.type === "text_delta" && delta.text) send("delta", { text: delta.text });
+            } else if (obj.type === "assistant" && obj.message?.content) {
+              for (const block of obj.message.content) {
+                if (block.type === "text" && block.text) send("delta", { text: block.text });
+              }
+            } else if (obj.type === "result") {
+              send("usage", {
+                input_tokens: obj.usage?.input_tokens || 0,
+                output_tokens: obj.usage?.output_tokens || 0,
+                via: "claude-code-cli",
+              });
+            }
+          } catch { /* ignore parse */ }
+        }
+      });
+
+      let stderr = "";
+      child.stderr.on("data", (c: Buffer) => { stderr += c.toString("utf-8"); });
+
+      child.on("close", (code) => {
+        try { unlinkSync(sysPromptFile); } catch { /* ignore */ }
+        if (code !== 0) {
+          send("error", { message: `Claude Code CLI exit ${code}${stderr ? ": " + stderr.slice(0, 300) : ""}` });
+        }
+        send("done", {});
+        controller.close();
+      });
+
+      child.on("error", (err) => {
+        try { unlinkSync(sysPromptFile); } catch { /* ignore */ }
+        send("error", { message: `Claude Code CLI 실행 실패: ${err.message}` });
+        controller.close();
+      });
+    },
+  });
+}
+
 export async function POST(req: NextRequest) {
+  const useClaudeCode = process.env.USE_CLAUDE_CODE === "true";
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+
+  if (!useClaudeCode && !apiKey) {
     return new Response(
-      JSON.stringify({ error: "ANTHROPIC_API_KEY가 설정되지 않았습니다. Vercel 환경 변수를 확인해주세요." }),
+      JSON.stringify({ error: "ANTHROPIC_API_KEY가 설정되지 않았습니다. (또는 USE_CLAUDE_CODE=true)" }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
   }
@@ -152,7 +242,18 @@ export async function POST(req: NextRequest) {
     ? (process.env.ANTHROPIC_MODEL_FAST || "claude-haiku-4-5-20251001")
     : (process.env.ANTHROPIC_MODEL || "claude-opus-4-7");
 
-  const client = new Anthropic({ apiKey });
+  // LOCAL: Claude Code CLI subprocess (본인 구독, 무료)
+  if (useClaudeCode) {
+    return new Response(streamViaClaudeCode(getSystemPrompt(), finalUserMessage, model), {
+      headers: {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-cache, no-transform",
+        "x-accel-buffering": "no",
+      },
+    });
+  }
+
+  const client = new Anthropic({ apiKey: apiKey! });
 
   const stream = new ReadableStream({
     async start(controller) {
