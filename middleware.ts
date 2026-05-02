@@ -6,10 +6,14 @@ const PUBLIC_PATHS = ["/login", "/download", "/api/upload", "/api/download"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + "/"));
 
   // Supabase 세션 갱신 시도 (cookie 있으면 유지)
   const response = await updateSession(request);
+
+  // LOCAL 모드 (사장님 본인 PC) — Auth 우회
+  if (process.env.BYPASS_AUTH === "true") return response;
+
+  const isPublic = PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(p + "/"));
 
   // 임시: 진짜 Auth 연결 전까지 단순 cookie 체크로 redirect
   // (다음 라운드: Supabase user 객체로 정식 검증)
