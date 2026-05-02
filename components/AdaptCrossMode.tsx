@@ -134,7 +134,19 @@ export function AdaptCrossMode({
             />
           </div>
 
-          <button className="acx-go" type="button">
+          <button
+            className="acx-go"
+            type="button"
+            onClick={() => {
+              const params = new URLSearchParams({
+                mode: "adapt-cross",
+                project: "달빛 정원",
+                genre: sourceLetter,
+                target: targetLetter,
+              });
+              router.push(`/write?${params.toString()}`);
+            }}
+          >
             <span className="acx-go-icon">{I.spark}</span>
             <span className="acx-go-text">
               <strong>{sourceGenre.name} → {targetGenre.name}</strong>

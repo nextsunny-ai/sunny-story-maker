@@ -90,7 +90,18 @@ function HomeMain() {
             <span className="home-hero-count">
               <span className="num">{idea.length}</span><span className="sep">/</span>200
             </span>
-            <button className="home-hero-launch" disabled={!idea.trim()} onClick={() => router.push("/write")}>
+            <button
+              className="home-hero-launch"
+              disabled={!idea.trim()}
+              onClick={() => {
+                const params = new URLSearchParams({
+                  mode: "new",
+                  idea: idea.trim(),
+                  genre,
+                });
+                router.push(`/write?${params.toString()}`);
+              }}
+            >
               <span className="home-hero-launch-icon">{I.spark}</span>
               <span className="home-hero-launch-text">AI 작가에게 맡기기</span>
               <span className="home-hero-launch-arrow">{I.arrow}</span>
@@ -123,7 +134,8 @@ function HomeMain() {
 
       <div className="home-continue-grid">
         {recent.map((w, i) => (
-          <div key={i} className="home-continue-card" onClick={() => router.push("/write")}>
+          <div key={i} className="home-continue-card"
+            onClick={() => router.push(`/write?mode=continue&project=${encodeURIComponent(w.title)}`)}>
             <div className="home-continue-top">
               <div className="home-continue-icon">{I[w.letter]}</div>
               <div className="home-continue-genre">{w.genre}</div>
@@ -162,7 +174,7 @@ function HomeMain() {
           <button
             key={g.letter}
             className="home-genre-mini-card"
-            onClick={() => { setGenre(g.letter); router.push("/write"); }}
+            onClick={() => router.push(`/write?mode=new&genre=${g.letter}`)}
           >
             <span className="home-genre-mini-icon">{I[g.letter]}</span>
             <span className="home-genre-mini-name">{g.name}</span>

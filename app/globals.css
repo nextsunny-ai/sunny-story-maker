@@ -4918,7 +4918,7 @@ a { color: inherit; text-decoration: none; }
   background: var(--bg-2);
   height: 100%;
   border-left: 1px solid var(--line);
-  overflow: hidden;
+  overflow-y: auto;
   min-height: 0;
 }
 
