@@ -8,6 +8,8 @@ import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
 import { Field, Tip, Btn } from "@/components/ui";
 import { streamAgent } from "@/lib/stream-agent";
+import { Markdown } from "@/components/Markdown";
+import { downloadDocx, downloadTxt } from "@/lib/storymaker/export";
 
 interface OutputItem {
   k: string;
@@ -23,6 +25,11 @@ const ITEMS: OutputItem[] = [
   { k: "structure", name: "구성안",     meta: "회차별 / 막별 비트",        spec: "표 · 한글" },
   { k: "scene",     name: "씬 리스트",   meta: "씬 헤딩 + 한 줄 요약",      spec: "엑셀" },
   { k: "pitch",     name: "피치덱",     meta: "10~15장 · 비주얼 중심",     spec: "PPT" },
+  // ── 지원사업 신청서용 (정부 지원사업 / 영진위 / 콘진원 / 문진원 등) ──
+  { k: "intent",     name: "기획 의도서", meta: "왜 이 작품인가 · 사회적 의의",   spec: "A4 · 한글" },
+  { k: "production", name: "제작 계획",   meta: "일정·인력·예산·로케이션",       spec: "A4 · 한글" },
+  { k: "bio",        name: "제출자 이력", meta: "작가 소개 · 대표 작품 · 수상",    spec: "A4 · 한글" },
+  { k: "impact",     name: "예상 효과",   meta: "관객·시장·문화적 효과",         spec: "A4 · 한글" },
 ];
 
 const STEP_LABEL: Record<string, string> = {
@@ -33,6 +40,10 @@ const STEP_LABEL: Record<string, string> = {
   structure: "구성안",
   scene: "씬 리스트",
   pitch: "피치덱",
+  intent: "기획 의도서",
+  production: "제작 계획",
+  bio: "제출자 이력",
+  impact: "예상 효과",
 };
 
 export default function PackagePage() {
@@ -51,14 +62,14 @@ function PackageMain() {
   });
 
   const [genreLetter, setGenreLetter] = useState("A");
-  const [project, setProject] = useState("트랑로제");
-  const [runtime, setRuntime] = useState("16부작 (회당 60분)");
-  const [platform, setPlatform] = useState("OTT (글로벌)");
-  const [target, setTarget] = useState("30대 여성");
-  const [tone, setTone] = useState("로맨틱 · 다소 무거움");
-  const [pov, setPov] = useState("3인칭 제한");
-  const [logline, setLogline] = useState('30대 직장인 여성이 옛 연인의 결혼식에서 첫사랑을 다시 만난다');
-  const [story, setStory] = useState("회사 후배의 결혼식, 신랑이 옛 연인. 5년 전 갑자기 떠난 그가 왜 거기에 있는지 — 그날부터 매일 그를 마주쳐야 하는 일이 시작된다. 첫사랑·복수·자기증명이 한 데 얽힌 이야기.");
+  const [project, setProject] = useState("");
+  const [runtime, setRuntime] = useState("");
+  const [platform, setPlatform] = useState("");
+  const [target, setTarget] = useState("");
+  const [tone, setTone] = useState("");
+  const [pov, setPov] = useState("");
+  const [logline, setLogline] = useState("");
+  const [story, setStory] = useState("");
 
   const [result, setResult] = useState("");
   const [running, setRunning] = useState(false);
@@ -66,6 +77,86 @@ function PackageMain() {
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+
+  // 파일 업로드
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadStatus, setUploadStatus] = useState<{
+    kind: "idle" | "loading" | "error" | "ok"; message?: string;
+  }>({ kind: "idle" });
+
+  const onPickFile = () => fileInputRef.current?.click();
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setUploadStatus({ kind: "loading", message: `${file.name} 분석 중…` });
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) {
+        setUploadStatus({ kind: "error", message: json.error || "업로드 실패" });
+        return;
+      }
+      setStory(prev => (prev ? prev + "\n\n" : "") + json.text);
+      setUploadStatus({ kind: "ok", message: `${json.meta.filename} — ${json.meta.chars.toLocaleString()}자 추가됨` });
+    } catch (err) {
+      setUploadStatus({ kind: "error", message: err instanceof Error ? err.message : "네트워크 오류" });
+    }
+  };
+
+  // 다운로드
+  const downloadName = (project || "기획_패키지") + "_" + new Date().toISOString().slice(0, 10);
+  const downloadHtml = () => {
+    if (!result) return;
+    const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>${project || "기획 패키지"}</title>
+<style>
+  body { font-family: "맑은 고딕", "Malgun Gothic", -apple-system, sans-serif; max-width: 820px; margin: 40px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.75; background: #fafaf7; }
+  h1 { font-size: 28px; border-bottom: 2px solid #ee6e55; padding-bottom: 8px; margin-top: 32px; }
+  h2 { font-size: 22px; margin-top: 28px; color: #2a2a2a; }
+  h3 { font-size: 18px; margin-top: 22px; color: #444; }
+  p { margin: 12px 0; }
+  strong { color: #ee6e55; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+  th { background: #f5f3ed; font-weight: 600; }
+  blockquote { border-left: 4px solid #ee6e55; padding: 8px 16px; margin: 16px 0; background: #fff8f5; color: #555; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 32px 0; }
+  ul, ol { padding-left: 24px; }
+  li { margin: 6px 0; }
+  code { background: #f0eee8; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+  .meta { font-size: 12px; color: #888; margin-top: 60px; text-align: center; padding-top: 20px; border-top: 1px solid #eee; }
+</style>
+</head>
+<body>
+<h1>${project || "기획 패키지"}</h1>
+<div>${result
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+      .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+      .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/^---$/gm, "<hr>")
+      .replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>")
+      .replace(/\n\n/g, "</p><p>")
+      .replace(/\n/g, "<br>")
+}</div>
+<div class="meta">Story Maker · ${new Date().toLocaleDateString("ko-KR")} 생성</div>
+</body>
+</html>`;
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${downloadName}.html`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const toggle = (k: string) => {
     if (running) return;
@@ -222,7 +313,38 @@ function PackageMain() {
         </Field>
       </div>
 
-      <SectionHead num={2} title="이야기 핵심" sub="자유롭게. 한 문장도 좋고, 한 페이지도 좋습니다." />
+      <SectionHead num={2} title="이야기 핵심" sub="자유롭게. 한 문장도 좋고, 한 페이지도 좋습니다. 또는 PDF/DOCX 자료 업로드." />
+
+      <div style={{
+        display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap",
+        padding: "14px 16px", marginBottom: 16,
+        background: "var(--card-soft)", border: "1px dashed var(--line)",
+        borderRadius: 12,
+      }}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.docx,.txt,.md"
+          onChange={onFileChange}
+          style={{ display: "none" }}
+        />
+        <Btn icon={I.upload || I.plus} onClick={onPickFile} disabled={running || uploadStatus.kind === "loading"}>
+          {uploadStatus.kind === "loading" ? "분석 중…" : "자료 업로드 (PDF / DOCX / TXT)"}
+        </Btn>
+        {uploadStatus.message && (
+          <span style={{
+            fontSize: 12,
+            color: uploadStatus.kind === "error" ? "var(--coral-deep)"
+                 : uploadStatus.kind === "ok" ? "var(--ink-3)" : "var(--ink-4)",
+          }}>
+            {uploadStatus.kind === "ok" ? "✓ " : uploadStatus.kind === "error" ? "⚠ " : ""}
+            {uploadStatus.message}
+          </span>
+        )}
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--ink-5)" }}>
+          업로드한 텍스트는 아래 &quot;구체적인 내용&quot;에 추가됩니다.
+        </span>
+      </div>
 
       <div className="form-grid cols-1">
         <Field label="이야기 한 줄" help="아직 정해지지 않았다면 비워두세요. SUNNY가 제안합니다.">
@@ -288,7 +410,18 @@ function PackageMain() {
 
       {(result || running) && (
         <>
-          <SectionHead num={4} title="패키지 결과" sub={`선택한 ${selectedKeys.length}종 산출물이 한 번에 흘러나옵니다 — ${selectedNames.join(" · ")}`} />
+          <SectionHead
+            num={4}
+            title="패키지 결과"
+            sub={`선택한 ${selectedKeys.length}종 산출물이 한 번에 흘러나옵니다 — ${selectedNames.join(" · ")}`}
+            right={result && !running ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <Btn icon={I.download} onClick={() => downloadDocx(result, downloadName)}>워드</Btn>
+                <Btn icon={I.download} onClick={() => downloadTxt(result, downloadName)}>텍스트</Btn>
+                <Btn kind="coral" icon={I.download} onClick={downloadHtml}>HTML</Btn>
+              </div>
+            ) : undefined}
+          />
           <article style={{
             background: "var(--card)",
             border: "1px solid " + (running ? "var(--coral)" : "var(--line)"),
@@ -296,14 +429,9 @@ function PackageMain() {
             padding: "24px 26px",
             minHeight: 200,
           }}>
-            <div style={{
-              whiteSpace: "pre-wrap",
-              fontFamily: "var(--font-display)",
-              fontSize: 14, lineHeight: 1.8,
-              color: "var(--ink-2)",
-            }}>
-              {result || (running ? "…" : "")}
-            </div>
+            {result
+              ? <Markdown text={result} />
+              : <div style={{ color: "var(--ink-4)", fontSize: 13 }}>{running ? "…" : ""}</div>}
           </article>
         </>
       )}

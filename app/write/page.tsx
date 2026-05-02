@@ -1,12 +1,21 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { GENRES } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
+import { Topbar } from "@/components/Topbar";
 import { WriteCanvas, type Para, type WorkInfo } from "@/components/WriteCanvas";
 import { WriteWorkbook, type Note, type FlowItem, type ChatMsg } from "@/components/WriteWorkbook";
+import { Btn } from "@/components/ui";
 import { KEY, loadJSON, saveJSON } from "@/lib/persist";
+import { getWorkflow, QUICK_ACTIONS } from "@/lib/workflows";
+import {
+  MediumFieldRenderer,
+  buildDefaultValues,
+  type FieldValues,
+  type FieldValue,
+} from "@/components/MediumFieldRenderer";
 
 export default function WritePage() {
   return (
@@ -68,30 +77,37 @@ const DEMO_CHAT: ChatMsg[] = [
 
 type Ctx = { work: WorkInfo; notes: Note[]; flow: FlowItem[]; paras: Para[]; chat: ChatMsg[] };
 
+/** 매체별 workflow.steps → FlowItem (첫 단계 active, 나머지 pending) */
+function buildFlowFromWorkflow(letter: string, activeStepName?: string): FlowItem[] {
+  const wf = getWorkflow(letter);
+  return wf.steps.map((stepName, i) => ({
+    id: `f${i + 1}`,
+    state: activeStepName
+      ? (stepName === activeStepName ? "active" : "pending")
+      : (i === 0 ? "active" : "pending"),
+    title: stepName,
+    hint: i === 0 && !activeStepName ? "AI 작가가 의뢰서 분석 중" : "",
+  }));
+}
+
 // ───── mode=new: 빈 캔버스 + 첫 단락만 streaming ─────
-function buildNewWorkContext(idea: string, genreLetter: string): Ctx {
-  const genre = GENRES.find(g => g.letter === genreLetter) || GENRES[0];
+function buildNewWorkContext(idea: string, genreLetter: string, activeStepName?: string): Ctx {
+  const wf = getWorkflow(genreLetter);
   const titlePreview = idea
     ? idea.split(/[.,\s]/).filter(Boolean).slice(0, 4).join(" ").slice(0, 24)
     : "새 작품";
 
   return {
-    work: { title: titlePreview, chapter: "초안", elapsed: "방금 시작", medium: `${genre.letter}. ${genre.name}` },
+    work: { title: titlePreview, chapter: "초안", elapsed: "방금 시작", medium: `${wf.letter}. ${wf.name}` },
     notes: idea
       ? [{ id: "n_idea", label: `핵심: ${idea.length > 30 ? idea.slice(0, 28) + "…" : idea}` },
-         { id: "n_genre", label: `매체: ${genre.name}` }]
-      : [{ id: "n_genre", label: `매체: ${genre.name}` }],
-    flow: [
-      { id: "f1", state: "active",  title: "아이디어 분석", hint: "한 줄 컨셉 → 인물·욕망·장애물 추출" },
-      { id: "f2", state: "pending", title: "로그라인 잡기", hint: "1줄 컨셉 확정" },
-      { id: "f3", state: "pending", title: "첫 단락 집필", hint: "분위기·시점 결정" },
-      { id: "f4", state: "pending", title: "갈등축 설계",   hint: "1·2·3장 비트" },
-      { id: "f5", state: "pending", title: "초안 마무리",   hint: "단락 5~10" },
-    ],
+         { id: "n_genre", label: `매체: ${wf.name}` }]
+      : [{ id: "n_genre", label: `매체: ${wf.name}` }],
+    flow: buildFlowFromWorkflow(genreLetter, activeStepName),
     paras: idea
       ? [
-          { id: "p1", n: 1, label: "오프닝", text: "", status: "streaming",
-            streamTarget: `[${genre.name}] AI 작가가 "${idea}" 컨셉으로 첫 단락을 쓰는 중입니다. 잠시만 기다려 주세요…` },
+          { id: "p1", n: 1, label: activeStepName || wf.steps[0] || "오프닝", text: "", status: "streaming",
+            streamTarget: `[${wf.name}] AI 작가가 "${idea}" 컨셉으로 ${activeStepName || wf.steps[0] || "첫 단계"} 작업 중입니다. 잠시만 기다려 주세요…` },
           { id: "p2", n: 2, label: "도입",  text: "", status: "pending" },
           { id: "p3", n: 3, label: "사건",  text: "", status: "pending" },
         ]
@@ -100,9 +116,9 @@ function buildNewWorkContext(idea: string, genreLetter: string): Ctx {
         ],
     chat: idea
       ? [{ id: "m_init", role: "ai",
-           text: `좋습니다. "${idea}" 컨셉으로 ${genre.name} 작품 시작할게요. 막히면 우측에서 바로 끼어들어 주세요.`, t: "방금" }]
+           text: `좋습니다. "${idea}" 컨셉으로 ${wf.name} 작품 시작할게요. 막히면 우측에서 바로 끼어들어 주세요.`, t: "방금" }]
       : [{ id: "m_init", role: "ai",
-           text: `${genre.name} 작품 준비 완료. 우측에 한 줄 아이디어 적어주시면 첫 단락부터 시작합니다.`, t: "방금" }],
+           text: `${wf.name} 작품 준비 완료. 우측에 한 줄 아이디어 적어주시면 첫 단락부터 시작합니다.`, t: "방금" }],
   };
 }
 
@@ -164,20 +180,16 @@ function buildAdaptContext(mode: string, projectName: string, sourceLetter: stri
 function NoProjectGate() {
   return (
     <main className="main">
+      <Topbar
+        eyebrow="WRITE — 작품 선택"
+        title='어떤 <em style="font-style:italic">작품</em>을 작업할까요<span class="dot">?</span>'
+        sub="새 작품은 홈에서 한 줄 아이디어로 시작하거나, 라이브러리에서 진행 중인 작품을 선택해주세요."
+      />
       <div style={{
-        padding: "120px 24px", textAlign: "center", color: "var(--ink-3)",
+        padding: "40px 0", textAlign: "center",
         display: "flex", flexDirection: "column", gap: 16, alignItems: "center",
       }}>
-        <div style={{ fontSize: 14, color: "var(--ink-5)", letterSpacing: "0.06em", textTransform: "uppercase" }}>
-          작품을 먼저 선택해주세요
-        </div>
-        <div style={{ fontSize: 22, fontWeight: 600, color: "var(--ink)", lineHeight: 1.4 }}>
-          어떤 작품을 작업할까요?
-        </div>
-        <div style={{ fontSize: 14, color: "var(--ink-3)", maxWidth: 460, lineHeight: 1.6 }}>
-          새 작품은 홈에서 한 줄 아이디어로 시작하거나, 라이브러리에서 진행 중인 작품을 선택해주세요.
-        </div>
-        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+        <div style={{ display: "flex", gap: 10 }}>
           <a href="/" className="btn btn-coral" style={{ textDecoration: "none" }}>홈으로 — 새 작품 시작</a>
           <a href="/library" className="btn" style={{ textDecoration: "none" }}>라이브러리에서 선택</a>
         </div>
@@ -195,15 +207,20 @@ interface PersistedProject {
   flow: FlowItem[];
   paras: Para[];
   chat: ChatMsg[];
+  mediumFields?: FieldValues;
+  briefDone?: boolean;
   updatedAt: string;
 }
 
-function projectKeyFor(mode: string | null, isDemo: boolean, projectParam: string, ideaParam: string): string | null {
+function projectKeyFor(mode: string | null, isDemo: boolean, projectParam: string, ideaParam: string, genreLetter: string): string | null {
   if (isDemo) return null;
   if (mode === "continue" && projectParam) return projectParam;
   if (mode === "new" && ideaParam) {
-    // idea의 첫 24자를 슬러그로 사용 (안정적)
-    return "new:" + ideaParam.slice(0, 40);
+    // 매체별로 분리 — 같은 idea라도 매체 다르면 다른 작품
+    return `new:${genreLetter}:${ideaParam.slice(0, 40)}`;
+  }
+  if (mode === "new" && !ideaParam) {
+    return null; // 매체만 있고 아이디어 없으면 의뢰 분석 폼만 — 키는 첫 채움 후
   }
   if ((mode === "adapt-same" || mode === "adapt-cross") && projectParam) {
     return mode + ":" + projectParam;
@@ -217,18 +234,64 @@ function WriteMain() {
   const ideaParam = searchParams.get("idea") || "";
   const genreParam = searchParams.get("genre") || "A";
   const projectParam = searchParams.get("project") || "";
+  const actionParam = searchParams.get("action") || ""; // 빠른 의뢰: 그 단계로 점프
   const isDemo = searchParams.get("demo") === "1";
+  const isDirectMode = searchParams.get("fast") === "1"; // AI로 바로 집필 = 곧장 본문(script)
+  const isPlanMode = searchParams.get("plan") === "1";   // 기획 후 집필 = 사전 자료 단계
 
   // 작품 선택 안내 화면 — mode 없고 demo 아니면
   if (!mode && !isDemo) {
     return <NoProjectGate />;
   }
 
+  // ─── 매체 정보 ───
+  const wf = useMemo(() => getWorkflow(genreParam), [genreParam]);
+
   // 영속화 키
-  const persistKey = projectKeyFor(mode, isDemo, projectParam, ideaParam);
+  const persistKey = projectKeyFor(mode, isDemo, projectParam, ideaParam, genreParam);
   const storageKey = persistKey ? KEY.writeProject(persistKey) : null;
 
-  // 컨텍스트 빌드 — 우선 localStorage 복원, 없으면 모드별 초기 컨텍스트
+  // ─── 의뢰 분석 폼 (mediumFields) ───
+  // 새 작품 모드면, 작가가 의뢰서를 채워야 AI가 시작.
+  // localStorage에 briefDone=true가 저장돼있으면 폼 스킵.
+  const [mediumFields, setMediumFields] = useState<FieldValues>(() => {
+    if (storageKey) {
+      const saved = loadJSON<PersistedProject | null>(storageKey, null);
+      if (saved?.mediumFields) return saved.mediumFields;
+    }
+    const defaults = buildDefaultValues(wf.fields);
+    // URL query에서 들어온 매체 결정값 (예: episodes, format_type 등) prefill
+    for (const f of wf.fields) {
+      const v = searchParams.get(f.key);
+      if (v != null && v !== "") {
+        if (f.type === "number") {
+          const n = Number(v);
+          if (Number.isFinite(n)) defaults[f.key] = n;
+        } else if (f.type === "multiselect") {
+          defaults[f.key] = v.split(",").map(s => s.trim()).filter(Boolean);
+        } else {
+          defaults[f.key] = v;
+        }
+      }
+    }
+    return defaults;
+  });
+
+  const [briefDone, setBriefDone] = useState<boolean>(() => {
+    if (isDemo) return true;
+    // fast=1 (홈 Start Writing 또는 develop 컨펌 후) → 의뢰 폼 스킵, 곧장 본문
+    if (isDirectMode) return true;
+    if (mode === "continue" || mode === "adapt-same" || mode === "adapt-cross") return true;
+    if (storageKey) {
+      const saved = loadJSON<PersistedProject | null>(storageKey, null);
+      if (saved?.briefDone) return true;
+      // 복원된 paras가 있으면 의뢰 단계 지나간 것으로 간주
+      if (saved?.paras && saved.paras.length > 0) return true;
+    }
+    return false;
+  });
+
+  // 컨텍스트 빌드
   const initial = (() => {
     if (isDemo) {
       return { work: DEMO_WORK, notes: DEMO_NOTES, flow: DEMO_FLOW, paras: DEMO_PARAS, chat: DEMO_CHAT };
@@ -240,28 +303,28 @@ function WriteMain() {
       }
     }
     if (mode === "new") {
-      return buildNewWorkContext(ideaParam, genreParam);
+      return buildNewWorkContext(ideaParam, genreParam, actionParam || undefined);
     }
     if (mode === "continue") {
-      // TODO: DB에서 project fetch. 지금은 idea가 project 이름이라 가정한 빈 캔버스
       return buildContinueContext(projectParam || ideaParam || "이어쓰기");
     }
     if (mode === "adapt-same" || mode === "adapt-cross") {
       return buildAdaptContext(mode, projectParam, genreParam, searchParams.get("target") || "F");
     }
-    // fallback
     return buildNewWorkContext(ideaParam, genreParam);
   })();
 
-  // 복원된 데이터인지 판별 (그러면 AI 첫 호출 스킵)
-  const wasRestored = !isDemo && !!storageKey && (() => {
+  // ★ 초기 한 번만 계산 — 매 렌더 재계산하면 자동저장 후 true로 변해서
+  //   AI 호출 useEffect가 cleanup→abort되는 버그 (첫 delta 도달 전 호출 끊김)
+  const [wasRestored] = useState<boolean>(() => {
+    if (isDemo || !storageKey) return false;
     const saved = loadJSON<PersistedProject | null>(storageKey, null);
-    return !!(saved && saved.paras && saved.paras.length > 0);
-  })();
+    return !!(saved && saved.paras && saved.paras.some(p => p.text && p.text.trim().length > 0));
+  });
 
   const [work] = useState<WorkInfo>(initial.work);
   const [notes, setNotes] = useState<Note[]>(initial.notes);
-  const [flow] = useState<FlowItem[]>(initial.flow);
+  const [flow, setFlow] = useState<FlowItem[]>(initial.flow);
   const [paras, setParas] = useState<Para[]>(initial.paras);
   const [chat, setChat] = useState<ChatMsg[]>(initial.chat);
   const [paused, setPaused] = useState(false);
@@ -273,12 +336,14 @@ function WriteMain() {
     const timer = setTimeout(() => {
       const snapshot: PersistedProject = {
         work, notes, flow, paras, chat,
+        mediumFields,
+        briefDone,
         updatedAt: new Date().toISOString(),
       };
       saveJSON(storageKey, snapshot);
     }, 400);
     return () => clearTimeout(timer);
-  }, [storageKey, work, notes, flow, paras, chat]);
+  }, [storageKey, work, notes, flow, paras, chat, mediumFields, briefDone]);
 
   // 워크북 패널 토글
   const [bookOpen, setBookOpen] = useState<boolean>(true);
@@ -322,38 +387,71 @@ function WriteMain() {
     return () => clearTimeout(id);
   }, [paras, paused, isDemo]);
 
-  // ─── 새 작품 모드: 진짜 /api/agent/stream SSE 호출 (한 번만) ───
-  const aiStartedRef = useRef(false);
+  // ─── 새 작품 모드: 진짜 /api/agent/stream SSE 호출 ───
+  // briefDone 트리거 — 의뢰 분석 폼 제출 후에만 호출.
   useEffect(() => {
     if (isDemo) return;
     if (mode !== "new" || !ideaParam.trim()) return;
-    if (aiStartedRef.current) return;
-    // 복원된 작품이면 첫 AI 호출 스킵 (이미 본문이 저장돼있음)
-    if (wasRestored) {
-      aiStartedRef.current = true;
-      return;
-    }
-    aiStartedRef.current = true;
+    if (wasRestored) return;
+    if (!briefDone) return; // ★ 의뢰 분석 끝나야 호출
 
+    const controller = new AbortController();
     let cancelled = false;
+
+    // 액션 → 모드 매핑 (빠른 의뢰)
+    // ★ "AI로 바로 집필"(fast=1) → script (본문 직행)
+    //   "기획 후 집필"(plan=1) → logline (사전 자료부터 단계 진행, 채팅에 박힘)
+    //   default = "logline"
+    const apiMode = (() => {
+      if (isDirectMode) return "script";
+      if (isPlanMode) return "logline";
+      if (!actionParam) return "logline";
+      const a = actionParam.trim();
+      if (a.includes("로그라인")) return "logline";
+      if (a.includes("시놉시스")) return "synopsis";
+      if (a.includes("트리트먼트")) return "treatment";
+      if (a.includes("캐릭터")) return "characters";
+      if (a.includes("세계관") || a.includes("월드")) return "worldview";
+      if (a.includes("회차") || a.includes("에피") || a.includes("페이월")
+          || a.includes("클리프행어") || a.includes("아크")) return "episodes";
+      if (a.includes("기획")) return "proposal";
+      if (a.includes("대본") || a.includes("씬") || a.includes("씬 구성")
+          || a.includes("시퀀스") || a.includes("컷") || a.includes("자막")
+          || a.includes("내레이션") || a.includes("큐시트") || a.includes("대사")
+          || a.includes("존") || a.includes("질문지")) return "script";
+      return "logline";
+    })();
+
+    // develop에서 넘어온 사전 자료 핸드오프 (제목·로그라인·주제·시놉시스·캐릭터·기승전결)
+    let developPrior: Record<string, string> | undefined;
+    if (typeof window !== "undefined" && searchParams.get("from") === "develop") {
+      try {
+        const raw = window.localStorage.getItem("storyMaker.developHandoff");
+        if (raw) developPrior = JSON.parse(raw);
+      } catch { /* ignore */ }
+    }
+
     (async () => {
       try {
-        // 첫 단락 생성용 — script 모드로 첫 부분 샘플 요청
         const res = await fetch("/api/agent/stream", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            mode: "logline",
+            mode: apiMode,
             idea: ideaParam,
             genreLetter: genreParam,
-            fast: true, // Haiku로 빠른 첫 응답
+            mediumFields,
+            fast: true,
+            ...(developPrior ? { prior: developPrior } : {}),
           }),
+          signal: controller.signal,
         });
         if (!res.body) throw new Error("응답 없음");
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
+        let firstDelta = true;
 
         while (!cancelled) {
           const { done, value } = await reader.read();
@@ -371,13 +469,41 @@ function WriteMain() {
 
             try {
               const data = JSON.parse(dataLine);
+              // ★ script 모드일 때만 본문(paras)에 박음.
+              //   logline/synopsis/treatment 등 사전 자료 모드는 채팅(chat)에 박힘.
+              const isScriptMode = apiMode === "script";
+              const aiMsgId = "ai_brief_" + Date.now() + "_init";
               if (eventType === "delta" && data.text) {
-                setParas(prev => prev.map((x, i) =>
-                  i === 0 ? { ...x, text: x.text + data.text } : x
-                ));
+                if (isScriptMode) {
+                  setParas(prev => prev.map((x, i) => {
+                    if (i !== 0) return x;
+                    const base = firstDelta ? "" : x.text;
+                    return { ...x, text: base + data.text, streamTarget: undefined };
+                  }));
+                } else {
+                  // 사전 자료: 채팅에 누적 (첫 chunk면 새 메시지, 이후는 마지막 ai 메시지에 append)
+                  setChat(prev => {
+                    if (firstDelta) {
+                      return [...prev, { id: aiMsgId, role: "ai", text: data.text, t: "방금" }];
+                    }
+                    const lastIdx = [...prev].reverse().findIndex(m => m.role === "ai");
+                    if (lastIdx === -1) {
+                      return [...prev, { id: aiMsgId, role: "ai", text: data.text, t: "방금" }];
+                    }
+                    const realIdx = prev.length - 1 - lastIdx;
+                    return prev.map((m, i) => i === realIdx ? { ...m, text: m.text + data.text } : m);
+                  });
+                }
+                firstDelta = false;
               } else if (eventType === "done") {
-                setParas(prev => prev.map((x, i) =>
-                  i === 0 ? { ...x, status: "done" as const } : x
+                if (isScriptMode) {
+                  setParas(prev => prev.map((x, i) =>
+                    i === 0 ? { ...x, status: "done" as const, streamTarget: undefined } : x
+                  ));
+                }
+                // flow에서 active → done 전환
+                setFlow(prev => prev.map(f =>
+                  f.state === "active" ? { ...f, state: "done" as const } : f
                 ));
               } else if (eventType === "error") {
                 setChat(prev => [...prev, {
@@ -386,10 +512,13 @@ function WriteMain() {
                   text: `⚠ AI 호출 오류: ${data.message}`,
                   t: "방금",
                 }]);
-                setParas(prev => prev.map((x, i) =>
-                  i === 0 ? { ...x, status: "done" as const,
-                    text: x.text || "(AI 응답을 받지 못했습니다. 우측 채팅에서 다시 시도해주세요.)" } : x
-                ));
+                if (isScriptMode) {
+                  setParas(prev => prev.map((x, i) =>
+                    i === 0 ? { ...x, status: "done" as const,
+                      text: x.text || "(AI 응답을 받지 못했습니다. 우측 채팅에서 다시 시도해주세요.)",
+                      streamTarget: undefined } : x
+                  ));
+                }
               }
             } catch {
               // ignore parse errors
@@ -398,6 +527,7 @@ function WriteMain() {
         }
       } catch (err) {
         if (cancelled) return;
+        if (err instanceof Error && err.name === "AbortError") return;
         const msg = err instanceof Error ? err.message : "네트워크 오류";
         setChat(prev => [...prev, {
           id: "err_" + Date.now(), role: "ai", text: `⚠ 호출 실패: ${msg}`, t: "방금",
@@ -405,8 +535,12 @@ function WriteMain() {
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [isDemo, mode, ideaParam, genreParam]);
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDemo, mode, ideaParam, genreParam, wasRestored, briefDone, actionParam]);
 
   const onRewrite = (id: string) => {
     setParas(prev => prev.map(p => {
@@ -438,6 +572,59 @@ function WriteMain() {
       }
     }, 800);
   };
+
+  // ─── 의뢰 분석 폼 (briefDone === false 일 때만) ───
+  if (mode === "new" && !briefDone && !isDemo) {
+    const onChangeField = (key: string, value: FieldValue) => {
+      setMediumFields(prev => ({ ...prev, [key]: value }));
+    };
+    const onSubmit = () => setBriefDone(true);
+    const sampleQuick = QUICK_ACTIONS[wf.letter] || [];
+
+    return (
+      <main className="main">
+        <Topbar
+          eyebrow={`WRITE — 의뢰 분석 (${wf.letter}. ${wf.name})`}
+          title={`<em style="font-style:italic">${wf.name}</em> 작업 의뢰서<span class="dot">.</span>`}
+          sub={`${wf.sub} · 표준: ${wf.export_format} · 단계: ${wf.steps.join(" → ")} — 채워주시면 AI 작가가 매체 표준에 맞춰 작업합니다.${actionParam ? ` (빠른 의뢰: ${actionParam})` : ""}`}
+        />
+
+        {ideaParam && (
+          <div style={{
+            padding: "14px 18px", marginBottom: 24,
+            background: "var(--card-soft)", border: "1px solid var(--line)",
+            borderRadius: 12, fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.6,
+          }}>
+            <div style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>
+              한 줄 아이디어
+            </div>
+            {ideaParam}
+          </div>
+        )}
+
+        <MediumFieldRenderer
+          fields={wf.fields}
+          values={mediumFields}
+          onChange={onChangeField}
+        />
+
+        <div style={{
+          display: "flex", gap: 10, marginTop: 32, paddingTop: 24,
+          borderTop: "1px solid var(--line)", alignItems: "center",
+        }}>
+          <Btn kind="coral" onClick={onSubmit}>
+            {actionParam ? `${actionParam} 시작` : "집필 시작"}
+          </Btn>
+          <a href="/" className="btn" style={{ textDecoration: "none" }}>← Home</a>
+          {sampleQuick.length > 0 && (
+            <span style={{ marginLeft: "auto", fontSize: 11.5, color: "var(--ink-5)" }}>
+              작가팀이 작업할 단계: {wf.steps.length}개
+            </span>
+          )}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="main write-live">

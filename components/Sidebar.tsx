@@ -8,15 +8,15 @@ import { Symbol } from "./Symbol";
 
 const PATH_TO_NAV: Record<string, string> = {
   "/": "home",
-  "/pitch": "pitch",
-  "/package": "package",
+  "/develop": "develop",
   "/write": "write",
   "/adapt": "adapt",
-  "/review": "review",
   "/chat": "chat",
+  "/review": "review",
+  "/osmu": "osmu",
+  "/package": "package",
   "/library": "library",
   "/admin": "admin",
-  "/osmu": "osmu",
 };
 
 const NAV_TO_PATH: Record<string, string> = Object.fromEntries(
@@ -104,10 +104,18 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
           </div>
         </div>
 
-        <div className="sb-section" style={{ marginTop: 14 }}>— 공통</div>
-        <div className="sb-link" data-active={active === "pitch"} onClick={() => onNav("pitch")}>{I.pitch}<span>AI Pitch</span></div>
+        <div className="sb-section" style={{ marginTop: 14 }}>CREATE</div>
+        <div className="sb-link" data-active={active === "develop"} onClick={() => onNav("develop")}>{I.pitch}<span>Develop</span></div>
+        <div className="sb-link" data-active={active === "write"} onClick={() => onNav("write")}>{I.write}<span>Write</span></div>
+        <div className="sb-link" data-active={active === "adapt"} onClick={() => onNav("adapt")}>{I.adapt}<span>Adapt</span></div>
+
+        <div className="sb-section" style={{ marginTop: 14 }}>TOOLS</div>
         <div className="sb-link" data-active={active === "chat"} onClick={() => onNav("chat")}>{I.chat}<span>Co-Writer</span></div>
         <div className="sb-link" data-active={active === "review"} onClick={() => onNav("review")}>{I.review}<span>Review</span></div>
+        <div className="sb-link" data-active={active === "osmu"} onClick={() => onNav("osmu")}>{I.osmu}<span>OSMU</span></div>
+        <div className="sb-link" data-active={active === "package"} onClick={() => onNav("package")}>{I.package}<span>Plan Package</span></div>
+
+        <div className="sb-section" style={{ marginTop: 14 }}>LIBRARY</div>
         <div className="sb-link" data-active={active === "library"} onClick={() => onNav("library")}>{I.library}<span>Library</span></div>
 
         <div className="sb-foot">
@@ -124,13 +132,16 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
   const links = [
     { section: "WORKSPACE", items: [{ id: "home", label: "Home", icon: I.home }] },
     { section: "CREATE", items: [
-      { id: "pitch", label: "AI Pitch", icon: I.pitch },
-      { id: "package", label: "Plan Package", icon: I.package },
-      { id: "adapt", label: "Adapt", icon: I.adapt },
-      { id: "chat", label: "Co-Writer", icon: I.chat },
-      { id: "osmu", label: "OSMU", icon: I.osmu },
+      { id: "develop", label: "Develop", icon: I.pitch },
+      { id: "write",   label: "Write",   icon: I.write },
+      { id: "adapt",   label: "Adapt",   icon: I.adapt },
     ]},
-    { section: "REVIEW", items: [{ id: "review", label: "Review", icon: I.review }] },
+    { section: "TOOLS", items: [
+      { id: "chat",    label: "Co-Writer",    icon: I.chat },
+      { id: "review",  label: "Review",       icon: I.review },
+      { id: "osmu",    label: "OSMU",         icon: I.osmu },
+      { id: "package", label: "Plan Package", icon: I.package },
+    ]},
     { section: "LIBRARY", items: [{ id: "library", label: "Library", icon: I.library }] },
     { section: "ACCOUNT", items: [{ id: "admin", label: "Admin", icon: I.settings }] },
   ];

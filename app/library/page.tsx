@@ -6,7 +6,7 @@ import { ICONS } from "@/lib/icons";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
-import { Btn } from "@/components/ui";
+import { Field, Btn } from "@/components/ui";
 import { KEY, usePersistedState } from "@/lib/persist";
 
 export default function LibraryPage() {
@@ -33,6 +33,15 @@ interface LibraryPersona {
   name: string;
   tags: string[];
   used: number;
+  // review 페이지 PersonaCard 호환 필드 (재사용 위해)
+  likes?: string;
+  dislikes?: string;
+  lens?: string;
+  age?: string;
+  gender?: string;
+  lifestyle?: string;
+  preference?: string;
+  consumption?: string;
 }
 
 function LibraryMain() {
@@ -45,7 +54,40 @@ function LibraryMain() {
   const [query, setQuery] = useState("");
 
   const [works] = usePersistedState<LibraryWork[]>(KEY.libraryWorks, []);
-  const [personas] = usePersistedState<LibraryPersona[]>(KEY.libraryPersonas, []);
+  const [personas, setPersonas] = usePersistedState<LibraryPersona[]>(KEY.libraryPersonas, []);
+
+  // 새 페르소나 추가 폼
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [draft, setDraft] = useState({
+    name: "", tags: "", likes: "", dislikes: "", lens: "",
+  });
+  const resetDraft = () => setDraft({ name: "", tags: "", likes: "", dislikes: "", lens: "" });
+
+  const savePersona = () => {
+    const name = draft.name.trim();
+    if (!name) {
+      alert("리뷰어 이름을 입력해 주세요.");
+      return;
+    }
+    const tags = draft.tags.split(",").map(t => t.trim()).filter(Boolean).slice(0, 5);
+    const newPersona: LibraryPersona = {
+      id: Date.now(),
+      name,
+      tags: tags.length > 0 ? tags : ["커스텀"],
+      used: 0,
+      likes: draft.likes.trim() || "(없음)",
+      dislikes: draft.dislikes.trim() || "(없음)",
+      lens: draft.lens.trim() || "자연스러운 평가 시각",
+    };
+    setPersonas(prev => [...prev, newPersona]);
+    resetDraft();
+    setShowAddForm(false);
+  };
+
+  const removePersona = (id: number | string) => {
+    if (!confirm("이 페르소나를 삭제할까요?")) return;
+    setPersonas(prev => prev.filter(p => p.id !== id));
+  };
 
   const filters = useMemo(() => {
     const total = works.length;
@@ -194,8 +236,61 @@ function LibraryMain() {
         num={2}
         title="리뷰어 페르소나"
         sub="다중 타겟 리뷰에 사용한 가상 독자들. 재사용·복제 가능."
-        right={<Btn icon={I.plus} onClick={() => router.push("/review")}>새 페르소나</Btn>}
+        right={
+          <Btn
+            icon={I.plus}
+            onClick={() => {
+              if (showAddForm) {
+                resetDraft();
+                setShowAddForm(false);
+              } else {
+                setShowAddForm(true);
+              }
+            }}
+          >
+            {showAddForm ? "취소" : "새 페르소나"}
+          </Btn>
+        }
       />
+
+      {showAddForm && (
+        <div className="output-item" style={{
+          padding: "16px 18px", marginBottom: 10, display: "grid", gap: 10,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-2)" }}>새 리뷰어 추가</div>
+          <div className="form-grid">
+            <Field label="이름" required>
+              <input className="field-input" placeholder="예: 50대 주부 시청자"
+                value={draft.name}
+                onChange={e => setDraft({ ...draft, name: e.target.value })} />
+            </Field>
+            <Field label="태그 (콤마 구분)" help="예: 정통드라마, 가족">
+              <input className="field-input" placeholder="멜로, 드라마"
+                value={draft.tags}
+                onChange={e => setDraft({ ...draft, tags: e.target.value })} />
+            </Field>
+          </div>
+          <Field label="좋아함">
+            <input className="field-input" placeholder="예: 가족애, 따뜻한 결말, 정통적 구성"
+              value={draft.likes}
+              onChange={e => setDraft({ ...draft, likes: e.target.value })} />
+          </Field>
+          <Field label="싫어함">
+            <input className="field-input" placeholder="예: 자극적 소재, 빠른 컷 편집"
+              value={draft.dislikes}
+              onChange={e => setDraft({ ...draft, dislikes: e.target.value })} />
+          </Field>
+          <Field label="시각 / 평가 관점">
+            <input className="field-input" placeholder="예: 가족·세대 갈등을 자기 인생 경험으로 본다"
+              value={draft.lens}
+              onChange={e => setDraft({ ...draft, lens: e.target.value })} />
+          </Field>
+          <div className="btn-row">
+            <Btn kind="primary" icon={I.plus} onClick={savePersona}>리뷰어 추가</Btn>
+            <Btn onClick={() => { resetDraft(); setShowAddForm(false); }}>닫기</Btn>
+          </div>
+        </div>
+      )}
 
       {personas.length === 0 ? (
         <div style={{
@@ -205,7 +300,7 @@ function LibraryMain() {
         }}>
           아직 등록된 페르소나가 없습니다.
           <br />
-          리뷰 페이지에서 페르소나를 만들면 여기에 누적됩니다.
+          상단 <strong>+ 새 페르소나</strong> 버튼이나 리뷰 페이지에서 만들면 여기에 누적됩니다.
         </div>
       ) : (
         <div className="persona-grid">
@@ -213,9 +308,19 @@ function LibraryMain() {
             <div
               key={p.id}
               className="persona-card"
-              onClick={() => alert(`페르소나 편집 — 곧 출시\n\n${p.name}`)}
-              style={{ cursor: "pointer" }}
+              style={{ cursor: "default", position: "relative" }}
             >
+              <button
+                onClick={(e) => { e.stopPropagation(); removePersona(p.id); }}
+                title="삭제"
+                style={{
+                  position: "absolute", top: 10, right: 10,
+                  width: 24, height: 24, padding: 0,
+                  background: "transparent", border: "1px solid var(--line)",
+                  borderRadius: 6, cursor: "pointer", color: "var(--ink-3)",
+                  fontSize: 14, lineHeight: 1,
+                }}
+              >×</button>
               <div className="persona-avatar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <circle cx="12" cy="9" r="4"/>

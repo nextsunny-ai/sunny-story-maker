@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, FormEvent, KeyboardEvent } from "react";
 import { ICONS } from "@/lib/icons";
+import { Markdown } from "@/components/Markdown";
 
 export interface Note { id: string; label: string }
 export interface FlowItem { id: string; state: "done" | "active" | "pending"; title: string; hint: string }
@@ -139,7 +140,11 @@ export function WriteWorkbook({
                 <span className="wbook-msg-who">{m.role === "writer" ? "나" : "Sunny"}</span>
                 <span className="wbook-msg-time">{m.t}</span>
               </div>
-              <div className="wbook-msg-text">{m.text}</div>
+              <div className="wbook-msg-text">
+                {m.role === "ai" && m.text
+                  ? <Markdown text={m.text} compact />
+                  : m.text}
+              </div>
             </div>
           ))}
         </div>

@@ -247,4 +247,34 @@ export const ICONS: Record<string, React.ReactNode> = {
       <line x1="18" y1="23" x2="18" y2="27"/>
     </svg>
   ),
+  // N. 연극 — masks (theater)
+  N: (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 8 a8 8 0 0 1 12 0 v8 a6 6 0 0 1 -12 0 Z"/>
+      <circle cx="9" cy="13" r="0.8" fill="currentColor"/>
+      <circle cx="15" cy="13" r="0.8" fill="currentColor"/>
+      <path d="M9.5 17 q2.5 2 5 0"/>
+      <path d="M14 11 a8 8 0 0 1 12 0 v8 a6 6 0 0 1 -12 0"/>
+    </svg>
+  ),
+  // O. 소설 — book (open)
+  O: (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6 H14 a2 2 0 0 1 2 2 V26 a2 2 0 0 0 -2 -2 H4 Z"/>
+      <path d="M28 6 H18 a2 2 0 0 0 -2 2 V26 a2 2 0 0 1 2 -2 H28 Z"/>
+      <line x1="7" y1="11" x2="13" y2="11"/>
+      <line x1="7" y1="15" x2="13" y2="15"/>
+      <line x1="19" y1="11" x2="25" y2="11"/>
+      <line x1="19" y1="15" x2="25" y2="15"/>
+    </svg>
+  ),
+  // P. 에세이 — feather/pen
+  P: (
+    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 26 L20 12 a6 6 0 0 1 6 -2 l1 1 a6 6 0 0 1 -2 6 L11 31"/>
+      <line x1="6" y1="26" x2="14" y2="18"/>
+      <path d="M16 16 L22 16"/>
+      <path d="M14 18 L20 18"/>
+    </svg>
+  ),
 };

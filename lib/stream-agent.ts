@@ -1,5 +1,16 @@
 // /api/agent/stream 호출용 공용 SSE 클라이언트.
 // 이벤트 종류: delta(text 누적), done(완료), error(오류 메시지), usage(토큰 정보)
+//
+// ★ 작가 누적 학습(admin "내 학습 노하우") 자동 첨부 — 매 호출 prompt에 박힘.
+//   localStorage KEY.adminLearning에서 읽어서 body.writerLearning으로 전달.
+
+import { KEY, loadJSON } from "@/lib/persist";
+
+interface LearningEntry {
+  date: string;
+  category: string;
+  text: string;
+}
 
 export interface StreamAgentOptions {
   body: Record<string, unknown>;
@@ -12,12 +23,18 @@ export interface StreamAgentOptions {
 export async function streamAgent(opts: StreamAgentOptions): Promise<string> {
   const { body, onDelta, onDone, onError, signal } = opts;
 
+  // 작가 누적 학습 자동 첨부 (있을 때만)
+  const learning = loadJSON<LearningEntry[]>(KEY.adminLearning, []);
+  const enrichedBody = learning.length > 0
+    ? { ...body, writerLearning: learning }
+    : body;
+
   let res: Response;
   try {
     res = await fetch("/api/agent/stream", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(enrichedBody),
       signal,
     });
   } catch (err) {

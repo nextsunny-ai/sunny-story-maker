@@ -189,6 +189,44 @@ export const GENRES: Genre[] = [
       { n: 5, name: "자막 · 코멘트", short: "자막" },
     ],
   },
+  {
+    letter: "N", name: "연극", sub: "무대 · 1막·2막·다막극",
+    format: "희곡", pages: "70~120분",
+    formatOptions: ["1막극 (60~90분)", "2막극 (90~120분)", "다막극 (120분+)", "낭독극 (40~60분)"],
+    standard: "한국 희곡 표준 (.hwp/.docx)",
+    steps: [
+      { n: 1, name: "공연 컨셉", short: "컨셉" },
+      { n: 2, name: "등장인물·시놉시스", short: "인물" },
+      { n: 3, name: "막·장 구성", short: "구성" },
+      { n: 4, name: "희곡 본문", short: "본문" },
+      { n: 5, name: "무대 지시·동선", short: "지시" },
+    ],
+  },
+  {
+    letter: "O", name: "소설", sub: "단편 · 중편 · 장편 (일반문학)",
+    format: "산문체", pages: "200자 원고지 기준",
+    formatOptions: ["콩트 (10매 이내)", "단편 (50~100매)", "중편 (200~400매)", "장편 (700매+)"],
+    standard: "200자 원고지 / .hwp",
+    steps: [
+      { n: 1, name: "작품 기획", short: "기획" },
+      { n: 2, name: "캐릭터·세계", short: "캐릭터" },
+      { n: 3, name: "플롯", short: "플롯" },
+      { n: 4, name: "본문 집필", short: "본문" },
+      { n: 5, name: "퇴고·문장", short: "퇴고" },
+    ],
+  },
+  {
+    letter: "P", name: "에세이", sub: "산문 · 칼럼 · 일기",
+    format: "산문 (자유 형식)", pages: "A4 기준",
+    formatOptions: ["짧은 글 (1~3p)", "중편 에세이 (5~10p)", "에세이집 (책 한 권)", "칼럼 시리즈"],
+    standard: "A4 산문 (.docx)",
+    steps: [
+      { n: 1, name: "주제·관점", short: "주제" },
+      { n: 2, name: "구성·흐름", short: "구성" },
+      { n: 3, name: "본문", short: "본문" },
+      { n: 4, name: "퇴고·문장", short: "퇴고" },
+    ],
+  },
 ];
 
 export function getGenre(letter: string): Genre | undefined {

@@ -7,6 +7,8 @@ import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
 import { Field, Btn } from "@/components/ui";
 import { KEY, usePersistedState } from "@/lib/persist";
+import { WORKFLOWS, WORKFLOW_LETTERS } from "@/lib/workflows";
+import { DEFAULT_MODEL_PREFS, MODEL_LABELS, type ModelPrefs, type ModelChoice } from "@/lib/storymaker/model-prefs";
 
 export default function AdminPage() {
   return (
@@ -99,6 +101,14 @@ function WriterTab() {
   const [profile, setProfile] = usePersistedState<WriterProfile>(KEY.adminProfile, EMPTY_PROFILE);
   const [learning, setLearning] = usePersistedState<LearningEntry[]>(KEY.adminLearning, []);
   const [draft, setDraft] = useState<string>("");
+  // 주력 매체 — 홈/write 어댑티브의 기본값
+  const [primaryMedium, setPrimaryMedium] = usePersistedState<string>(KEY.adminPrimaryMedium, "A");
+  // 보조작가 이름 — chat 페이지 default 호칭 (사용자 정의)
+  const [assistantName, setAssistantName] = usePersistedState<string>(KEY.adminAssistantName, "소리");
+  // 작업별 AI 모델 — 작가가 선택 (default: 집필/각색=Opus, 리뷰/OSMU/채팅=Haiku)
+  const [modelPrefs, setModelPrefs] = usePersistedState<ModelPrefs>(KEY.adminModelPrefs, DEFAULT_MODEL_PREFS);
+  const updateModel = (kind: keyof ModelPrefs, value: ModelChoice) =>
+    setModelPrefs(prev => ({ ...prev, [kind]: value }));
 
   const updateProfile = <K extends keyof WriterProfile>(key: K, value: WriterProfile[K]) => {
     setProfile(prev => ({ ...prev, [key]: value }));
@@ -226,6 +236,73 @@ function WriterTab() {
       <SectionHead num={2} title="활동 정보" sub="SUNNY가 작가의 톤과 경험치에 맞춰 결과물을 조정합니다." />
 
       <div className="form-grid">
+        <Field
+          label="주력 매체"
+          help="홈에서 시작하는 작업의 매체. 카드로 즉시 다른 매체로 전환 가능."
+        >
+          <select
+            className="field-select"
+            value={primaryMedium}
+            onChange={e => setPrimaryMedium(e.target.value)}
+          >
+            {WORKFLOW_LETTERS.map(letter => {
+              const w = WORKFLOWS[letter];
+              return (
+                <option key={letter} value={letter}>
+                  {letter}. {w.name}
+                </option>
+              );
+            })}
+          </select>
+        </Field>
+
+        <Field
+          label="보조작가 이름"
+          help="채팅(아이디어/자료조사)에서 작가님을 돕는 보조작가의 호칭. 기본 '소리'."
+        >
+          <input
+            className="field-input"
+            value={assistantName}
+            onChange={e => setAssistantName(e.target.value)}
+            placeholder="소리"
+            maxLength={20}
+          />
+        </Field>
+      </div>
+
+      <SectionHead num={3} title="AI 모델 설정" sub="작업별 모델 선택. Opus = 깊이/퀄리티 / Haiku = 빠름/토큰 절약." />
+
+      <div className="form-grid">
+        <Field label="집필 (logline · treatment · synopsis · script)" help="진짜 창작. 기본 Opus 권장.">
+          <select className="field-select" value={modelPrefs.write} onChange={e => updateModel("write", e.target.value as ModelChoice)}>
+            <option value="opus">{MODEL_LABELS.opus}</option>
+            <option value="haiku">{MODEL_LABELS.haiku}</option>
+          </select>
+        </Field>
+        <Field label="각색 (revise · adapt-cross)" help="본문 변환. 기본 Opus 권장.">
+          <select className="field-select" value={modelPrefs.adapt} onChange={e => updateModel("adapt", e.target.value as ModelChoice)}>
+            <option value="opus">{MODEL_LABELS.opus}</option>
+            <option value="haiku">{MODEL_LABELS.haiku}</option>
+          </select>
+        </Field>
+        <Field label="리뷰 (다중 타겟 12문항)" help="구조화된 응답. 기본 Haiku로 충분.">
+          <select className="field-select" value={modelPrefs.review} onChange={e => updateModel("review", e.target.value as ModelChoice)}>
+            <option value="haiku">{MODEL_LABELS.haiku}</option>
+            <option value="opus">{MODEL_LABELS.opus}</option>
+          </select>
+        </Field>
+        <Field label="OSMU (12매체 매트릭스)" help="짧은 분석 12개. 기본 Haiku.">
+          <select className="field-select" value={modelPrefs.osmu} onChange={e => updateModel("osmu", e.target.value as ModelChoice)}>
+            <option value="haiku">{MODEL_LABELS.haiku}</option>
+            <option value="opus">{MODEL_LABELS.opus}</option>
+          </select>
+        </Field>
+        <Field label="보조작가 채팅" help="빠른 대화·자료조사. 기본 Haiku.">
+          <select className="field-select" value={modelPrefs.chat} onChange={e => updateModel("chat", e.target.value as ModelChoice)}>
+            <option value="haiku">{MODEL_LABELS.haiku}</option>
+            <option value="opus">{MODEL_LABELS.opus}</option>
+          </select>
+        </Field>
         <Field label="주력 장르" help="3개까지 선택">
           <input
             className="field-input"
@@ -378,19 +455,15 @@ function WriterTab() {
 
 function SystemTab() {
   const I = ICONS;
-  const onManualLearn = () =>
-    alert("자동 학습은 글로벌 launchd 작업으로 운영됩니다 — 다음 업데이트 예정");
-  const onShowGlobalLog = () =>
-    alert("전체 학습 로그는 lib/skills/learned.md 파일에서 관리됩니다 — 곧 출시");
-  const onDownloadSkill = () =>
-    alert("SKILL.md 다운로드는 다음 업데이트에서 제공됩니다.");
-  const onChangePlan = () =>
-    alert("플랜 변경은 결제 연동 이후 제공됩니다 — 곧 출시");
-  const onExportData = () =>
-    alert("데이터 내보내기는 다음 업데이트에서 제공됩니다.");
+  const BETA_NOTICE = "베타 기간 동안은 미지원 기능입니다.\n정식 오픈 시 제공 예정입니다.";
+  const onManualLearn = () => alert("자동 학습은 글로벌 작업으로 자동 운영됩니다.\n수동 트리거는 정식 오픈 시 제공 예정입니다.");
+  const onShowGlobalLog = () => alert(BETA_NOTICE);
+  const onDownloadSkill = () => alert(BETA_NOTICE);
+  const onChangePlan = () => alert(BETA_NOTICE);
+  const onExportData = () => alert(BETA_NOTICE);
   const onDeleteAccount = () => {
     if (!confirm("정말 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
-    alert("계정 삭제는 결제 연동 이후 제공됩니다 — 곧 출시");
+    alert(BETA_NOTICE + "\n\n계정 삭제 요청은 작가님께 직접 연락 부탁드립니다.");
   };
   return (
     <Fragment>

@@ -36,18 +36,13 @@ export function WriteCanvas({
   const I = ICONS;
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // 새 글자가 써질 때 자동 스크롤 (현재 streaming 단락이 보이도록)
+  // 새 글자가 써질 때 자동 스크롤 — 컨테이너 내부 / 페이지 전체 어느 쪽이든 작동
   useEffect(() => {
     const streaming = paras.find(p => p.status === "streaming");
     if (!streaming) return;
     const el = document.querySelector(`[data-para-id="${streaming.id}"]`);
-    if (el && containerRef.current) {
-      const rect = el.getBoundingClientRect();
-      const cRect = containerRef.current.getBoundingClientRect();
-      if (rect.bottom > cRect.bottom - 80) {
-        containerRef.current.scrollTop += rect.bottom - cRect.bottom + 100;
-      }
-    }
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [paras]);
 
   const totalChars = paras.reduce((acc, p) => acc + p.text.length, 0);
