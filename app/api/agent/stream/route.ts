@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { spawn } from "node:child_process";
-import { writeFileSync, unlinkSync, existsSync, readFileSync, readdirSync } from "node:fs";
+import { writeFileSync, unlinkSync, existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { execSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -65,6 +65,7 @@ interface RequestBody {
   stage?: string;                  // collaborate/script 단계 표시
   userInput?: Record<string, string>;
   prior?: Record<string, string>;  // 직전 산출물
+  priorFiles?: Record<string, string>; // ★ 2026-05-05: 작품 누적 메모리 (= Supabase에서 stream POST 시작부에 fetch)
   artifactKeys?: string[];         // package 모드 산출물 선택
   targets?: TargetPersona[];       // targeted review 페르소나
   direction?: string;              // revise 방향
@@ -121,47 +122,33 @@ function buildUserPrompt(b: RequestBody): string {
   const base = buildBasePrompt(b);
   const learning = formatWriterLearning(b.writerLearning);
   // 작가 누적 학습은 base prompt 앞에 박음 — AI가 가장 먼저 인지하도록
-  const memory = formatWorkMemory(b.workId);
+  const memory = formatWorkMemoryFromFiles(b.priorFiles);
   const parts = [memory, learning, base].filter(Boolean);
   return parts.join("\n\n---\n\n");
 }
 
-/** 작품 메모리 (.md 파일들) — 매 AI 호출 자동 prior. 사장님 명시: 백그라운드 Claude 들이 시작 시 read */
-function formatWorkMemory(workId?: string): string {
-  if (!workId) return "";
-  try {
-    // sanitize (load route와 동일 로직)
-    const safeId = workId
-      .replace(/[\\/:*?"<>|]/g, "_")
-      .replace(/\s+/g, "_")
-      .replace(/\.+$/g, "")
-      .slice(0, 120) || "work";
+/**
+ * 작품 메모리 (.md 파일들) — 매 AI 호출 자동 prior.
+ *
+ * ★ 2026-05-05 마이그레이션: _works/ 파일 read → priorFiles (= stream POST handler에서 Supabase fetch 후 body에 박음).
+ * 동기 함수 유지 = 호출 체인 변경 X. Supabase fetch는 stream route POST 시작부에서 1회.
+ */
+function formatWorkMemoryFromFiles(files?: Record<string, string>): string {
+  if (!files) return "";
+  const filenames = Object.keys(files).filter(f => f.endsWith(".md")).sort();
+  if (filenames.length === 0) return "";
 
-    const workDir = path.join(process.cwd(), "_works", safeId);
-    if (!existsSync(workDir)) return "";
+  const sections: string[] = [];
+  sections.push("## ★★★ 이 작품의 누적 메모리 (매 호출마다 자동 read — 작품 = 항상 인지)");
+  sections.push("이 작가가 옛 호출에서 작업한 모든 컨텍스트. AI는 이걸 먼저 다 읽고 = 이전 작업 흐름 그대로 이어 작업.");
 
-    // 동기 read (server-side, fast). 정렬 = 파일명 (01_, 02_, ...)
-    const entries = readdirSync(workDir);
-    const mdFiles = entries.filter((f: string) => f.endsWith(".md")).sort();
-    if (mdFiles.length === 0) return "";
-
-    const sections: string[] = [];
-    sections.push("## ★★★ 이 작품의 누적 메모리 (매 호출마다 자동 read — 작품 = 항상 인지)");
-    sections.push("이 작가가 옛 호출에서 작업한 모든 컨텍스트. AI는 이걸 먼저 다 읽고 = 이전 작업 흐름 그대로 이어 작업.");
-
-    for (const filename of mdFiles) {
-      try {
-        const content = readFileSync(path.join(workDir, filename), "utf-8");
-        if (content && content.trim()) {
-          sections.push(`### 📂 ${filename}\n\n${content.trim()}`);
-        }
-      } catch { /* skip */ }
+  for (const filename of filenames) {
+    const content = files[filename];
+    if (content && content.trim()) {
+      sections.push(`### 📂 ${filename}\n\n${content.trim()}`);
     }
-
-    return sections.join("\n\n");
-  } catch {
-    return "";
   }
+  return sections.join("\n\n");
 }
 
 function buildBasePrompt(b: RequestBody): string {
@@ -541,6 +528,29 @@ export async function POST(req: NextRequest) {
       JSON.stringify({ error: "잘못된 요청 형식입니다." }),
       { status: 400, headers: { "content-type": "application/json" } }
     );
+  }
+
+  // ★ 2026-05-05: 작품 누적 메모리 = Supabase에서 fetch (= 옛 _works/ 폴더 read 대체).
+  // RLS = auth.uid() 본인 작품만 = 안전.
+  if (body.workId && !body.priorFiles) {
+    try {
+      const { createClient: createSupabaseServer } = await import("@/lib/supabase/server");
+      const supabase = await createSupabaseServer();
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData.user) {
+        const { data: workRow } = await supabase
+          .from("works")
+          .select("files")
+          .eq("user_id", authData.user.id)
+          .eq("work_id", body.workId.slice(0, 200))
+          .maybeSingle();
+        if (workRow?.files) {
+          body.priorFiles = workRow.files as Record<string, string>;
+        }
+      }
+    } catch {
+      // 메모리 fetch 실패 = 무시 (= 첫 호출 또는 = 비로그인 = priorFiles 없음으로 진행)
+    }
   }
 
   let userPrompt: string;

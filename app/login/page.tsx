@@ -6,14 +6,13 @@ import { ICONS } from "@/lib/icons";
 import { Symbol } from "@/components/Symbol";
 import { createClient } from "@/lib/supabase/client";
 
-// ★ 사장님 명시 2026-05-04: 소문자 표준 (맥 친화) + 대문자 호환
+// ★ 사장님 명시 2026-05-05: 대소문자 무관 (sunny2026!·SUNNY2026!·Sunny2026! 다 OK)
 const INVITE_CODE_PRIMARY = process.env.NEXT_PUBLIC_INVITE_CODE || "sunny2026!";
-const INVITE_CODE_LEGACY = "SUNNY2026!";  // 대문자 호환
 function isValidInvite(code: string): boolean {
-  const c = code.trim();
-  return c === INVITE_CODE_PRIMARY || c === INVITE_CODE_LEGACY;
+  const c = code.trim().toLowerCase();
+  return c === INVITE_CODE_PRIMARY.toLowerCase();
 }
-const INVITE_CODE = INVITE_CODE_PRIMARY; // 표시용
+const INVITE_CODE = INVITE_CODE_PRIMARY; // 표시용 (= 화면 노출 X = placeholder는 "베타 초대 코드"만)
 
 export default function LoginPage() {
   return (
@@ -130,13 +129,28 @@ function LoginPageInner() {
   async function handleGoogle(): Promise<void> {
     setError(null);
     setInfo(null);
+
+    // ★ 사장님 명시 2026-05-05: OAuth도 베타 초대 코드 게이트 통과 필수.
+    // 가입·로그인 구분 X (Supabase OAuth는 첫 클릭 = 자동 가입+로그인 통합).
+    // 옛 가입자도 초대 코드 박아야 = 베타 통제 + 보안.
+    if (!isValidInvite(invite)) {
+      setShowInvite(true); // login 모드면 초대 코드 입력 박스 자동 노출
+      setError("Google 로그인도 베타 초대 코드가 필요합니다. 위에 입력 후 다시 시도해주세요.");
+      return;
+    }
+
     setLoading(true);
 
     const supabase = createClient();
+    // ★ invite_code = user_metadata에 박음 (백엔드 trigger 검증용 = 출시 후 추가 박힐 거).
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+        queryParams: {
+          access_type: "offline",
+          prompt: "select_account",
+        },
       },
     });
 
@@ -294,7 +308,7 @@ function LoginPageInner() {
                     type="text"
                     value={invite}
                     onChange={e => setInvite(e.target.value)}
-                    placeholder="sunny2026!"
+                    placeholder="베타 초대 코드"
                     required
                   />
                 </div>
