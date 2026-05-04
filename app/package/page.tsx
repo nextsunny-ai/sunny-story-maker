@@ -96,6 +96,10 @@ interface PersistedProjectLite {
 
 type GrantMode = "new" | "existing" | "direct";
 
+// ★ Vercel build fix: useSearchParams() = static prerender X = force dynamic.
+//   /package 페이지 = ?support=1 query param 사용 = static prerender 의미 X.
+export const dynamic = "force-dynamic";
+
 export default function PackagePage() {
   return (
     <AppShell>
