@@ -294,7 +294,7 @@ function LoginPageInner() {
                     type="text"
                     value={invite}
                     onChange={e => setInvite(e.target.value)}
-                    placeholder="SUNNY-XXXX-XXXX"
+                    placeholder="sunny2026!"
                     required
                   />
                 </div>
@@ -339,7 +339,7 @@ function LoginPageInner() {
                   type="text"
                   value={invite}
                   onChange={e => setInvite(e.target.value)}
-                  placeholder="SUNNY-XXXX-XXXX"
+                  placeholder="sunny2026!"
                   autoFocus
                 />
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useState, type FormEvent } from "react";
 import { ICONS } from "@/lib/icons";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
@@ -9,6 +9,133 @@ import { Field, Btn } from "@/components/ui";
 import { KEY, usePersistedState } from "@/lib/persist";
 import { WORKFLOWS, WORKFLOW_LETTERS } from "@/lib/workflows";
 import { DEFAULT_MODEL_PREFS, MODEL_LABELS, type ModelPrefs, type ModelChoice } from "@/lib/storymaker/model-prefs";
+import { createClient } from "@/lib/supabase/client";
+
+/** ★ 비밀번호 변경 모달 — 사장님 명시 2026-05-04: 작가 비번 까먹어도 = 로그인 후 = 직접 변경 가능 */
+function PasswordChangeModal({ onClose }: { onClose: () => void }) {
+  const [oldPw, setOldPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setMsg(null);
+    if (newPw.length < 6) {
+      setMsg({ kind: "err", text: "새 비밀번호는 6자 이상이어야 합니다." });
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setMsg({ kind: "err", text: "새 비밀번호 확인이 일치하지 않습니다." });
+      return;
+    }
+    setLoading(true);
+    const supabase = createClient();
+    // 옛 비번 검증 (= reauth) — 옛 비번 박지 않으면 = 그냥 update
+    if (oldPw) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: user.email,
+          password: oldPw,
+        });
+        if (signInErr) {
+          setMsg({ kind: "err", text: "현재 비밀번호가 올바르지 않습니다." });
+          setLoading(false);
+          return;
+        }
+      }
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPw });
+    if (error) {
+      setMsg({ kind: "err", text: error.message });
+      setLoading(false);
+      return;
+    }
+    setMsg({ kind: "ok", text: "비밀번호 변경 완료. 잠시 후 닫힙니다." });
+    setTimeout(() => onClose(), 1500);
+  }
+
+  return (
+    <div role="dialog" onClick={onClose} style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      zIndex: 1000, padding: 20,
+    }}>
+      <form
+        onClick={e => e.stopPropagation()}
+        onSubmit={handleSubmit}
+        style={{
+          maxWidth: 420, width: "100%",
+          background: "var(--card)", borderRadius: 14, padding: 24,
+          border: "1px solid var(--line)",
+          display: "flex", flexDirection: "column", gap: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, flex: 1 }}>비밀번호 변경</div>
+          <button type="button" onClick={onClose} style={{
+            background: "transparent", border: "1px solid var(--line)", borderRadius: 6,
+            padding: "4px 10px", cursor: "pointer", fontSize: 12, color: "var(--ink-3)",
+          }}>✕</button>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--ink-4)", lineHeight: 1.5, marginBottom: 4 }}>
+          새 비밀번호는 6자 이상. 현재 비번 빈칸 = 검증 X (옛 비번 까먹은 경우).
+        </div>
+
+        <div className="login-field">
+          <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>현재 비밀번호 <span style={{ color: "var(--ink-5)", fontSize: 11 }}>(선택)</span></span>
+            <button type="button" onClick={() => setShowPw(p => !p)} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 11, color: "var(--ink-4)", fontWeight: 600, padding: 0 }}>
+              {showPw ? "🙈 가리기" : "👁 보기"}
+            </button>
+          </label>
+          <input className="field-input" type={showPw ? "text" : "password"}
+            value={oldPw} onChange={e => setOldPw(e.target.value)}
+            autoComplete="current-password"
+          />
+        </div>
+
+        <div className="login-field">
+          <label>새 비밀번호</label>
+          <input className="field-input" type={showPw ? "text" : "password"}
+            value={newPw} onChange={e => setNewPw(e.target.value)}
+            autoComplete="new-password" required minLength={6}
+          />
+        </div>
+
+        <div className="login-field">
+          <label>새 비밀번호 확인</label>
+          <input className="field-input" type={showPw ? "text" : "password"}
+            value={confirmPw} onChange={e => setConfirmPw(e.target.value)}
+            autoComplete="new-password" required
+          />
+        </div>
+
+        {msg && (
+          <div style={{
+            padding: "8px 10px",
+            background: msg.kind === "ok" ? "rgba(64, 200, 130, 0.08)" : "rgba(255, 90, 90, 0.08)",
+            border: `1px solid ${msg.kind === "ok" ? "rgba(64, 200, 130, 0.35)" : "rgba(255, 90, 90, 0.35)"}`,
+            borderRadius: 6, fontSize: 12,
+            color: msg.kind === "ok" ? "rgb(64, 160, 100)" : "var(--coral, #ff6b6b)",
+          }}>{msg.text}</div>
+        )}
+
+        <button type="submit" disabled={loading} style={{
+          marginTop: 4, padding: "10px 14px", fontSize: 13, fontWeight: 700,
+          background: "var(--coral)", color: "#fff",
+          border: "1px solid var(--coral)", borderRadius: 8,
+          cursor: loading ? "wait" : "pointer", opacity: loading ? 0.6 : 1,
+        }}>
+          {loading ? "변경 중…" : "비밀번호 변경"}
+        </button>
+      </form>
+    </div>
+  );
+}
 
 export default function AdminPage() {
   return (
@@ -20,6 +147,7 @@ export default function AdminPage() {
 
 function AdminMain() {
   const [tab, setTab] = useState<"writer" | "system">("writer");
+  const [pwModalOpen, setPwModalOpen] = useState(false); // ★ 비밀번호 변경 모달
 
   return (
     <main className="main">
@@ -28,6 +156,29 @@ function AdminMain() {
         title='어드민<span class="dot">.</span>'
         sub="작가 프로필과 시스템 설정. SUNNY가 더 잘 도울 수 있도록 본인의 정보를 알려주세요."
       />
+
+      {/* ★ 비밀번호 변경 버튼 — 사장님 명시 2026-05-04: 작가 = 까먹어도 = 직접 변경 가능 */}
+      <div style={{
+        display: "flex", justifyContent: "flex-end",
+        marginBottom: 16,
+      }}>
+        <button
+          type="button"
+          onClick={() => setPwModalOpen(true)}
+          style={{
+            padding: "8px 14px", fontSize: 12, fontWeight: 600,
+            background: "transparent", color: "var(--ink-2)",
+            border: "1px solid var(--line)", borderRadius: 6,
+            cursor: "pointer",
+            display: "inline-flex", alignItems: "center", gap: 6,
+          }}
+          title="비밀번호 변경 (현재 비번 기억 안 나도 OK — 로그인된 상태면 변경 가능)"
+        >
+          🔒 비밀번호 변경
+        </button>
+      </div>
+
+      {pwModalOpen && <PasswordChangeModal onClose={() => setPwModalOpen(false)} />}
 
       <div className="adm-tabs">
         <button
