@@ -65,16 +65,88 @@ function buildTable(lines: string[]): Table {
   });
 }
 
+/** ★ 표지 옵션 — 사장님 명시 2026-05-04: 외부 발송 가능 수준 */
+export interface CoverOptions {
+  /** 작가명 — 표지 하단에 박힘 */
+  author?: string;
+  /** 부제 / 매체 (예: "TV 미니시리즈 16부작") */
+  subtitle?: string;
+  /** 버전 (예: "v.07") */
+  version?: string;
+  /** 날짜 (YYMMDD or 직접 박은 형식) */
+  date?: string;
+  /** 저작권 표시 (= "© 작가명 2026" 자동 또는 직접) */
+  copyright?: string;
+}
+
 // ─── Markdown 문자열 → docx Document ───
-export function markdownToDocx(md: string, title: string): Document {
+export function markdownToDocx(md: string, title: string, cover?: CoverOptions): Document {
   const lines = md.split("\n");
   const children: (Paragraph | Table)[] = [];
 
-  // 표지 제목
+  // ★ 표지 페이지 (한국 시나리오 표준 — 김태훈 작가 「아이엠소리」 형식 참조)
+  // 표지 = 별도 페이지 (= 본문 = 다음 페이지부터)
+
+  // 작품명 = 가운데 = 매우 큼 = 위에서 약 1/3 지점
+  children.push(new Paragraph({ children: [new TextRun({ text: "" })], spacing: { before: 2400, after: 0 } })); // 위 빈 공간
+
   children.push(new Paragraph({
-    children: [new TextRun({ text: title, bold: true, size: 36 })],
+    children: [new TextRun({ text: title, bold: true, size: 56, font: "Pretendard" })],
     alignment: AlignmentType.CENTER,
-    spacing: { after: 400 },
+    spacing: { after: 200 },
+  }));
+
+  // 부제 / 매체
+  if (cover?.subtitle) {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: cover.subtitle, size: 22, color: "666666", font: "Pretendard" })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 100 },
+    }));
+  }
+
+  // 버전
+  if (cover?.version) {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: cover.version, size: 18, color: "999999", font: "Pretendard" })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 60 },
+    }));
+  }
+
+  // 날짜
+  if (cover?.date) {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: `(${cover.date})`, size: 16, color: "999999", font: "Pretendard" })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 60 },
+    }));
+  }
+
+  // 작가명 = 표지 하단 (= 표지 본문에서 약 60% 아래)
+  if (cover?.author) {
+    children.push(new Paragraph({ children: [new TextRun({ text: "" })], spacing: { before: 2400, after: 0 } }));
+    children.push(new Paragraph({
+      children: [new TextRun({ text: cover.author, bold: true, size: 24, font: "Pretendard" })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 60 },
+    }));
+  }
+
+  // 저작권 = 표지 끝 (선택)
+  if (cover?.copyright) {
+    children.push(new Paragraph({ children: [new TextRun({ text: "" })], spacing: { before: 800, after: 0 } }));
+    children.push(new Paragraph({
+      children: [new TextRun({ text: cover.copyright, size: 14, color: "888888", italics: true })],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 60 },
+    }));
+  }
+
+  // 표지 끝 = 페이지 break (다음 페이지부터 본문)
+  children.push(new Paragraph({
+    children: [new TextRun({ text: "" })],
+    pageBreakBefore: true,
   }));
 
   let i = 0;
@@ -214,9 +286,27 @@ export function markdownToDocx(md: string, title: string): Document {
 }
 
 // ─── Markdown → 워드 다운로드 (브라우저) ───
-export async function downloadDocx(md: string, filename: string): Promise<void> {
+export async function downloadDocx(md: string, filename: string, cover?: CoverOptions): Promise<void> {
   const title = filename.replace(/\.(docx|md|txt)$/i, "");
-  const doc = markdownToDocx(md, title);
+  // ★ cover 안 박혀있어도 = admin profile에서 자동 박음 (작가 이름·저작권)
+  let coverFinal = cover;
+  if (!coverFinal && typeof window !== "undefined") {
+    try {
+      const profileRaw = window.localStorage.getItem("sunny.admin.anon.profile");
+      if (profileRaw) {
+        const p = JSON.parse(profileRaw);
+        const author = (p.penName || p.name || "").trim();
+        if (author) {
+          const year = new Date().getFullYear();
+          coverFinal = {
+            author,
+            copyright: `© ${author} ${year} — 무단 복제 금지`,
+          };
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  const doc = markdownToDocx(md, title, coverFinal);
   const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
