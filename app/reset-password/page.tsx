@@ -11,6 +11,7 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [showPw, setShowPw] = useState(false);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -79,10 +80,15 @@ export default function ResetPasswordPage() {
         </div>
 
         <div className="login-field">
-          <label>새 비밀번호</label>
+          <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>새 비밀번호</span>
+            <button type="button" onClick={() => setShowPw(p => !p)} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 11, color: "var(--ink-4)", padding: 0, fontWeight: 600 }}>
+              {showPw ? "🙈 가리기" : "👁 보기"}
+            </button>
+          </label>
           <input
             className="field-input"
-            type="password"
+            type={showPw ? "text" : "password"}
             value={password}
             onChange={e => setPassword(e.target.value)}
             autoComplete="new-password"
@@ -94,7 +100,7 @@ export default function ResetPasswordPage() {
           <label>비밀번호 확인</label>
           <input
             className="field-input"
-            type="password"
+            type={showPw ? "text" : "password"}
             value={confirm}
             onChange={e => setConfirm(e.target.value)}
             autoComplete="new-password"

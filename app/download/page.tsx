@@ -16,6 +16,7 @@ export default function DownloadPage() {
   });
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [showInvite, setShowInvite] = useState(true); // ★ 코드는 기본 보임 (작가 입력 확인용)
 
   const onDownload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,17 +177,30 @@ export default function DownloadPage() {
 
           <form onSubmit={onDownload} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-4)", marginBottom: 6, letterSpacing: "0.04em" }}>
-                초대 코드 (베타 한정)
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-4)", marginBottom: 6, letterSpacing: "0.04em", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span>초대 코드 (베타 한정)</span>
+                <button
+                  type="button"
+                  onClick={() => setShowInvite(prev => !prev)}
+                  style={{
+                    background: "transparent", border: "none", cursor: "pointer",
+                    fontSize: 11, color: "var(--ink-4)", padding: 0, fontWeight: 600,
+                    letterSpacing: "0.04em",
+                  }}
+                  title={showInvite ? "코드 가리기" : "코드 보기"}
+                >
+                  {showInvite ? "🙈 가리기" : "👁 보기"}
+                </button>
               </div>
               <input
-                type="text"
+                type={showInvite ? "text" : "password"}
                 className="field-input"
-                placeholder="SUNNY-XXXX-XXXX"
+                placeholder="예: SUNNY2026@ — 사장님께 받은 다운로드 코드"
                 value={invite}
                 onChange={e => setInvite(e.target.value)}
                 autoFocus
                 disabled={status === "loading"}
+                autoComplete="off"
               />
             </div>
 

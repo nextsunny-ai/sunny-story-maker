@@ -33,6 +33,7 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false); // ★ 비번 보기 토글
 
   const quotes = [
     { line: "첫 줄을 쓰는 일은,", em: "언제나 가장 어려운 일.", by: "어떤 작가" },
@@ -261,10 +262,15 @@ function LoginPageInner() {
               // signup 모드 — 비밀번호 + 초대 코드 한 줄 (2단 grid). 사장님 의도: 작가가 초대 코드 어디 적는지 한눈에 보임.
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div className="login-field">
-                  <label>비밀번호</label>
+                  <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span>비밀번호</span>
+                    <button type="button" onClick={() => setShowPassword(p => !p)} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 11, color: "var(--ink-4)", padding: 0, fontWeight: 600 }} title={showPassword ? "가리기" : "보기"}>
+                      {showPassword ? "🙈 가리기" : "👁 보기"}
+                    </button>
+                  </label>
                   <input
                     className="field-input"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     autoComplete="new-password"
@@ -289,15 +295,20 @@ function LoginPageInner() {
             ) : (
               // login 모드 — 비밀번호만 (초대 코드는 아래 옵션 toggle)
               <div className="login-field">
-                <label>
-                  비밀번호
-                  <a href="#" className="login-field-link" onClick={handleForgotPassword}>
-                    비밀번호 찾기
-                  </a>
+                <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                    비밀번호
+                    <a href="#" className="login-field-link" onClick={handleForgotPassword}>
+                      비밀번호 찾기
+                    </a>
+                  </span>
+                  <button type="button" onClick={() => setShowPassword(p => !p)} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 11, color: "var(--ink-4)", padding: 0, fontWeight: 600 }} title={showPassword ? "가리기" : "보기"}>
+                    {showPassword ? "🙈 가리기" : "👁 보기"}
+                  </button>
                 </label>
                 <input
                   className="field-input"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   autoComplete="current-password"
