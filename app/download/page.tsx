@@ -80,7 +80,7 @@ export default function DownloadPage() {
             </h1>
             <p style={{ fontSize: 15, color: "var(--ink-3)", lineHeight: 1.7, marginTop: 14 }}>
               Claude Pro/Max 구독자라면, 본인 PC에 Story Maker를 설치해서 <strong style={{ color: "var(--ink-1)" }}>API 비용 없이</strong> 자유롭게 사용할 수 있습니다.
-              <br />작품 데이터는 사장님 베타 인스턴스에 안전하게 저장됩니다.
+              <br />작품 데이터는 베타 인스턴스에 안전하게 저장됩니다.
             </p>
             <div style={{
               marginTop: 14, padding: "10px 14px",
@@ -122,7 +122,7 @@ export default function DownloadPage() {
           </div>
 
           <div style={{ fontSize: 12, color: "var(--ink-5)", lineHeight: 1.6 }}>
-            막힐 때 → 사장님께 카톡 + 화면 캡처. 셋업 한 번이면 그 다음부턴 자동.
+            막힐 때 → 개발사로 문의 + 화면 캡처. 셋업 한 번이면 그 다음부턴 자동.
           </div>
         </section>
 
@@ -195,7 +195,7 @@ export default function DownloadPage() {
               <input
                 type={showInvite ? "text" : "password"}
                 className="field-input"
-                placeholder="예: SUNNY2026@ — 사장님께 받은 다운로드 코드"
+                placeholder="개발사가 발급한 다운로드 코드를 입력하세요"
                 value={invite}
                 onChange={e => setInvite(e.target.value)}
                 autoFocus

@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   const legacyPassword = "sunny2026@";
   if (provided !== expectedInvite && provided !== expectedPassword && provided !== legacyPassword) {
     return new Response(JSON.stringify({
-      error: "초대 코드가 올바르지 않습니다. 베타 한정 — 사장님께 문의해주세요.",
+      error: "초대 코드가 올바르지 않습니다. 베타 한정 — 개발사로 문의해주세요.",
     }), {
       status: 401, headers: { "content-type": "application/json" },
     });
