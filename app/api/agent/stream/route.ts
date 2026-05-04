@@ -27,6 +27,7 @@ import {
   buildFullPackagePrompt,
   buildOsmuPrompt,
   buildTargetedReviewPrompt,
+  buildSimpleReviewPrompt,
   buildDynamicContext,
   buildGrantMetaPrompt,
   type TargetPersona,
@@ -177,6 +178,9 @@ function buildBasePrompt(b: RequestBody): string {
 
     case "review":
       return buildReviewPrompt(b.text ?? "", genre);
+
+    case "simple-review":
+      return buildSimpleReviewPrompt(b.text ?? "", genre);
 
     case "targeted-review":
       return buildTargetedReviewPrompt(b.text ?? "", b.targets ?? [], genre);

@@ -196,6 +196,7 @@ function ReviewMain() {
 
   // ----- 리뷰 실행 -----
   const [reviewing, setReviewing] = useState(false);
+  const [reviewMode, setReviewMode] = useState<"simple" | "deep">("deep"); // ★ 간단/심층 토글 (사장님 명시 2026-05-04)
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [unifiedReview, setUnifiedReview] = useState<string>("");
   const [reviewResults, setReviewResults] = useState<ReviewResult[]>([]);
@@ -275,8 +276,9 @@ function ReviewMain() {
       alert("시나리오 본문을 붙여넣거나 파일을 업로드해 주세요.");
       return;
     }
-    if (selectedPersonas.length === 0) {
-      alert("리뷰어를 1명 이상 선택해 주세요.");
+    // ★ 간단 모드 = 페르소나 선택 X도 OK / 심층 모드 = 페르소나 1명+ 필요
+    if (reviewMode === "deep" && selectedPersonas.length === 0) {
+      alert("심층 리뷰는 리뷰어를 1명 이상 선택해 주세요. 간단 리뷰는 페르소나 X도 OK.");
       return;
     }
 
@@ -292,7 +294,7 @@ function ReviewMain() {
     const conv = workId
       ? loadJSON<WorkConversation>(KEY.workConversation(workId), { workId, messages: [], updatedAt: 0 })
       : null;
-    const userSummary = `[리뷰] ${selectedPersonas.length}명 페르소나 — ${title.slice(0, 50)}`;
+    const userSummary = `[${reviewMode === "simple" ? "간단" : "심층"} 리뷰] ${title.slice(0, 50)}`;
     let convCollected = "";
 
     try {
@@ -300,9 +302,9 @@ function ReviewMain() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          mode: "targeted-review",
+          mode: reviewMode === "simple" ? "simple-review" : "targeted-review",
           text,
-          targets: selectedPersonas.map(toTargetPersona),
+          ...(reviewMode === "deep" ? { targets: selectedPersonas.map(toTargetPersona) } : {}),
           genreLetter,
           fast: (await import("@/lib/storymaker/model-prefs")).isFastModel("review"),
           ...(workId ? { workId } : {}),
@@ -672,14 +674,53 @@ function ReviewMain() {
         </div>
       )}
 
+      {/* ★ 간단/심층 리뷰 토글 (사장님 명시 2026-05-04) */}
+      <div style={{
+        display: "flex", gap: 8, marginBottom: 12, alignItems: "center",
+        padding: "10px 14px", background: "var(--card-soft)",
+        border: "1px solid var(--line)", borderRadius: 10,
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-3)", letterSpacing: "0.04em" }}>
+          리뷰 깊이
+        </span>
+        <button
+          type="button"
+          onClick={() => setReviewMode("simple")}
+          disabled={reviewing}
+          style={{
+            padding: "6px 14px", fontSize: 12, fontWeight: 600,
+            background: reviewMode === "simple" ? "var(--coral)" : "transparent",
+            color: reviewMode === "simple" ? "#fff" : "var(--ink-3)",
+            border: `1px solid ${reviewMode === "simple" ? "var(--coral)" : "var(--line)"}`,
+            borderRadius: 6, cursor: reviewing ? "not-allowed" : "pointer",
+          }}
+          title="3-5줄 빠른 평가 (작가 = 30초 판단)"
+        >⚡ 간단 리뷰</button>
+        <button
+          type="button"
+          onClick={() => setReviewMode("deep")}
+          disabled={reviewing}
+          style={{
+            padding: "6px 14px", fontSize: 12, fontWeight: 600,
+            background: reviewMode === "deep" ? "var(--coral)" : "transparent",
+            color: reviewMode === "deep" ? "#fff" : "var(--ink-3)",
+            border: `1px solid ${reviewMode === "deep" ? "var(--coral)" : "var(--line)"}`,
+            borderRadius: 6, cursor: reviewing ? "not-allowed" : "pointer",
+          }}
+          title="페르소나별 12 문항 + 통합 + 등급 (배급사 표준)"
+        >🔍 심층 리뷰</button>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--ink-4)" }}>
+          {reviewMode === "simple"
+            ? "★ 빠른 판단용 (페르소나 X도 OK)"
+            : `심층 = 페르소나 ${selectedPersonas.length}명 선택됨`}
+        </span>
+      </div>
+
       <div className="btn-row">
         <Btn kind="coral" icon={I.spark} onClick={onRunReview} disabled={reviewing}>
-          {reviewing ? "리뷰 생성 중…" : "리뷰 받기"}
+          {reviewing ? "리뷰 생성 중…" : (reviewMode === "simple" ? "⚡ 간단 리뷰 받기" : "🔍 심층 리뷰 받기")}
         </Btn>
         <Btn icon={I.download} onClick={onPickFile} disabled={reviewing}>파일 업로드</Btn>
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--ink-4)" }}>
-          선택된 리뷰어 — {selectedPersonas.length}명
-        </span>
       </div>
 
       {(reviewing || unifiedReview || reviewError) && (
