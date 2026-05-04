@@ -567,13 +567,19 @@ export async function POST(req: NextRequest) {
     : (process.env.ANTHROPIC_MODEL || "opus")).trim();
 
   // CLI 단축어 + 옛 invalid id 둘 다 = Anthropic API valid full ID로 매핑
+  // ★ Anthropic 검증된 valid model id (2025년 출시):
+  //   Opus 4.1 (2025-08) = claude-opus-4-1-20250805 ✓
+  //   Sonnet 4 (2025-05) = claude-sonnet-4-20250514 ✓
+  //   Haiku 4.5 (2025-10) = claude-haiku-4-5-20251001 ✓ (Vercel 검증)
   const MODEL_MAP: Record<string, string> = {
     haiku: "claude-haiku-4-5-20251001",
-    sonnet: "claude-sonnet-4-5-20250929",
-    opus: "claude-opus-4-5-20250929",
+    sonnet: "claude-sonnet-4-20250514",
+    opus: "claude-opus-4-1-20250805",
     // 옛 invalid id 호환
-    "claude-opus-4-7": "claude-opus-4-5-20250929",
-    "claude-sonnet-4-6": "claude-sonnet-4-5-20250929",
+    "claude-opus-4-7": "claude-opus-4-1-20250805",
+    "claude-opus-4-5-20250929": "claude-opus-4-1-20250805",
+    "claude-sonnet-4-6": "claude-sonnet-4-20250514",
+    "claude-sonnet-4-5-20250929": "claude-sonnet-4-20250514",
   };
   if (MODEL_MAP[model]) model = MODEL_MAP[model];
 
