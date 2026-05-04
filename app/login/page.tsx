@@ -6,7 +6,14 @@ import { ICONS } from "@/lib/icons";
 import { Symbol } from "@/components/Symbol";
 import { createClient } from "@/lib/supabase/client";
 
-const INVITE_CODE = process.env.NEXT_PUBLIC_INVITE_CODE || "SUNNY2026!";
+// ★ 사장님 명시 2026-05-04: 소문자 표준 (맥 친화) + 대문자 호환
+const INVITE_CODE_PRIMARY = process.env.NEXT_PUBLIC_INVITE_CODE || "sunny2026!";
+const INVITE_CODE_LEGACY = "SUNNY2026!";  // 대문자 호환
+function isValidInvite(code: string): boolean {
+  const c = code.trim();
+  return c === INVITE_CODE_PRIMARY || c === INVITE_CODE_LEGACY;
+}
+const INVITE_CODE = INVITE_CODE_PRIMARY; // 표시용
 
 export default function LoginPage() {
   return (
@@ -57,7 +64,7 @@ function LoginPageInner() {
 
     try {
       if (mode === "signup") {
-        if (!invite || invite.trim() !== INVITE_CODE) {
+        if (!invite || !isValidInvite(invite)) {
           setError("초대 코드가 올바르지 않습니다. 베타 기간엔 초대 코드가 필요합니다.");
           setLoading(false);
           return;

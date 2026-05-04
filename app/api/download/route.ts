@@ -58,11 +58,12 @@ export async function POST(req: NextRequest) {
       status: 400, headers: { "content-type": "application/json" },
     });
   }
-  // 허용 코드 (★ 새 코드 항상 OK + env 박혀있으면 그것도 OK + 옛 호환)
+  // 허용 코드 (★ 사장님 명시 2026-05-04: 소문자 표준 + 대문자 호환 + env 박힌 거)
   const allowedCodes = [
-    "SUNNY2026!",     // ★ 회원가입·다운로드 (새, 대문자)
-    "SUNNY2026@",     // ★ 다운로드 전용 (새, 대문자)
-    "sunny2026@",     // 옛 호환 (소문자)
+    "sunny2026!",     // ★ 회원가입·다운로드 (소문자 = 새 표준, 맥 친화)
+    "sunny2026@",     // ★ 다운로드 전용 (소문자)
+    "SUNNY2026!",     // 대문자 호환 (옛 발급 코드)
+    "SUNNY2026@",     // 대문자 호환
     ...(envInvite ? [envInvite] : []),
     ...(envPassword ? [envPassword] : []),
   ];
