@@ -18,15 +18,43 @@ interface WriteWorkbookProps {
   onAddNote: (label: string) => void;
   onRemoveNote: (id: string) => void;
   onClose: () => void;
+  mediumLabel?: string; // ★ 사장님 명시: 작품 정보에 매체 표시
 }
 
 export function WriteWorkbook({
   notes, flow, chat, input,
-  onInputChange, onSend, onAddNote, onRemoveNote, onClose,
+  onInputChange, onSend, onAddNote, onRemoveNote, onClose, mediumLabel,
 }: WriteWorkbookProps) {
   const I = ICONS;
   const [newNote, setNewNote] = useState("");
-  const [flowOpen, setFlowOpen] = useState(true);
+  // 디렉션·메모 = default 접힘 (작가가 필요할 때만 펼침). 사장님 명시: 채팅이 메인.
+  const [notesOpen, setNotesOpen] = useState(false);
+  // AI 작업 흐름 = default 접힘 (사장님 명시: 대화가 더 중요. AI 흐름은 보조)
+  const [flowOpen, setFlowOpen] = useState(false);
+
+  // 작품 정보 — develop 페이지에서 만든 사전 자료 (로그라인·캐릭터·시놉시스 등) 자동 read.
+  // 사장님 명시: 작가가 본문 쓰다가 캐릭터·로그라인 헷갈릴 때 참조용.
+  const [workRef, setWorkRef] = useState<{
+    title?: string; logline?: string; theme?: string;
+    synopsis?: string; characters?: string; structure?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("storyMaker.developHandoff");
+      if (raw) setWorkRef(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, []);
+
+  // 어떤 항목이라도 있으면 = 작품 정보 섹션 노출
+  const hasWorkRef = !!(workRef && (
+    workRef.title || workRef.logline || workRef.theme ||
+    workRef.characters || workRef.synopsis || workRef.structure
+  ));
+
+  const [refOpen, setRefOpen] = useState(true); // default 펼침 (자주 본다)
+  const [refTab, setRefTab] = useState<"logline" | "characters" | "synopsis" | "structure">("logline");
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,21 +80,152 @@ export function WriteWorkbook({
   return (
     <aside className="wbook">
       <div className="wbook-topbar">
-        <span className="wbook-topbar-title">워크북</span>
+        <span className="wbook-topbar-title">작가노트</span>
         <button
           className="wbook-topbar-close"
           onClick={onClose}
-          title="워크북 접기"
-          aria-label="워크북 접기"
+          title="작가노트 접기"
+          aria-label="작가노트 접기"
         >×</button>
       </div>
 
-      {/* 작가 노트 */}
+      {/* 작품 정보 — develop 사전 자료 자동 표시 (사장님 명시: 작가가 캐릭터·로그라인 헷갈릴 때 참조용) */}
+      {hasWorkRef && (
+        <section className="wbook-section">
+          <button
+            type="button"
+            className="wbook-section-head wbook-section-toggle"
+            onClick={() => setRefOpen(!refOpen)}
+          >
+            <span className="wbook-section-title">📋 작품 정보</span>
+            <span className="wbook-section-meta">
+              <span className="wbook-section-chev">{refOpen ? "−" : "+"}</span>
+            </span>
+          </button>
+          {refOpen && (
+            <div style={{ padding: "8px 14px 12px", display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-5)", letterSpacing: "0.08em", marginBottom: 2 }}>
+                  제목
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink-1)", lineHeight: 1.4 }}>
+                  {(() => {
+                    // 사장님 명시: 작가가 제목 안 정하면 = 가제로. 작가가 채택하면 그때 박힘.
+                    const t = workRef?.title?.trim();
+                    if (!t) return <em style={{ fontStyle: "normal", color: "var(--ink-4)", fontWeight: 500 }}>(가제)</em>;
+                    // AI 후보 텍스트 판정: 마크다운 시작·후보 표현·너무 김 → 작가 채택 X = 가제
+                    const isAIDraft =
+                      t.startsWith("#") || t.startsWith("**") ||
+                      /후보|선택|추천/.test(t.slice(0, 40)) ||
+                      t.length > 60 ||
+                      /\n/.test(t);
+                    if (isAIDraft) {
+                      return <em style={{ fontStyle: "normal", color: "var(--ink-4)", fontWeight: 500 }}>(가제)</em>;
+                    }
+                    return t;
+                  })()}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-5)", letterSpacing: "0.08em", marginBottom: 2 }}>
+                  로그라인
+                </div>
+                <div style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.55 }}>
+                  {(() => {
+                    const l = workRef?.logline?.trim();
+                    if (!l) return <em style={{ fontStyle: "normal", color: "var(--ink-4)" }}>(미정)</em>;
+                    const isAIDraft = l.startsWith("#") || l.length > 200 || /안 1|안 2|안 3|구조형|감정형|반전형/.test(l);
+                    if (isAIDraft) {
+                      return <em style={{ fontStyle: "normal", color: "var(--ink-4)" }}>(미정 — 작가 채택 대기)</em>;
+                    }
+                    return l;
+                  })()}
+                </div>
+              </div>
+              {/* 매체 — 사장님 명시: 작품 정보에 매체 표시 (제목·로그라인·매체·캐릭터) */}
+              {mediumLabel && (
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-5)", letterSpacing: "0.08em", marginBottom: 2 }}>
+                    매체
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.5, fontWeight: 600 }}>
+                    {mediumLabel}
+                  </div>
+                </div>
+              )}
+              {/* 캐릭터 이름들만 — 사장님 명시: 본문 쓰다가 이름 헷갈릴 때 빠르게 보는 용. 시놉·기승전결 제거. */}
+              {workRef?.characters && (
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-5)", letterSpacing: "0.08em", marginBottom: 4 }}>
+                    캐릭터
+                  </div>
+                  <div style={{
+                    fontSize: 12, color: "var(--ink-2)", lineHeight: 1.6,
+                    maxHeight: 140, overflowY: "auto",
+                    padding: "2px 0",
+                  }}>
+                    {(() => {
+                      // 캐릭터 텍스트에서 = 이름·역할만 추출 (한 줄씩, 짧게).
+                      // 형식 추정: "이름 - 역할/설명" 또는 마크다운 헤더 후 본문.
+                      // 첫 N줄 또는 = "**이름**" / "이름:" 패턴 우선.
+                      const text = workRef.characters || "";
+                      const lines = text
+                        .split("\n")
+                        .map(l => l.trim())
+                        .filter(Boolean);
+
+                      // 후보: "**이름**", "이름:", "이름 -" 패턴이 있는 줄만
+                      const namePattern = /^(\*\*|##\s*|#\s*)?([^\s\-:•**]{2,15}(?:\s[^\s\-:•**]{1,15})?)(\*\*|:|\s—|\s-|\s\()/;
+                      const nameLines: string[] = [];
+                      for (const line of lines) {
+                        const m = line.match(namePattern);
+                        if (m && nameLines.length < 8) {
+                          // 마크다운·라벨 제거 후 짧게
+                          const cleaned = line
+                            .replace(/^#{1,6}\s+/, "")
+                            .replace(/\*\*/g, "")
+                            .replace(/^[-*+]\s+/, "")
+                            .trim();
+                          if (cleaned.length > 80) {
+                            nameLines.push(cleaned.slice(0, 78) + "…");
+                          } else {
+                            nameLines.push(cleaned);
+                          }
+                        }
+                      }
+
+                      if (nameLines.length === 0) {
+                        // fallback: 첫 5줄 (마크다운 제거)
+                        return lines.slice(0, 5).map(l =>
+                          l.replace(/^#{1,6}\s+/, "").replace(/\*\*/g, "").slice(0, 80)
+                        ).join("\n");
+                      }
+                      return nameLines.join("\n");
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* 디렉션·메모 (작가 안내 — 헤더 "작가노트"와 중복 방지로 명칭 변경) */}
       <section className="wbook-section">
-        <div className="wbook-section-head">
-          <span className="wbook-section-title">📌 작가 노트</span>
-          <span className="wbook-section-meta">{notes.length}</span>
-        </div>
+        <button
+          type="button"
+          className="wbook-section-head wbook-section-toggle"
+          onClick={() => setNotesOpen(!notesOpen)}
+        >
+          <span className="wbook-section-title">📌 디렉션·메모</span>
+          <span className="wbook-section-meta">
+            {notes.length}
+            <span className="wbook-section-chev">{notesOpen ? "−" : "+"}</span>
+          </span>
+        </button>
+        {!notesOpen && null}
+        {notesOpen && (
+        <>
         <div className="wbook-notes">
           {notes.map(n => (
             <div key={n.id} className="wbook-note" title="클릭해서 삭제">
@@ -88,9 +247,140 @@ export function WriteWorkbook({
           />
         </form>
         <div className="wbook-note-hint">대화에서 자동으로 추가되거나 직접 입력</div>
+        </>
+        )}
       </section>
 
-      {/* AI 작업 흐름 */}
+      {/* 대화 (메인 — 가장 큰 영역, 사장님 명시: 대화가 가장 중요) */}
+      <section className="wbook-section wbook-chat-section">
+        <div className="wbook-section-head">
+          <span className="wbook-section-title">💬 대화</span>
+          <span className="wbook-section-meta">{chat.length}</span>
+        </div>
+
+        <div className="wbook-chat" ref={chatRef}>
+          {chat.map(m => (
+            <div key={m.id} className={"wbook-msg is-" + m.role}>
+              <div className="wbook-msg-head">
+                <span className="wbook-msg-who">{m.role === "writer" ? "나" : "Sunny"}</span>
+                <span className="wbook-msg-time">{m.t}</span>
+                {/* 카피 버튼 — AI 채팅창 표준 */}
+                {m.text && (
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      try {
+                        await navigator.clipboard.writeText(m.text);
+                        const btn = e.currentTarget;
+                        btn.textContent = "✓";
+                        setTimeout(() => { btn.textContent = "📋"; }, 1200);
+                      } catch { /* ignore */ }
+                    }}
+                    title="메시지 복사"
+                    style={{
+                      marginLeft: "auto",
+                      background: "transparent", border: "none",
+                      cursor: "pointer", fontSize: 11,
+                      color: "var(--ink-4)", padding: "1px 4px",
+                      opacity: 0.5, lineHeight: 1,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.5"; }}
+                  >📋</button>
+                )}
+              </div>
+              <div className="wbook-msg-text">
+                {(() => {
+                  if (m.role !== "ai") return m.text;
+                  if (!m.text) return "";
+                  // ===CHOICES=== 마커 분리 — chip 버튼 (사장님 명시: 작가 채팅 적게 치고 빠른 결정)
+                  const idx = m.text.indexOf("===CHOICES===");
+                  if (idx === -1) return <Markdown text={m.text} compact />;
+                  const bodyText = m.text.slice(0, idx).trim();
+                  const choicesText = m.text.slice(idx + "===CHOICES===".length).trim();
+                  const choices = choicesText
+                    .split("\n")
+                    .map(line => line.replace(/^[\d]+\.\s*|^[-*]\s*/, "").trim())
+                    .filter(Boolean);
+                  return (
+                    <>
+                      {bodyText && <Markdown text={bodyText} compact />}
+                      {choices.length > 0 && (
+                        <div style={{
+                          marginTop: 8, paddingTop: 8,
+                          borderTop: "1px dashed var(--line)",
+                          display: "flex", flexWrap: "wrap", gap: 5,
+                        }}>
+                          {choices.map((c, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => {
+                                onInputChange(c);
+                              }}
+                              style={{
+                                padding: "4px 10px", fontSize: 11.5, fontWeight: 600,
+                                background: "var(--card)",
+                                color: "var(--coral-deep)",
+                                border: "1px solid var(--coral)",
+                                borderRadius: 999, cursor: "pointer",
+                              }}
+                            >
+                              {i + 1}. {c.length > 36 ? c.slice(0, 34) + "…" : c}
+                            </button>
+                          ))}
+                          {/* 기타 — 사장님 명시: 항상 추가 */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onInputChange("");
+                              setTimeout(() => {
+                                const el = document.querySelector<HTMLTextAreaElement>("textarea.wbook-input-text");
+                                el?.focus();
+                              }, 50);
+                            }}
+                            style={{
+                              padding: "4px 10px", fontSize: 11.5, fontWeight: 600,
+                              background: "transparent",
+                              color: "var(--ink-3)",
+                              border: "1px dashed var(--ink-4)",
+                              borderRadius: 999, cursor: "pointer",
+                            }}
+                          >+ 기타</button>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="wbook-input">
+          <textarea
+            className="wbook-input-text"
+            placeholder='예: "도윤 캐릭터 어둡게" / "다음 씬은 회상으로" / "이 시대 의상은?"'
+            rows={2}
+            value={input}
+            onChange={e => onInputChange(e.target.value)}
+            onKeyDown={onSendKey}
+          />
+          <button
+            className="wbook-input-send"
+            onClick={onSend}
+            disabled={!input.trim()}
+            aria-label="보내기"
+          >
+            <span>{I.arrow}</span>
+          </button>
+        </div>
+        <div className="wbook-input-hint">
+          디렉션·수정·자료조사·이름 추천 — 무엇이든. AI가 본문에 반영하거나 채팅으로 답합니다.
+        </div>
+      </section>
+
+      {/* AI 작업 흐름 (default 접힘 — 클릭해서 펼침) */}
       <section className="wbook-section">
         <button
           className="wbook-section-head wbook-section-toggle"
@@ -124,52 +414,6 @@ export function WriteWorkbook({
             ))}
           </ol>
         )}
-      </section>
-
-      {/* 라이브 대화 */}
-      <section className="wbook-section wbook-chat-section">
-        <div className="wbook-section-head">
-          <span className="wbook-section-title">💬 라이브 대화</span>
-          <span className="wbook-section-meta">{chat.length}</span>
-        </div>
-
-        <div className="wbook-chat" ref={chatRef}>
-          {chat.map(m => (
-            <div key={m.id} className={"wbook-msg is-" + m.role}>
-              <div className="wbook-msg-head">
-                <span className="wbook-msg-who">{m.role === "writer" ? "나" : "Sunny"}</span>
-                <span className="wbook-msg-time">{m.t}</span>
-              </div>
-              <div className="wbook-msg-text">
-                {m.role === "ai" && m.text
-                  ? <Markdown text={m.text} compact />
-                  : m.text}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="wbook-input">
-          <textarea
-            className="wbook-input-text"
-            placeholder="지금 끼어들기… (Enter 전송 · Shift+Enter 줄바꿈)"
-            rows={2}
-            value={input}
-            onChange={e => onInputChange(e.target.value)}
-            onKeyDown={onSendKey}
-          />
-          <button
-            className="wbook-input-send"
-            onClick={onSend}
-            disabled={!input.trim()}
-            aria-label="보내기"
-          >
-            <span>{I.arrow}</span>
-          </button>
-        </div>
-        <div className="wbook-input-hint">
-          AI가 한 단락 끝까지 마무리하고 멈춰서 반영합니다
-        </div>
       </section>
     </aside>
   );

@@ -467,20 +467,206 @@ function SystemTab() {
   };
   return (
     <Fragment>
+      {/* 현재 인증 상태 — 작가가 매번 .env 까보지 않아도 보이게 */}
+      <div style={{
+        marginBottom: 22, padding: "14px 18px",
+        background: "var(--card-soft)", border: "1px solid var(--line)",
+        borderRadius: 12,
+        display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+      }}>
+        <span style={{
+          width: 10, height: 10, borderRadius: "50%",
+          background: "#10b981", flexShrink: 0,
+          boxShadow: "0 0 0 3px rgba(16,185,129,0.15)",
+        }}></span>
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--ink-1)", marginBottom: 2 }}>
+            Claude Pro/Max OAuth · API 비용 0원
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--ink-3)", lineHeight: 1.55 }}>
+            본인 구독 그대로 사용 · 토큰 차감 X · 분당 rate limit만 주의
+          </div>
+        </div>
+        <div style={{
+          fontSize: 10.5, color: "var(--ink-5)", fontFamily: "ui-monospace, monospace",
+          padding: "4px 8px", background: "var(--bg)",
+          border: "1px solid var(--line)", borderRadius: 6,
+        }}>
+          USE_CLAUDE_CODE=true
+        </div>
+      </div>
+
       <SectionHead
         num={1}
-        title="로컬에서 무료로 사용"
-        sub="Claude Pro/Max 구독자라면 본인 PC에 Story Maker를 설치해서 API 비용 0원으로 사용할 수 있습니다."
+        title="두 가지 사용 방법"
+        sub="본인 상황에 맞는 방식 선택. 둘 다 같은 Story Maker — 어디서 돌리고 누가 비용 내는지만 다릅니다."
       />
-      <div className="adm-plan">
-        <div className="adm-plan-tag">LOCAL VERSION</div>
-        <div className="adm-plan-name">본인 PC에서 <em>무료</em></div>
-        <div className="adm-plan-meta">Claude Pro $20/월 안에서 무제한 — Story Maker 추가 비용 없음</div>
-        <div className="adm-plan-side">
-          <div className="kv"><div className="kv-k">파일 크기</div><div className="kv-v">~290KB</div></div>
-          <div className="kv"><div className="kv-k">셋업</div><div className="kv-v">5분</div></div>
+
+      <div style={{ display: "grid", gap: 14, gridTemplateColumns: "1fr 1fr" }}>
+        {/* ============ 방식 A — LOCAL ============ */}
+        <div style={{
+          padding: "20px 22px",
+          border: "2px solid var(--coral)",
+          borderRadius: 14,
+          background: "var(--card-soft)",
+          display: "flex", flexDirection: "column", gap: 12,
+        }}>
+          <div style={{
+            display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
+          }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: "0.16em",
+              color: "var(--coral)",
+            }}>방식 A · 로컬</span>
+            <span style={{
+              fontSize: 10, padding: "2px 8px",
+              background: "var(--coral)", color: "#fff",
+              borderRadius: 999, fontWeight: 700,
+            }}>추천</span>
+          </div>
+          <div style={{ fontSize: 19, fontWeight: 700, color: "var(--ink-1)", letterSpacing: "-0.01em" }}>
+            본인 PC + Claude 구독으로<br/>
+            <em style={{ fontStyle: "italic", color: "var(--coral)" }}>API 비용 0원</em>
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.6 }}>
+            Claude Pro($20/월) 또는 Max($100/월) 구독자라면 = 본인 PC에 Story Maker 한 번 설치 + Claude CLI 로그인 한 번 = 끝. 추가 결제 X.
+          </div>
+
+          <div style={{
+            padding: "12px 14px", background: "var(--bg)",
+            border: "1px solid var(--line)", borderRadius: 10,
+            fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.75,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-4)", marginBottom: 6, letterSpacing: "0.08em" }}>
+              아주 쉬운 4단계
+            </div>
+            <ol style={{ paddingLeft: 18, margin: 0, display: "grid", gap: 4 }}>
+              <li><strong>Claude Pro/Max 구독</strong> (이미 있으면 통과)<br/>
+                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ claude.ai 가서 결제</span>
+              </li>
+              <li><strong>Claude CLI 설치</strong><br/>
+                <code style={{ fontSize: 11, color: "var(--coral-deep)", background: "var(--card-soft)", padding: "1px 6px", borderRadius: 4 }}>
+                  npm install -g @anthropic-ai/claude-code
+                </code>
+              </li>
+              <li><strong>한 번만 로그인</strong><br/>
+                <code style={{ fontSize: 11, color: "var(--coral-deep)", background: "var(--card-soft)", padding: "1px 6px", borderRadius: 4 }}>
+                  claude /login
+                </code>
+                <span style={{ fontSize: 11, color: "var(--ink-4)" }}> → 브라우저로 OAuth 인증</span>
+              </li>
+              <li><strong>Story Maker 다운로드 + 실행</strong> (5분)<br/>
+                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ 아래 「다운로드」 버튼</span>
+              </li>
+            </ol>
+          </div>
+
+          <div className="adm-plan-side" style={{ marginTop: 0 }}>
+            <div className="kv"><div className="kv-k">월 비용</div><div className="kv-v">0원 (구독에 포함)</div></div>
+            <div className="kv"><div className="kv-k">사용량 제한</div><div className="kv-v">분당 토큰 한도만</div></div>
+            <div className="kv"><div className="kv-k">데이터</div><div className="kv-v">본인 PC localStorage</div></div>
+          </div>
+
+          <a href="/download" className="btn btn-coral" style={{ textDecoration: "none", marginTop: "auto" }}>
+            로컬 다운로드 →
+          </a>
         </div>
-        <a href="/download" className="btn btn-coral" style={{ textDecoration: "none" }}>다운로드</a>
+
+        {/* ============ 방식 B — 웹 (story.sunnytoon.com) ============ */}
+        <div style={{
+          padding: "20px 22px",
+          border: "1px solid var(--line)",
+          borderRadius: 14,
+          background: "var(--card-soft)",
+          display: "flex", flexDirection: "column", gap: 12,
+        }}>
+          <div style={{
+            display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
+          }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: "0.16em",
+              color: "var(--ink-3)",
+            }}>방식 B · 웹</span>
+            <span style={{
+              fontSize: 10, padding: "2px 8px",
+              background: "var(--ink-5)", color: "#fff",
+              borderRadius: 999, fontWeight: 700,
+            }}>설치 X</span>
+          </div>
+          <div style={{ fontSize: 19, fontWeight: 700, color: "var(--ink-1)", letterSpacing: "-0.01em" }}>
+            <code style={{ fontSize: 16, color: "var(--coral)", fontFamily: "inherit" }}>story.sunnytoon.com</code><br/>
+            <span style={{ fontSize: 14, color: "var(--ink-3)", fontWeight: 500 }}>
+              + 본인 Anthropic API 키
+            </span>
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.6 }}>
+            설치 X · 어디서든 브라우저로 접속. 본인 Anthropic API 키를 어드민에 한 번 입력 = 사용한 만큼만 결제. Claude 구독 없어도 OK.
+          </div>
+
+          <div style={{
+            padding: "12px 14px", background: "var(--bg)",
+            border: "1px solid var(--line)", borderRadius: 10,
+            fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.75,
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-4)", marginBottom: 6, letterSpacing: "0.08em" }}>
+              아주 쉬운 5단계
+            </div>
+            <ol style={{ paddingLeft: 18, margin: 0, display: "grid", gap: 4 }}>
+              <li><strong>Anthropic 콘솔 가입</strong><br/>
+                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ console.anthropic.com</span>
+              </li>
+              <li><strong>API 키 발급</strong><br/>
+                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ Settings → API Keys → Create Key</span>
+              </li>
+              <li><strong>결제 카드 등록</strong><br/>
+                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ Plans &amp; Billing (사용한 만큼만 차감)</span>
+              </li>
+              <li><strong>웹 접속 + 가입</strong><br/>
+                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ story.sunnytoon.com 가서 회원가입 (초대 코드 필요)</span>
+              </li>
+              <li><strong>어드민에 API 키 붙여넣기</strong><br/>
+                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ 시스템 탭 → API 키 칸에 sk-ant-... 붙여넣기 + 저장</span>
+              </li>
+            </ol>
+          </div>
+
+          <div className="adm-plan-side" style={{ marginTop: 0 }}>
+            <div className="kv"><div className="kv-k">월 비용</div><div className="kv-v">사용량 (대략 $5~30/월)</div></div>
+            <div className="kv"><div className="kv-k">사용량 제한</div><div className="kv-v">결제 한도까지 무제한</div></div>
+            <div className="kv"><div className="kv-k">데이터</div><div className="kv-v">서버 + 어디서든 동기화</div></div>
+          </div>
+
+          <a
+            href="https://story.sunnytoon.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn"
+            style={{
+              textDecoration: "none", marginTop: "auto",
+              background: "transparent",
+              border: "1px solid var(--coral)",
+              color: "var(--coral-deep)",
+            }}
+          >
+            story.sunnytoon.com →
+          </a>
+        </div>
+      </div>
+
+      {/* 비교 한눈에 */}
+      <div style={{
+        marginTop: 14, padding: "12px 16px",
+        background: "var(--bg)",
+        border: "1px dashed var(--line)",
+        borderRadius: 10,
+        fontSize: 11.5, color: "var(--ink-3)", lineHeight: 1.65,
+      }}>
+        <strong style={{ color: "var(--ink-1)" }}>한 줄 비교 —</strong>
+        <span style={{ marginLeft: 6 }}>
+          <strong style={{ color: "var(--coral)" }}>로컬</strong>은 = Claude 구독 있고 본인 PC에서만 쓸 거면 <em>비용 0원</em>.
+          <strong style={{ color: "var(--ink-1)", marginLeft: 4 }}>웹</strong>은 = 어디서든 접속 + 작가팀과 공유 + 사용한 만큼만 결제.
+          <strong style={{ marginLeft: 4 }}>둘 다 같은 Story Maker.</strong> 의뢰 응답·매체별 양식·다운로드 다 동일.
+        </span>
       </div>
 
       <SectionHead num={2} title="AI 설정" sub="SUNNY의 동작 방식." />

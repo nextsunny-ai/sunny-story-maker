@@ -1,14 +1,16 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { GENRES } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { WriteCanvas, type Para, type WorkInfo } from "@/components/WriteCanvas";
 import { WriteWorkbook, type Note, type FlowItem, type ChatMsg } from "@/components/WriteWorkbook";
 import { Btn } from "@/components/ui";
-import { KEY, loadJSON, saveJSON } from "@/lib/persist";
+import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
+import { appendTurns } from "@/lib/storymaker/work-id";
+import { downloadDocx, downloadTxt } from "@/lib/storymaker/export";
 import { getWorkflow, QUICK_ACTIONS } from "@/lib/workflows";
 import {
   MediumFieldRenderer,
@@ -122,23 +124,20 @@ function buildNewWorkContext(idea: string, genreLetter: string, activeStepName?:
   };
 }
 
-// ───── mode=continue: 기존 작품 이어쓰기 (DB 연결은 다음 라운드) ─────
+// ───── mode=continue: 저장된 작품이 없을 때 fallback (정상 흐름은 KEY.writeProject 자동 복원) ─────
 function buildContinueContext(projectName: string): Ctx {
+  const display = projectName.length > 40 ? projectName.slice(0, 38) + "…" : projectName;
   return {
-    work: { title: projectName, chapter: "이어쓰기", elapsed: "방금 열림", medium: "기존 작품" },
-    notes: [{ id: "n_loaded", label: `${projectName} 컨텍스트 불러오는 중…` }],
+    work: { title: display, chapter: "이어쓰기", elapsed: "방금 열림", medium: "기존 작품" },
+    notes: [],
     flow: [
-      { id: "f1", state: "active",  title: "이전 작업 컨텍스트 로드", hint: "최신 버전 본문·노트·디렉션 복원" },
-      { id: "f2", state: "pending", title: "이어쓸 위치 결정",        hint: "마지막 단락 다음 또는 작가 지정" },
+      { id: "f1", state: "active", title: "이어쓸 위치 결정", hint: "첫 단락부터 시작하거나 우측 채팅에서 위치 지정" },
     ],
     paras: [
-      { id: "p_loaded", n: 1, label: "이전 본문",
-        text: `${projectName}의 마지막 본문이 곧 여기 표시됩니다. (DB 연결 후 활성화 — 지금은 빈 캔버스)`,
-        status: "done" },
-      { id: "p_next", n: 2, label: "이어쓸 단락", text: "", status: "pending" },
+      { id: "p_next", n: 1, label: "이어쓸 단락", text: "", status: "pending" },
     ],
     chat: [{ id: "m_resume", role: "ai",
-             text: `${projectName} 다시 열었어요. 어디서부터 이어쓸까요?`, t: "방금" }],
+             text: `${display} 열었습니다. 어디서부터 이어쓸지 말씀해 주세요.`, t: "방금" }],
   };
 }
 
@@ -178,23 +177,108 @@ function buildAdaptContext(mode: string, projectName: string, sourceLetter: stri
 
 // ───── 작품 선택 안내 (mode 없이 직접 진입) ─────
 function NoProjectGate() {
+  const router = useRouter();
+  // 마지막 작품 정보 (있을 때만 "이어가기" 버튼 노출 — 또는 자동 redirect)
+  const [lastProject, setLastProject] = useState<{
+    mode?: string; idea?: string; genre?: string; project?: string; from?: string; fast?: string; savedAt?: string;
+  } | null>(null);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    // ★ 사장님 명시: /write 진입 시 = 빈 화면이든 작업 중이든 자동 진입. NoProjectGate 안 거침.
+    //   - 옛 작품 있으면 = 그 작품 자동 복원
+    //   - 없으면 = 빈 작업실 (채팅으로 처음부터 시작)
+    //   - 다른 작품 전환 = 작업실 헤더의 「📁 작품 변경」 버튼 또는 = 사이드바 Library
+    const last = loadJSON<typeof lastProject>(KEY.writeLastProject, null);
+    if (last && last.mode) {
+      const params = new URLSearchParams();
+      if (last.mode) params.set("mode", last.mode);
+      if (last.idea) params.set("idea", last.idea);
+      if (last.genre) params.set("genre", last.genre);
+      if (last.project) params.set("project", last.project);
+      if (last.from) params.set("from", last.from);
+      if (last.fast) params.set("fast", last.fast);
+      router.replace(`/write?${params.toString()}`);
+      return;
+    }
+    // 옛 작품 없으면 = 빈 작업실 자동
+    const blankIdea = `새 작품 ${new Date().toLocaleDateString("ko-KR")}`;
+    const adminMedium = loadJSON<string | null>(KEY.adminPrimaryMedium, null);
+    const defaultGenre = adminMedium || "A";
+    const params = new URLSearchParams({
+      mode: "new",
+      idea: blankIdea,
+      genre: defaultGenre,
+      fast: "1",
+      blank: "1",
+    });
+    router.replace(`/write?${params.toString()}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 자동 redirect 도중에는 빈 화면 (잠깐)
+  if (!checked) {
+    return (
+      <main className="main">
+        <div style={{ padding: "60px 0", textAlign: "center", color: "var(--ink-4)", fontSize: 13 }}>
+          ⏳ 마지막 작품 불러오는 중…
+        </div>
+      </main>
+    );
+  }
+
+  const continueLast = () => {
+    if (!lastProject) return;
+    const params = new URLSearchParams();
+    if (lastProject.mode) params.set("mode", lastProject.mode);
+    if (lastProject.idea) params.set("idea", lastProject.idea);
+    if (lastProject.genre) params.set("genre", lastProject.genre);
+    if (lastProject.project) params.set("project", lastProject.project);
+    if (lastProject.from) params.set("from", lastProject.from);
+    if (lastProject.fast) params.set("fast", lastProject.fast);
+    router.replace(`/write?${params.toString()}`);
+  };
+
+  const lastTitle = lastProject?.project || lastProject?.idea || "";
+
   return (
     <main className="main">
       <Topbar
         eyebrow="WRITE — 작품 선택"
         title='어떤 <em style="font-style:italic">작품</em>을 작업할까요<span class="dot">?</span>'
-        sub="새 작품은 홈에서 한 줄 아이디어로 시작하거나, 라이브러리에서 진행 중인 작품을 선택해주세요."
+        sub="이전 작품을 이어가거나, 홈에서 새로 시작하거나, 라이브러리에서 골라 들어가세요."
       />
       <div style={{
         padding: "40px 0", textAlign: "center",
         display: "flex", flexDirection: "column", gap: 16, alignItems: "center",
       }}>
-        <div style={{ display: "flex", gap: 10 }}>
-          <a href="/" className="btn btn-coral" style={{ textDecoration: "none" }}>홈으로 — 새 작품 시작</a>
+        {lastProject && (
+          <div style={{
+            padding: "16px 20px", marginBottom: 8,
+            background: "var(--card-soft)", border: "1px solid var(--coral)",
+            borderRadius: 12, maxWidth: 520, textAlign: "left",
+          }}>
+            <div style={{ fontSize: 11, color: "var(--coral)", letterSpacing: "0.1em", fontWeight: 700, marginBottom: 6 }}>
+              마지막 작업 작품
+            </div>
+            <div style={{ fontSize: 14, color: "var(--ink-1)", marginBottom: 4, lineHeight: 1.5 }}>
+              {lastTitle.length > 60 ? lastTitle.slice(0, 58) + "…" : lastTitle || "(제목 없음)"}
+            </div>
+            {lastProject.savedAt && (
+              <div style={{ fontSize: 11, color: "var(--ink-4)" }}>
+                {new Date(lastProject.savedAt).toLocaleString("ko-KR")}
+              </div>
+            )}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+          {lastProject && (
+            <button onClick={continueLast} className="btn btn-coral" style={{ cursor: "pointer" }}>
+              이어가기 →
+            </button>
+          )}
+          <a href="/" className="btn" style={{ textDecoration: "none" }}>홈으로 — 새 작품 시작</a>
           <a href="/library" className="btn" style={{ textDecoration: "none" }}>라이브러리에서 선택</a>
-        </div>
-        <div style={{ marginTop: 32, fontSize: 11, color: "var(--ink-5)" }}>
-          데모 화면을 보고 싶다면 <a href="/write?demo=1" style={{ color: "var(--coral)", textDecoration: "underline" }}>샘플 작업실</a> 열기
         </div>
       </div>
     </main>
@@ -210,6 +294,19 @@ interface PersistedProject {
   mediumFields?: FieldValues;
   briefDone?: boolean;
   updatedAt: string;
+}
+
+// 라이브러리 자동 등록용 — library/page.tsx의 LibraryWork와 동일 구조.
+interface LibraryWorkLite {
+  id: number | string;
+  title: string;
+  genre: string;
+  letter: string;
+  stage: string;
+  prog: number;
+  updated: string;
+  size: string;
+  next?: string;
 }
 
 function projectKeyFor(mode: string | null, isDemo: boolean, projectParam: string, ideaParam: string, genreLetter: string): string | null {
@@ -239,10 +336,9 @@ function WriteMain() {
   const isDirectMode = searchParams.get("fast") === "1"; // AI로 바로 집필 = 곧장 본문(script)
   const isPlanMode = searchParams.get("plan") === "1";   // 기획 후 집필 = 사전 자료 단계
 
-  // 작품 선택 안내 화면 — mode 없고 demo 아니면
-  if (!mode && !isDemo) {
-    return <NoProjectGate />;
-  }
+  // ★ early return은 모든 hook 다음으로 — React Rules of Hooks 위반 방지.
+  //   (NoProjectGate redirect는 useEffect로 처리해서 hook 순서 일정 유지)
+  const showNoProjectGate = !mode && !isDemo;
 
   // ─── 매체 정보 ───
   const wf = useMemo(() => getWorkflow(genreParam), [genreParam]);
@@ -279,14 +375,20 @@ function WriteMain() {
 
   const [briefDone, setBriefDone] = useState<boolean>(() => {
     if (isDemo) return true;
-    // fast=1 (홈 Start Writing 또는 develop 컨펌 후) → 의뢰 폼 스킵, 곧장 본문
     if (isDirectMode) return true;
     if (mode === "continue" || mode === "adapt-same" || mode === "adapt-cross") return true;
+    // ★ 사장님 명시: /write는 본문 + 채팅 작업창. 의뢰서 폼 X.
+    //   mode=new + idea 있으면 = 무조건 본문 모드 (의뢰서는 /develop에서만).
+    //   plan=1 명시 시만 = 의뢰서 폼 (drama·영화·웹툰 등 매체별 사전 입력 강제 케이스).
+    if (mode === "new" && ideaParam && !isPlanMode) return true;
     if (storageKey) {
       const saved = loadJSON<PersistedProject | null>(storageKey, null);
-      if (saved?.briefDone) return true;
-      // 복원된 paras가 있으면 의뢰 단계 지나간 것으로 간주
-      if (saved?.paras && saved.paras.length > 0) return true;
+      if (saved) {
+        if (saved.briefDone) return true;
+        if (saved.paras && saved.paras.length > 0) return true;
+        if (saved.mediumFields && Object.keys(saved.mediumFields).length > 0) return true;
+        if (saved.updatedAt) return true;
+      }
     }
     return false;
   });
@@ -329,10 +431,16 @@ function WriteMain() {
   const [chat, setChat] = useState<ChatMsg[]>(initial.chat);
   const [paused, setPaused] = useState(false);
   const [input, setInput] = useState("");
+  // ★ AI streaming abort용 — ⏸ 잠깐 버튼이 진짜 abort 호출하도록.
+  const aiAbortRef = useRef<AbortController | null>(null);
+  // ★ AI 호출 진행 중 표시 — 스탑 버튼 노출 통제.
+  const [aiBusy, setAiBusy] = useState(false);
 
-  // 변경 시 자동 저장 (debounced)
+  // 변경 시 자동 저장 (debounced) + 마지막 작품 키 기록 + 라이브러리 동기화
   useEffect(() => {
     if (!storageKey) return;
+    if (isDemo) return; // demo는 라이브러리 등록 X
+    if (!persistKey) return;
     const timer = setTimeout(() => {
       const snapshot: PersistedProject = {
         work, notes, flow, paras, chat,
@@ -341,9 +449,92 @@ function WriteMain() {
         updatedAt: new Date().toISOString(),
       };
       saveJSON(storageKey, snapshot);
+      // 마지막 작품 정보 — 빈 mode 진입 시 복원할 query 저장
+      saveJSON(KEY.writeLastProject, {
+        mode, idea: ideaParam, genre: genreParam, project: projectParam,
+        from: searchParams.get("from") || "",
+        fast: searchParams.get("fast") || "",
+        savedAt: new Date().toISOString(),
+      });
+      // 라이브러리 자동 동기화 — id=persistKey 일관 사용 (mode=new/continue 모두 같은 키로 읽음)
+      const totalChars = paras.reduce((sum, p) => sum + (p.text?.length || 0), 0);
+      const writtenParas = paras.filter(p => p.text && p.text.trim()).length;
+      const isStreaming = paras.some(p => p.status === "streaming");
+      const stage = !briefDone ? "기획"
+        : isStreaming ? "집필 중"
+        : writtenParas === 0 ? "기획"
+        : writtenParas < 3 ? "트리트먼트"
+        : "집필 중";
+      // 진척도: 매체별 표준 분량 5000자 기준 (대략) — 실제 기준은 추후 매체별 조정
+      const prog = Math.min(1, totalChars / 5000);
+      const today = new Date();
+      const updatedStr = `${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
+      const newWork: LibraryWorkLite = {
+        id: persistKey,
+        title: work.title || ideaParam.slice(0, 40) || "(제목 없음)",
+        genre: wf.name,
+        letter: genreParam,
+        stage,
+        prog,
+        updated: updatedStr,
+        size: totalChars > 0 ? `${totalChars.toLocaleString()}자` : "—",
+        next: paras.find(p => p.status === "pending")?.label,
+      };
+      const libworks = loadJSON<LibraryWorkLite[]>(KEY.libraryWorks, []);
+      const idx = libworks.findIndex(w => w.id === newWork.id);
+      if (idx >= 0) libworks[idx] = { ...libworks[idx], ...newWork };
+      else libworks.push(newWork);
+      saveJSON(KEY.libraryWorks, libworks);
+
+      // ★ 메모리 시스템 — 작품별 .md 파일 자동 누적 (백그라운드 Claude들이 매 호출 read).
+      //   사장님 명시: 끄지 않는 동안 = 같은 클로드처럼 일관 + 다음 진입 시도 .md 영구 보관.
+      try {
+        const developRaw = window.localStorage.getItem("storyMaker.developHandoff");
+        const dev = developRaw ? JSON.parse(developRaw) : {};
+        const bodyText = paras
+          .filter(p => p.text && p.text.trim())
+          .map(p => p.text)
+          .join("\n\n");
+        const noteText = notes
+          .filter(n => n.label)
+          .map(n => `- ${n.label}`)
+          .join("\n");
+        const chatText = chat
+          .map(m => `[${m.role === "writer" ? "작가" : "보조작가"} · ${m.t}]\n${m.text}`)
+          .join("\n\n---\n\n");
+        const fields = Object.entries(mediumFields || {})
+          .filter(([, v]) => v != null && v !== "" && (!Array.isArray(v) || v.length > 0))
+          .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join("\n");
+
+        const stamp = new Date().toLocaleString("ko-KR");
+        const memoryFiles: Record<string, string> = {
+          "01_info.md": `# ${work.title || "(가제)"}\n\n` +
+            `- 매체: ${wf.letter}. ${wf.name} (${wf.export_format})\n` +
+            `- 작가 작업: ${stamp}\n` +
+            `- 작품 키: ${persistKey}\n\n` +
+            (fields ? `## 의뢰 정보\n${fields}\n` : ""),
+          "02_brief.md": `# 사전 자료 (제목·로그라인·시놉시스·캐릭터·기승전결)\n\n` +
+            (dev.title ? `## 제목 후보\n${dev.title}\n\n` : "") +
+            (dev.logline ? `## 로그라인\n${dev.logline}\n\n` : "") +
+            (dev.theme ? `## 주제\n${dev.theme}\n\n` : "") +
+            (dev.synopsis ? `## 시놉시스\n${dev.synopsis}\n\n` : "") +
+            (dev.characters ? `## 캐릭터\n${dev.characters}\n\n` : "") +
+            (dev.structure ? `## 기승전결\n${dev.structure}\n\n` : ""),
+          "03_body.md": `# 본문 (${bodyText.length.toLocaleString()}자, ${paras.length}단락)\n\n${bodyText}`,
+          "04_notes.md": `# 작가 디렉션·메모\n\n${noteText || "(없음)"}\n`,
+          "05_chat.md": `# 작가-보조작가 대화 로그\n\n${chatText || "(없음)"}\n`,
+        };
+        // fire-and-forget — 자동 저장은 = 실패해도 UI 막지 X
+        fetch("/api/memory/save", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ workId: persistKey, files: memoryFiles }),
+        }).catch(() => { /* ignore */ });
+      } catch { /* ignore — 메모리 저장 실패는 localStorage 자동 저장 막지 X */ }
     }, 400);
     return () => clearTimeout(timer);
-  }, [storageKey, work, notes, flow, paras, chat, mediumFields, briefDone]);
+  }, [storageKey, work, notes, flow, paras, chat, mediumFields, briefDone, persistKey, isDemo, wf]);
 
   // 워크북 패널 토글
   const [bookOpen, setBookOpen] = useState<boolean>(true);
@@ -396,6 +587,8 @@ function WriteMain() {
     if (!briefDone) return; // ★ 의뢰 분석 끝나야 호출
 
     const controller = new AbortController();
+    aiAbortRef.current = controller; // ★ 외부 스탑 버튼이 abort할 수 있도록 ref에 박음
+    setAiBusy(true);
     let cancelled = false;
 
     // 액션 → 모드 매핑 (빠른 의뢰)
@@ -431,6 +624,12 @@ function WriteMain() {
       } catch { /* ignore */ }
     }
 
+    // ★ 한 클로드 conversation 모델 — 옛 turn 누적해서 보냄 (prompt cache 1h TTL = 입력 토큰 1/10)
+    const initConv = persistKey
+      ? loadJSON<WorkConversation>(KEY.workConversation(persistKey), { workId: persistKey, messages: [], updatedAt: 0 })
+      : null;
+    const initUserSummary = `[${apiMode}] ${ideaParam}`.slice(0, 200);
+
     (async () => {
       try {
         const res = await fetch("/api/agent/stream", {
@@ -442,6 +641,8 @@ function WriteMain() {
             genreLetter: genreParam,
             mediumFields,
             fast: true,
+            ...(persistKey ? { workId: persistKey } : {}),
+            ...(initConv ? { conversationMessages: initConv.messages } : {}),
             ...(developPrior ? { prior: developPrior } : {}),
           }),
           signal: controller.signal,
@@ -452,6 +653,7 @@ function WriteMain() {
         const decoder = new TextDecoder();
         let buf = "";
         let firstDelta = true;
+        let convCollected = ""; // ★ workConversation 누적용 (응답 다 받은 후 saveJSON)
 
         while (!cancelled) {
           const { done, value } = await reader.read();
@@ -474,6 +676,7 @@ function WriteMain() {
               const isScriptMode = apiMode === "script";
               const aiMsgId = "ai_brief_" + Date.now() + "_init";
               if (eventType === "delta" && data.text) {
+                convCollected += data.text;
                 if (isScriptMode) {
                   setParas(prev => prev.map((x, i) => {
                     if (i !== 0) return x;
@@ -497,9 +700,80 @@ function WriteMain() {
                 firstDelta = false;
               } else if (eventType === "done") {
                 if (isScriptMode) {
-                  setParas(prev => prev.map((x, i) =>
-                    i === 0 ? { ...x, status: "done" as const, streamTarget: undefined } : x
-                  ));
+                  // 본문에서 인사·메타 보고(머리)와 분석(꼬리) 분리 — 둘 다 채팅으로
+                  // + 본문을 빈 줄 단위 단락으로 자동 split (V1처럼 각 단락마다 액션 버튼)
+                  let introToChat: string | null = null;
+                  let notesToChat: string | null = null;
+                  setParas(prev => {
+                    const first = prev[0];
+                    if (!first) return prev;
+                    let body = first.text;
+
+                    // 1) 꼬리: ===AI_NOTES=== 마커로 분석 분리
+                    const NOTES_MARKER = /\n*={3,}\s*AI[_\s]?NOTES\s*={3,}\n*/i;
+                    const notesMatch = body.match(NOTES_MARKER);
+                    if (notesMatch && notesMatch.index !== undefined) {
+                      notesToChat = body.slice(notesMatch.index + notesMatch[0].length).trim();
+                      body = body.slice(0, notesMatch.index).trimEnd();
+                    }
+
+                    // 2) 머리: 첫 "S#" 또는 "FADE IN" 만나기 전 = 인사·메타 보고
+                    const SCRIPT_START = /(?:^|\n)\s*(?:#+\s*)?(?:S#\d+|FADE IN|FADE-IN|FADE\s+IN:|페이드\s*인)/i;
+                    const startMatch = body.match(SCRIPT_START);
+                    if (startMatch && startMatch.index !== undefined && startMatch.index > 50) {
+                      introToChat = body.slice(0, startMatch.index).trim();
+                      body = body.slice(startMatch.index).trim();
+                    }
+
+                    // 3) 본문을 빈 줄 단위 단락으로 split — 지문·대사·씬 헤딩마다 별도 단락
+                    const blocks = body
+                      .split(/\n\s*\n+/)
+                      .map(b => b.trim())
+                      .filter(Boolean);
+
+                    if (blocks.length === 0) {
+                      return prev.map((x, i) => i === 0
+                        ? { ...x, text: body, status: "done" as const, streamTarget: undefined }
+                        : x);
+                    }
+
+                    const detectLabel = (block: string): string => {
+                      const firstLine = block.split("\n")[0].trim();
+                      const sceneMatch = firstLine.match(/^(?:#+\s*)?(S#\d+\.?|S\.\d+\.?)/i);
+                      if (sceneMatch) return sceneMatch[1].replace(/\.$/, "");
+                      if (/^FADE\s+(IN|OUT)/i.test(firstLine)) return "전환";
+                      if (/^CUT\s+TO/i.test(firstLine)) return "컷";
+                      // 들여쓰기 캐릭터 대사: 공백 또는 탭 후 한글/영문 이름
+                      if (/^\s{4,}[가-힣A-Z]{1,8}(\s|$|\()/.test(block) || /^[가-힣A-Z]{1,8}\s*\(.*\)$/.test(firstLine)) {
+                        const m = firstLine.match(/[가-힣A-Z]+/);
+                        return m ? `대사 — ${m[0]}` : "대사";
+                      }
+                      return "지문";
+                    };
+
+                    return blocks.map((block, i) => ({
+                      id: `p_${Date.now()}_${i}`,
+                      n: i + 1,
+                      label: detectLabel(block),
+                      text: block,
+                      status: "done" as const,
+                      streamTarget: undefined,
+                    }));
+                  });
+                  // 인사 메시지만 채팅에 — 자가분석(notesToChat)은 사장님 명시: 채팅에 박지 X
+                  const chatAdditions: ChatMsg[] = [];
+                  if (introToChat) {
+                    chatAdditions.push({
+                      id: "ai_intro_" + Date.now(),
+                      role: "ai",
+                      text: introToChat as string,
+                      t: "방금",
+                    });
+                  }
+                  // notesToChat (===AI_NOTES=== 마커 아래 자가검증·분석) = drop. UI 노출 X.
+                  if (chatAdditions.length > 0) {
+                    setChat(prev => [...prev, ...chatAdditions]);
+                  }
                 }
                 // flow에서 active → done 전환
                 setFlow(prev => prev.map(f =>
@@ -525,6 +799,19 @@ function WriteMain() {
             }
           }
         }
+        // ★ workConversation 누적 — 응답 끝난 후
+        if (persistKey && initConv && convCollected.trim()) {
+          const updated = appendTurns(initConv, [
+            { role: "user", content: initUserSummary },
+            { role: "assistant", content: convCollected },
+          ]);
+          saveJSON(KEY.workConversation(persistKey), {
+            workId: persistKey,
+            messages: updated.messages,
+            compactedSummary: updated.compactedSummary,
+            updatedAt: Date.now(),
+          });
+        }
       } catch (err) {
         if (cancelled) return;
         if (err instanceof Error && err.name === "AbortError") return;
@@ -532,12 +819,15 @@ function WriteMain() {
         setChat(prev => [...prev, {
           id: "err_" + Date.now(), role: "ai", text: `⚠ 호출 실패: ${msg}`, t: "방금",
         }]);
+      } finally {
+        if (!cancelled) setAiBusy(false);
       }
     })();
 
     return () => {
       cancelled = true;
       controller.abort();
+      setAiBusy(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDemo, mode, ideaParam, genreParam, wasRestored, briefDone, actionParam]);
@@ -549,32 +839,263 @@ function WriteMain() {
     }));
   };
 
+  // 작가 직접 수정 — 단락 텍스트 그대로 저장
+  const onEditPara = (id: string, newText: string) => {
+    setParas(prev => prev.map(p => p.id === id ? { ...p, text: newText } : p));
+  };
+
+  // ★ 전체 수정 — 본문 통째로 받아서 빈 줄 기준 단락 자동 분리
+  const onEditAllParas = (fullText: string) => {
+    const blocks = fullText
+      .split(/\n\s*\n+/)
+      .map(b => b.trim())
+      .filter(Boolean);
+    if (blocks.length === 0) return;
+    setParas(prev => {
+      // 기존 paras의 라벨이 있으면 유지 (단락 갯수 같을 때만), 아니면 자동 라벨
+      return blocks.map((block, i) => ({
+        id: `p_edit_${Date.now()}_${i}`,
+        n: i + 1,
+        label: prev[i]?.label || "수정",
+        text: block,
+        status: "done" as const,
+      }));
+    });
+  };
+
+  // 본문 다운로드 (워드/텍스트) — 단락 라벨 X, 본문만 자연스러운 흐름.
+  // (라벨 "S#1"/"지문"/"대사"는 UI 표시용 — 다운로드 결과물엔 노출 X.
+  //  본문 안에 박힌 매체별 표준 헤더 — S#1/[컷1]/[1막 1장] 등 — 만 그대로 흐름.)
+  const onDownloadScript = (format: "docx" | "txt") => {
+    const body = paras
+      .filter(p => p.text && p.text.trim())
+      .map(p => p.text)
+      .join("\n\n");
+    if (!body.trim()) {
+      alert("아직 작성된 본문이 없습니다.");
+      return;
+    }
+    const filename = (work.title || "대본") + "_" + new Date().toISOString().slice(0, 10);
+    if (format === "docx") downloadDocx(body, filename);
+    else downloadTxt(body, filename);
+  };
+
+  // 더 쓰기 — 이 단락 다음에 새 단락 추가 + AI 호출
+  const onContinuePara = (id: string) => {
+    setParas(prev => {
+      const idx = prev.findIndex(p => p.id === id);
+      if (idx === -1) return prev;
+      const newId = "p_" + Date.now();
+      const newPara: Para = {
+        id: newId,
+        n: prev.length + 1,
+        label: "이어쓰기",
+        text: "",
+        status: "streaming",
+      };
+      return [...prev.slice(0, idx + 1), newPara, ...prev.slice(idx + 1)];
+    });
+  };
+
   const addNote = (label: string) => {
     if (!label.trim()) return;
     setNotes(prev => [...prev, { id: "n" + Date.now(), label: label.trim() }]);
   };
   const removeNote = (id: string) => setNotes(prev => prev.filter(n => n.id !== id));
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!input.trim()) return;
     const text = input.trim();
     setChat(prev => [...prev, { id: "m" + Date.now(), role: "writer", text, t: "방금" }]);
     setInput("");
-    setTimeout(() => {
-      setChat(prev => [...prev, {
-        id: "m" + (Date.now() + 1),
-        role: "ai",
-        text: "알겠어요. 반영해서 이어 쓸게요.",
-        t: "방금"
-      }]);
-      if (text.match(/이름.*[을를].*(\w+)으?로/i) || text.match(/(\w+)으?로 바[꿔까]/i)) {
-        addNote(text.length < 30 ? text : text.slice(0, 28) + "…");
+
+    // 작가 노트 자동 캡처 (이름 변경 패턴)
+    if (text.match(/이름.*[을를].*(\w+)으?로/i) || text.match(/(\w+)으?로 바[꿔까]/i)) {
+      addNote(text.length < 30 ? text : text.slice(0, 28) + "…");
+    }
+
+    // ★ 채팅 = 본문 컨트롤. 모든 메시지 → script mode 호출 + 새 단락 추가
+    //   (단순 대화 X. 작가 디렉션이 본문에 즉시 반영되어야 채팅의 의미)
+    const currentScript = paras
+      .filter(p => p.text && p.text.trim())
+      .map(p => p.text)
+      .join("\n\n");
+
+    const newPara: Para = {
+      id: "p_" + Date.now(),
+      n: paras.length + 1,
+      label: "이어쓰기",
+      text: "",
+      status: "streaming",
+    };
+    setParas(prev => [...prev, newPara]);
+
+    setChat(prev => [...prev, {
+      id: "m_ack_" + Date.now(),
+      role: "ai",
+      text: "디렉션 반영해서 본문 이어 작성 중...",
+      t: "방금"
+    }]);
+
+    const ac = new AbortController();
+    aiAbortRef.current = ac; // ★ 외부 ⏸ 잠깐 버튼이 이 코멘트 호출도 abort 가능하도록
+    setAiBusy(true);
+    // 작가노트의 디렉션·메모 = AI에 모두 prior로 전달 (이게 없으면 = 작가가 박은 디렉션 무시됨)
+    const writerNotes = notes
+      .filter(n => n.label && n.label.trim())
+      .map(n => `- ${n.label}`)
+      .join("\n");
+    // develop에서 만든 사전 자료 (시놉시스·캐릭터·트리트먼트 등) — 매 호출에 박아야 AI가 인지
+    let developPrior: Record<string, string> = {};
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem("storyMaker.developHandoff");
+        if (raw) developPrior = JSON.parse(raw);
+      } catch { /* ignore */ }
+    }
+    // ★ 작가-AI 옛 대화 누적 (사장님 명시: "한 클로드"가 작품을 기억하게).
+    //   chat 마지막 N개 = prior. 토큰 절약 위해 = 각 메시지 500자 truncate.
+    const recentChat = chat
+      .slice(-12) // 최근 12개 (작가 6 + AI 6 정도)
+      .filter(m => m.text && m.text.trim())
+      .map(m => {
+        const who = m.role === "writer" ? "작가" : "보조작가";
+        const txt = m.text.length > 500 ? m.text.slice(0, 500) + "...(이하 생략)" : m.text;
+        return `[${who}] ${txt}`;
+      })
+      .join("\n\n");
+    // ★ 한 클로드 conversation 모델 — 옛 turn 누적 (prompt cache 1h TTL)
+    const sendConv = persistKey
+      ? loadJSON<WorkConversation>(KEY.workConversation(persistKey), { workId: persistKey, messages: [], updatedAt: 0 })
+      : null;
+    const sendUserSummary = `[작가 디렉션] ${text}`.slice(0, 200);
+    try {
+      const res = await fetch("/api/agent/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: "script",
+          idea: ideaParam,
+          genreLetter: genreParam,
+          mediumFields,
+          fast: true,
+          ...(persistKey ? { workId: persistKey } : {}),
+          ...(sendConv ? { conversationMessages: sendConv.messages } : {}),
+          prior: {
+            ...developPrior, // 시놉시스·캐릭터·트리트먼트·기승전결 등 (있을 때만)
+            "지금까지 본문": currentScript || "(없음)",
+            ...(writerNotes ? { "작가 디렉션·메모 (작가노트 — 모든 응답에 반영)": writerNotes } : {}),
+            ...(recentChat ? { "작가-보조작가 옛 대화 (최근 12개 — 옛 디렉션도 다 인지하고 작업)": recentChat } : {}),
+            "작가 디렉션 (이번 요청)": text,
+          },
+        }),
+        signal: ac.signal,
+      });
+      if (!res.body) throw new Error("응답 없음");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let collected = "";
+      let firstD = true;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const events = buf.split("\n\n");
+        buf = events.pop() || "";
+        for (const evt of events) {
+          const lines = evt.split("\n");
+          const eventType = lines.find(l => l.startsWith("event:"))?.slice(6).trim();
+          const dataLine = lines.find(l => l.startsWith("data:"))?.slice(5).trim();
+          if (!eventType || !dataLine) continue;
+          try {
+            const data = JSON.parse(dataLine);
+            if (eventType === "delta" && data.text) {
+              collected += data.text;
+              setParas(prev => prev.map(p =>
+                p.id === newPara.id ? { ...p, text: firstD ? data.text : p.text + data.text } : p
+              ));
+              firstD = false;
+            } else if (eventType === "done") {
+              // 마커 분리 (본문/분석)
+              const NOTES_MARKER = /\n*={3,}\s*AI[_\s]?NOTES\s*={3,}\n*/i;
+              const m = collected.match(NOTES_MARKER);
+              let bodyOnly = collected;
+              let notesPart: string | null = null;
+              if (m && m.index !== undefined) {
+                bodyOnly = collected.slice(0, m.index).trimEnd();
+                notesPart = collected.slice(m.index + m[0].length).trim();
+              }
+              setParas(prev => prev.map(p =>
+                p.id === newPara.id
+                  ? { ...p, text: bodyOnly, status: "done" as const }
+                  : p
+              ));
+              if (notesPart) {
+                setChat(prev => [...prev, {
+                  id: "ai_notes_" + Date.now(),
+                  role: "ai",
+                  text: "📋 자가 검증·분석\n\n" + notesPart,
+                  t: "방금"
+                }]);
+              }
+            } else if (eventType === "error") {
+              setChat(prev => [...prev, {
+                id: "err_" + Date.now(), role: "ai",
+                text: `⚠ AI 호출 오류: ${data.message}`, t: "방금"
+              }]);
+              setParas(prev => prev.map(p =>
+                p.id === newPara.id ? { ...p, status: "done" as const } : p
+              ));
+            }
+          } catch { /* ignore */ }
+        }
       }
-    }, 800);
+      // ★ workConversation 누적
+      if (persistKey && sendConv && collected.trim()) {
+        const updated = appendTurns(sendConv, [
+          { role: "user", content: sendUserSummary },
+          { role: "assistant", content: collected },
+        ]);
+        saveJSON(KEY.workConversation(persistKey), {
+          workId: persistKey,
+          messages: updated.messages,
+          compactedSummary: updated.compactedSummary,
+          updatedAt: Date.now(),
+        });
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        setAiBusy(false);
+        setParas(prev => prev.map(p =>
+          p.id === newPara.id ? { ...p, status: "done" as const } : p
+        ));
+        return;
+      }
+      const msg = err instanceof Error ? err.message : "네트워크 오류";
+      setChat(prev => [...prev, {
+        id: "err_" + Date.now(), role: "ai", text: `⚠ 호출 실패: ${msg}`, t: "방금"
+      }]);
+      setParas(prev => prev.map(p =>
+        p.id === newPara.id ? { ...p, status: "done" as const } : p
+      ));
+    } finally {
+      setAiBusy(false);
+    }
   };
 
-  // ─── 의뢰 분석 폼 (briefDone === false 일 때만) ───
-  if (mode === "new" && !briefDone && !isDemo) {
+  // 의뢰 분석 폼 vs 본문 모드 — early return 시 hook 순서 어긋나니까 = flag만 잡고 return은 끝에서
+  const showBriefForm = mode === "new" && !briefDone && !isDemo;
+
+  // 좌우 리사이즈 — 워크북 너비 (drag로 조절). ★ early return 위에 박아야 hook 순서 안전
+  const [workbookWidth, setWorkbookWidth] = useState<number>(320);
+  useEffect(() => {
+    const saved = loadJSON<number | null>(KEY.writeWorkbookWidth, null);
+    if (saved && saved >= 240 && saved <= 720) setWorkbookWidth(saved);
+  }, []);
+
+  // ─── 의뢰 분석 폼 렌더 (briefDone === false 일 때만) ───
+  if (showBriefForm) {
     const onChangeField = (key: string, value: FieldValue) => {
       setMediumFields(prev => ({ ...prev, [key]: value }));
     };
@@ -626,32 +1147,94 @@ function WriteMain() {
     );
   }
 
+  const onResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = workbookWidth;
+    const onMove = (ev: MouseEvent) => {
+      const delta = startX - ev.clientX;
+      const next = Math.max(240, Math.min(720, startW + delta));
+      setWorkbookWidth(next);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      // localStorage에 최종 너비 저장
+      setWorkbookWidth(w => { saveJSON(KEY.writeWorkbookWidth, w); return w; });
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  // 작품 선택 안내 화면 — mode 없고 demo 아니면 (모든 hook 호출 끝난 후 분기)
+  if (showNoProjectGate) {
+    return <NoProjectGate />;
+  }
+
   return (
     <main className="main write-live">
-      <div className={"write-shell" + (bookOpen ? " book-open" : " book-closed")}>
+      <div
+        className={"write-shell" + (bookOpen ? " book-open" : " book-closed")}
+        style={bookOpen ? { gridTemplateColumns: `minmax(0, 1fr) 6px ${workbookWidth}px` } : undefined}
+      >
         <WriteCanvas
           work={work}
           paras={paras}
           paused={paused}
-          onPauseToggle={() => setPaused(!paused)}
+          onPauseToggle={() => {
+            // 🛑 중지 — AI streaming 즉시 abort + 현재 streaming 단락을 done으로
+            aiAbortRef.current?.abort();
+            setAiBusy(false);
+            setParas(prev => prev.map(p =>
+              p.status === "streaming"
+                ? { ...p, status: "done" as const, streamTarget: undefined }
+                : p
+            ));
+            setPaused(true);
+          }}
           onRewrite={onRewrite}
+          onEdit={onEditPara}
+          onEditAll={onEditAllParas}
+          onContinue={onContinuePara}
+          onDownload={onDownloadScript}
+          aiBusy={aiBusy}
           bookOpen={bookOpen}
           onBookToggle={() => setBookOpen(!bookOpen)}
           notesCount={notes.length}
         />
 
         {bookOpen && (
-          <WriteWorkbook
-            notes={notes}
-            flow={flow}
-            chat={chat}
-            input={input}
-            onInputChange={setInput}
-            onSend={sendMessage}
-            onAddNote={addNote}
-            onRemoveNote={removeNote}
-            onClose={() => setBookOpen(false)}
-          />
+          <>
+            <div
+              onMouseDown={onResizeStart}
+              title="좌우 너비 조절"
+              style={{
+                width: 6,
+                cursor: "col-resize",
+                background: "var(--line)",
+                opacity: 0.4,
+                transition: "opacity 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "var(--coral)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.4"; e.currentTarget.style.background = "var(--line)"; }}
+            />
+            <WriteWorkbook
+              notes={notes}
+              flow={flow}
+              chat={chat}
+              input={input}
+              onInputChange={setInput}
+              onSend={sendMessage}
+              onAddNote={addNote}
+              onRemoveNote={removeNote}
+              onClose={() => setBookOpen(false)}
+              mediumLabel={`${wf.letter}. ${wf.name}`}
+            />
+          </>
         )}
       </div>
     </main>

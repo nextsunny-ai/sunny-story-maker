@@ -8,7 +8,8 @@ import { SectionHead } from "@/components/SectionHead";
 import { Field, Btn } from "@/components/ui";
 import { GENRES } from "@/lib/genres";
 import type { TargetPersona } from "@/lib/storymaker/prompts";
-import { KEY, usePersistedState, saveJSON } from "@/lib/persist";
+import { KEY, usePersistedState, saveJSON, loadJSON, type WorkConversation } from "@/lib/persist";
+import { getWorkId, appendTurns } from "@/lib/storymaker/work-id";
 import { REVIEWERS, recommendForGenre, type Reviewer } from "@/lib/storymaker/reviewers";
 import { Markdown } from "@/components/Markdown";
 
@@ -286,6 +287,14 @@ function ReviewMain() {
       personaName: p.name, text: "", done: false,
     })));
 
+    // ★ workConversation
+    const workId = title.trim() ? getWorkId(genreLetter, title.trim()) : "";
+    const conv = workId
+      ? loadJSON<WorkConversation>(KEY.workConversation(workId), { workId, messages: [], updatedAt: 0 })
+      : null;
+    const userSummary = `[리뷰] ${selectedPersonas.length}명 페르소나 — ${title.slice(0, 50)}`;
+    let convCollected = "";
+
     try {
       const res = await fetch("/api/agent/stream", {
         method: "POST",
@@ -296,6 +305,8 @@ function ReviewMain() {
           targets: selectedPersonas.map(toTargetPersona),
           genreLetter,
           fast: (await import("@/lib/storymaker/model-prefs")).isFastModel("review"),
+          ...(workId ? { workId } : {}),
+          ...(conv ? { conversationMessages: conv.messages } : {}),
         }),
       });
 
@@ -329,6 +340,7 @@ function ReviewMain() {
           try {
             const data = JSON.parse(dataStr);
             if (eventName === "delta" && typeof data.text === "string") {
+              convCollected += data.text;
               setUnifiedReview(prev => prev + data.text);
             } else if (eventName === "error") {
               throw new Error(data.message || "스트림 오류");
@@ -340,6 +352,19 @@ function ReviewMain() {
           }
         }
       }
+      // ★ workConversation 누적
+      if (workId && conv && convCollected.trim()) {
+        const updated = appendTurns(conv, [
+          { role: "user", content: userSummary },
+          { role: "assistant", content: convCollected },
+        ]);
+        saveJSON(KEY.workConversation(workId), {
+          workId,
+          messages: updated.messages,
+          compactedSummary: updated.compactedSummary,
+          updatedAt: Date.now(),
+        });
+      }
     } catch (err) {
       setReviewError(err instanceof Error ? err.message : "리뷰 생성 실패");
     } finally {
@@ -347,26 +372,66 @@ function ReviewMain() {
     }
   };
 
-  // 리뷰어별 split — "## 🎯 타겟 N: <이름>" 헤딩으로 분리
+  // 리뷰어별 split — 다양한 헤딩 패턴 fallback 체인.
+  // 1차: "## 🎯 타겟 N: 이름" / "### 타겟: 이름"
+  // 2차: "## 리뷰어: 이름" / "## 페르소나: 이름"
+  // 3차: 활성 페르소나 이름으로 헤딩 직접 매칭 ("## 50대 주부 시청자")
   const splitByReviewer = (text: string): Array<{ name: string; body: string }> => {
-    const sections: Array<{ name: string; body: string }> = [];
-    // "## 🎯 타겟 N: ..." 또는 "### 타겟: ..." 패턴 모두 인식
-    const re = /^##+\s*(?:🎯\s*)?타겟[\s:]*(?:\d+[\s:]*)?[:.]*\s*(.+?)\s*(?:의\s*리뷰지)?$/gm;
-    const matches: Array<{ name: string; index: number; matchLen: number }> = [];
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) {
-      matches.push({ name: m[1].trim(), index: m.index, matchLen: m[0].length });
+    const buildSections = (matches: Array<{ name: string; index: number }>) => {
+      const sections: Array<{ name: string; body: string }> = [];
+      for (let i = 0; i < matches.length; i++) {
+        const start = matches[i].index;
+        const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+        sections.push({
+          name: matches[i].name,
+          body: text.slice(start, end).trim(),
+        });
+      }
+      return sections;
+    };
+
+    const tryPattern = (re: RegExp): Array<{ name: string; index: number }> => {
+      const matches: Array<{ name: string; index: number }> = [];
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        const name = m[1]?.trim();
+        if (name) matches.push({ name, index: m.index });
+      }
+      return matches;
+    };
+
+    // 1차 — 명시적 "타겟" 헤딩
+    const p1 = tryPattern(
+      /^##+\s*(?:🎯\s*)?타겟[\s:]*(?:\d+[\s:]*)?[:.]*\s*(.+?)\s*(?:의\s*리뷰지?)?$/gm
+    );
+    if (p1.length > 0) return buildSections(p1);
+
+    // 2차 — "리뷰어:"/"페르소나:" 명시
+    const p2 = tryPattern(
+      /^##+\s*(?:🎯\s*)?(?:리뷰어|페르소나|REVIEWER)[\s:]*([^\n]+?)\s*$/gim
+    );
+    if (p2.length > 0) return buildSections(p2);
+
+    // 3차 — 활성 페르소나 이름으로 헤딩 직접 검색 (이름이 헤딩 라인에 등장)
+    const personaNames = selectedPersonas.map(p => p.name).filter(Boolean);
+    if (personaNames.length > 0) {
+      // 이름들 중 하나라도 ##/### 헤딩에 등장하면 그걸로 split
+      // 정규식 메타문자 escape (이름에 () 등 있을 수 있음)
+      const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const namesAlt = personaNames.map(escapeRegex).join("|");
+      const p3 = tryPattern(
+        new RegExp(`^##+\\s*(?:🎯\\s*)?(?:타겟[\\s:]*\\d+[\\s:]*)?(${namesAlt})[\\s:]*.*$`, "gm")
+      );
+      if (p3.length > 0) return buildSections(p3);
     }
-    if (matches.length === 0) return [];
-    for (let i = 0; i < matches.length; i++) {
-      const start = matches[i].index;
-      const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
-      sections.push({
-        name: matches[i].name,
-        body: text.slice(start, end).trim(),
-      });
-    }
-    return sections;
+
+    // 4차 — 단순 ## 헤딩 + 첫 단어가 이름 같으면 split (마지막 fallback)
+    const p4 = tryPattern(
+      /^##\s+(?!📋|🎯|결론|총평|요약|마무리)([^\n#]{2,30}?)\s*$/gm
+    );
+    if (p4.length >= 2) return buildSections(p4); // 최소 2개 이상이어야 의미 있음
+
+    return [];
   };
 
   const buildHeader = (kind: "통합" | "익명" | string, withReviewerList = true): string => {
@@ -701,13 +766,13 @@ function ReviewMain() {
             }}>
               {[
                 { id: "all", label: "📋 통합" },
-                ...reviewerSections.map(s => ({
-                  id: s.name,
+                ...reviewerSections.map((s, i) => ({
+                  id: `r${i}_${s.name}`,
                   label: `🎯 ${s.name.length > 18 ? s.name.slice(0, 16) + "…" : s.name}`,
                 })),
-              ].map(t => (
+              ].map((t, i) => (
                 <button
-                  key={t.id}
+                  key={`${t.id}_${i}`}
                   type="button"
                   onClick={() => setResultTab(t.id)}
                   style={{

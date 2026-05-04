@@ -7,6 +7,9 @@ import { GENRES } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
+import { Btn } from "@/components/ui";
+import { Markdown } from "@/components/Markdown";
+import { LibraryPicker } from "@/components/LibraryPicker";
 import { streamAgent } from "@/lib/stream-agent";
 
 export default function OsmuPage() {
@@ -30,15 +33,14 @@ function OsmuMain() {
 
   const [source, setSource] = useState("F");
   const [depth, setDepth] = useState<"A" | "B" | "C">("A");
-  const [title, setTitle] = useState("달빛 정원");
-  const [body, setBody] = useState(
-    "달빛이 비치는 정원에서 사라진 소녀를 찾아 나선 정원사. 잃어버린 기억을 가진 인물과 함께 정원의 비밀을 풀어가며 서로의 진짜 이름을 되찾아 간다. 로맨스 + 미스터리 + 성장 서사의 3축 구조."
-  );
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
   const [running, setRunning] = useState(false);
   const [streamText, setStreamText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [showLibrary, setShowLibrary] = useState(false);
 
   const targetCount = GENRES.length - 1; // 원본 제외
   const depthInfo = {
@@ -79,14 +81,22 @@ function OsmuMain() {
     abortRef.current = ac;
 
     try {
+      // 분당 토큰 한도 절약 — 8000자로 자동 truncate (분석엔 충분)
+      const truncatedBody = body.length > 8000
+        ? body.slice(0, 8000) + "\n\n[…이하 생략 — 분당 토큰 절약 위해 8,000자만 분석]"
+        : body;
+      const { getWorkId } = await import("@/lib/storymaker/work-id");
+      const workId = title.trim() ? getWorkId(source, title.trim()) : "";
       await streamAgent({
         body: {
           mode: "osmu",
-          idea: body,
+          idea: truncatedBody,
           sourceIp: title || "원본 작품",
           genreLetter: source,
-          fast: false,
+          fast: (await import("@/lib/storymaker/model-prefs")).isFastModel("osmu"),
+          ...(workId ? { workId } : {}),
         },
+        userPromptSummary: `[OSMU] ${title || "원본"} (${source}) → 매체 매트릭스`,
         signal: ac.signal,
         onDelta: (chunk) => setStreamText(prev => prev + chunk),
         onError: (msg) => setError(msg),
@@ -102,26 +112,48 @@ function OsmuMain() {
     setRunning(false);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = "";
+
+    // PDF/DOCX/TXT/MD 모두 지원 — /api/upload route가 파싱 (unpdf, mammoth)
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    if (["pdf", "docx", "doc"].includes(ext)) {
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        const json = await res.json();
+        if (!res.ok) {
+          alert("업로드 실패: " + (json.error || res.status));
+          return;
+        }
+        setBody(String(json.text || "").slice(0, 50_000));
+        if (!title) setTitle(file.name.replace(/\.[^.]+$/, ""));
+      } catch (err) {
+        alert("업로드 오류: " + (err instanceof Error ? err.message : String(err)));
+      }
+      return;
+    }
+
+    // TXT/MD 등 텍스트 파일은 브라우저에서 직접 read
     const reader = new FileReader();
     reader.onload = ev => {
       const text = String(ev.target?.result || "");
       setBody(text.slice(0, 50_000));
-      if (!title || title === "달빛 정원") {
-        setTitle(file.name.replace(/\.[^.]+$/, ""));
-      }
+      if (!title) setTitle(file.name.replace(/\.[^.]+$/, ""));
     };
     reader.readAsText(file);
-    e.target.value = "";
   };
 
-  const resultRows = GENRES
+  // 본문 입력 시 mock 사라짐. 빈 상태일 때만 예시로 표시.
+  const isEmpty = !body.trim();
+  const resultRows = isEmpty ? GENRES
     .filter(g => g.letter !== source)
     .map(g => ({ g, r: sampleResults[g.letter] }))
     .filter(x => x.r)
-    .sort((a, b) => b.r.score - a.r.score);
+    .sort((a, b) => b.r.score - a.r.score) : [];
 
   const top3 = resultRows.slice(0, 3);
 
@@ -150,7 +182,7 @@ function OsmuMain() {
                 <span className="osmu-input-tag is-genre">
                   {I[sourceGenre.letter]} {sourceGenre.letter}. {sourceGenre.name}
                 </span>
-                <span className="osmu-input-tag">12,400자</span>
+                <span className="osmu-input-tag">{body.length.toLocaleString()}자</span>
               </div>
             </div>
             <textarea
@@ -164,7 +196,7 @@ function OsmuMain() {
               <button
                 className="osmu-link-btn"
                 type="button"
-                onClick={() => router.push("/library")}
+                onClick={() => setShowLibrary(true)}
               >
                 {I.library}<span>라이브러리에서 가져오기</span>
               </button>
@@ -178,7 +210,7 @@ function OsmuMain() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".txt,.md,.markdown,text/plain"
+                accept=".pdf,.docx,.doc,.txt,.md,.markdown,.fountain,.fdx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
                 style={{ display: "none" }}
                 onChange={handleFileUpload}
               />
@@ -254,103 +286,76 @@ function OsmuMain() {
         <div style={{ marginTop: 24 }}>
           <SectionHead
             title="매트릭스 분석 결과"
-            sub={running ? "스트리밍 중 — Opus 4.7가 12개 매체로 분석 중" : `완료 · ${streamText.length.toLocaleString()}자`}
+            sub={running ? "스트리밍 중 — 12개 매체 분석" : `완료 · ${streamText.length.toLocaleString()}자`}
+            right={!running && streamText ? (
+              <div style={{ display: "flex", gap: 6 }}>
+                <Btn kind="primary" icon={I.save} onClick={async () => {
+                  const { downloadDocx } = await import("@/lib/storymaker/export");
+                  const stamp = new Date().toISOString().slice(0, 10);
+                  const t = title || "OSMU 매트릭스";
+                  await downloadDocx(`# ${t} — OSMU 매트릭스\n> 생성일: ${stamp}  |  원본 매체: ${sourceGenre.name}\n\n${streamText}`, `${t}_OSMU_${stamp}`);
+                }}>워드</Btn>
+                <Btn icon={I.save} onClick={async () => {
+                  const { downloadTxt } = await import("@/lib/storymaker/export");
+                  const stamp = new Date().toISOString().slice(0, 10);
+                  const t = title || "OSMU 매트릭스";
+                  downloadTxt(`# ${t} — OSMU 매트릭스\n> 생성일: ${stamp}  |  원본 매체: ${sourceGenre.name}\n\n${streamText}`, `${t}_OSMU_${stamp}`);
+                }}>텍스트</Btn>
+              </div>
+            ) : null}
           />
-          <div
-            style={{
-              padding: 20,
-              background: "var(--surface-2, #fafaf7)",
-              border: "1px solid var(--line)",
-              borderRadius: 12,
-              whiteSpace: "pre-wrap",
-              fontFamily: "var(--font-script, ui-monospace, monospace)",
-              fontSize: 13,
-              lineHeight: 1.7,
-              color: "var(--ink-1, #111)",
-              maxHeight: 560,
-              overflow: "auto",
-            }}
-          >
-            {streamText || "잠시만요…"}
+          <div className="output-item" style={{
+            padding: "20px 22px", display: "block",
+            fontSize: 13.5, lineHeight: 1.75, color: "var(--ink-2)",
+            fontFamily: "var(--font-sans, ui-sans-serif), system-ui",
+            maxHeight: "70vh", overflowY: "auto",
+          }}>
+            {streamText
+              ? <Markdown text={streamText} />
+              : <span style={{ color: "var(--ink-4)" }}>잠시만요…</span>}
           </div>
         </div>
       )}
 
-      {/* RESULT MATRIX */}
-      <SectionHead
-        title="OSMU 매트릭스"
-        sub="적합도 순 정렬 — 각 카드 클릭하면 해당 매체로 작업실 진입"
-        right={
-          <div className="osmu-result-meta">
-            <span className="osmu-demo-badge">예시 데이터</span>
-            <span>{resultRows.length}개 매체 · 2분 14초</span>
+      {/* 빈 상태 안내 — 본문 미입력 시. AI 결과(streamText)는 위쪽 영역에서 표시. */}
+      {isEmpty && !streamText && (
+        <div style={{
+          marginTop: 28,
+          padding: "44px 28px",
+          border: "1px dashed var(--line)",
+          borderRadius: 14,
+          background: "var(--card-soft)",
+          textAlign: "center",
+          color: "var(--ink-3)",
+          lineHeight: 1.75,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--coral)", letterSpacing: "0.12em", marginBottom: 10 }}>
+            OSMU 매트릭스
           </div>
-        }
-      />
-
-      <div className="osmu-result-grid is-demo">
-        {resultRows.map(({ g, r }) => {
-          const tier = r.score >= 85 ? "is-top" : r.score >= 75 ? "is-mid" : "is-low";
-          return (
-            <div key={g.letter} className={`osmu-result-card ${tier}`}>
-              <div className="osmu-result-head">
-                <div className="osmu-result-genre">
-                  <div className="osmu-result-icon">{I[g.letter]}</div>
-                  <div>
-                    <div className="osmu-result-name">
-                      <span className="osmu-result-letter">{g.letter}.</span> {g.name}
-                    </div>
-                    <div className="osmu-result-sub">{g.sub}</div>
-                  </div>
-                </div>
-                <div className="osmu-result-score">
-                  <div className="osmu-result-score-num">{r.score}</div>
-                  <div className="osmu-result-score-label">적합도</div>
-                </div>
-              </div>
-
-              <div className="osmu-result-headline">{r.headline}</div>
-              <div className="osmu-result-note">{r.note}</div>
-
-              <div className="osmu-result-foot">
-                <span className="osmu-result-strength">{r.strength}</span>
-                <button
-                  className="osmu-result-go"
-                  onClick={() => router.push("/write")}
-                >
-                  작업실로 {I.arrow}
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* TOP 3 */}
-      <SectionHead
-        title="전개 우선순위"
-        sub="매트릭스 기반 — 어디부터 풀어가면 좋을지"
-      />
-
-      <div className="osmu-top3 is-demo">
-        {top3.map(({ g, r }, i) => (
-          <div key={g.letter} className="osmu-top3-card">
-            <div className="osmu-top3-rank">{String(i + 1).padStart(2, "0")}</div>
-            <div className="osmu-top3-icon">{I[g.letter]}</div>
-            <div className="osmu-top3-body">
-              <div className="osmu-top3-name">
-                <span className="osmu-top3-letter">{g.letter}.</span> {g.name}
-              </div>
-              <div className="osmu-top3-headline">{r.headline}</div>
-              <div className="osmu-top3-note">{r.note}</div>
-            </div>
-            <div className="osmu-top3-score">
-              <div className="osmu-top3-score-num">{r.score}</div>
-              <div className="osmu-top3-score-tag">{r.strength}</div>
-            </div>
+          <div style={{ fontSize: 15, color: "var(--ink-1)", marginBottom: 6, fontWeight: 600 }}>
+            원본 본문을 입력하면 <em style={{ fontStyle: "italic", color: "var(--coral)" }}>12개 매체</em>로 펼쳐집니다
           </div>
-        ))}
-      </div>
+          <div style={{ fontSize: 12.5, color: "var(--ink-4)" }}>
+            웹툰 · 웹소설 · 영화 · TV드라마 · 숏드라마 · 애니메이션 · 게임 · 뮤지컬 · 다큐 · 유튜브 · 전시 · 예능
+            <br />
+            매체별 적합도 점수 + 강점 + 전환 룰을 한 번에 분석
+          </div>
+        </div>
+      )}
+
+      <LibraryPicker
+        open={showLibrary}
+        onClose={() => setShowLibrary(false)}
+        title="원본 작품 가져오기"
+        subtitle="라이브러리 작품을 선택하면 본문이 OSMU 분석 입력에 자동으로 들어옵니다."
+        onPick={(work, body) => {
+          setSource(work.letter);
+          if (!title) setTitle(work.title);
+          if (body) {
+            setBody(body.slice(0, 50_000));
+          }
+        }}
+      />
     </main>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
 import { Btn } from "@/components/ui";
+import { Markdown } from "@/components/Markdown";
 import { getWorkflow } from "@/lib/workflows";
 import {
   MediumFieldRenderer,
@@ -13,6 +14,8 @@ import {
   type FieldValues,
   type FieldValue,
 } from "@/components/MediumFieldRenderer";
+import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
+import { getWorkId, appendTurns } from "@/lib/storymaker/work-id";
 
 export default function DevelopPage() {
   return (
@@ -50,35 +53,102 @@ function DevelopMain() {
   const genreParam = searchParams.get("genre") || "A";
   const wf = getWorkflow(genreParam);
 
+  // ★ 옛 작업 자동 복원용 키 (사장님 명시: develop에 옛 작업 있으면 보여야)
+  const developKey = ideaParam ? `storyMaker.developProject:${genreParam}:${ideaParam.slice(0, 40)}` : "";
+
   // ─── Phase 관리 ───
   const [phase, setPhase] = useState<Phase>("brief");
 
-  // ─── 의뢰 분석 폼 ───
-  const [mediumFields, setMediumFields] = useState<FieldValues>(() =>
-    buildDefaultValues(wf.fields),
-  );
+  // ─── 의뢰 분석 폼 (옛 작업 복원) ───
+  const [mediumFields, setMediumFields] = useState<FieldValues>(() => {
+    if (typeof window !== "undefined" && developKey) {
+      try {
+        const raw = window.localStorage.getItem(developKey);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved?.mediumFields) return saved.mediumFields;
+        }
+      } catch { /* ignore */ }
+    }
+    return buildDefaultValues(wf.fields);
+  });
   const onChangeField = (key: string, value: FieldValue) => {
     setMediumFields((prev) => ({ ...prev, [key]: value }));
   };
 
-  // ─── 사전 자료 6단계 ───
-  const [stages, setStages] = useState<PreAsset[]>(
-    STAGE_DEFS.map((s, i) => ({
+  // ─── 사전 자료 6단계 (옛 작업 복원) ───
+  const [stages, setStages] = useState<PreAsset[]>(() => {
+    if (typeof window !== "undefined" && developKey) {
+      try {
+        const raw = window.localStorage.getItem(developKey);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved?.stages && Array.isArray(saved.stages) && saved.stages.length === STAGE_DEFS.length) {
+            return saved.stages;
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    return STAGE_DEFS.map((s, i) => ({
       ...s,
       text: "",
       status: i === 0 ? "active" : "pending",
-    })),
-  );
+    }));
+  });
   const [busyKey, setBusyKey] = useState<PreAsset["key"] | null>(null);
+
+  // 변경 시 자동 저장 (debounced) — 다음 진입 시 자동 복원
+  useEffect(() => {
+    if (!developKey || typeof window === "undefined") return;
+    const timer = setTimeout(() => {
+      try {
+        window.localStorage.setItem(developKey, JSON.stringify({
+          mediumFields, stages,
+          updatedAt: new Date().toISOString(),
+        }));
+      } catch { /* ignore */ }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [developKey, mediumFields, stages]);
+
+  // 옛 작업 = stages 중 하나라도 done이면 = phase = "stages"로 자동 진입.
+  // 일관성 정정:
+  //   1) status=done인데 text 비어있는 카드 = pending으로 reset
+  //   2) 순서대로 첫 비어있는 카드 = 무조건 active (= 그 외 active 박혀있으면 pending으로 정정)
+  // [stages] deps = 실시간 정정.
+  useEffect(() => {
+    let hasRealDone = false;
+    const cleaned = stages.map((s) => {
+      if (s.status === "done" && (!s.text || !s.text.trim())) {
+        return { ...s, status: "pending" as const };
+      }
+      if (s.status === "done") hasRealDone = true;
+      return s;
+    });
+    // 첫 비어있는(=non-done) 카드 = active 강제
+    const firstIncomplete = cleaned.findIndex(s => s.status !== "done");
+    const fixed = cleaned.map((s, i) => {
+      if (i === firstIncomplete) {
+        return s.status === "active" ? s : { ...s, status: "active" as const };
+      }
+      // 다른 곳 active 박혀있으면 = pending으로
+      if (s.status === "active") return { ...s, status: "pending" as const };
+      return s;
+    });
+    const changed = fixed.some((f, i) => f.status !== stages[i].status);
+    if (changed) setStages(fixed);
+    if (hasRealDone && phase !== "stages") setPhase("stages");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stages]);
 
   // 단계별 mode 매핑 — route.ts의 mode와 일치 (다음 단계에서 실제 호출)
   const STAGE_MODE: Record<PreAsset["key"], string> = {
-    title: "logline",        // 제목 + 한 줄 평 (logline에 포함되어 출력)
-    logline: "logline",
-    theme: "logline",        // 주제 — logline mode 안에서 함께 출력
-    synopsis: "synopsis",
-    characters: "characters",
-    structure: "treatment",  // 기승전결 = 트리트먼트 본질
+    title: "title",            // 제목 후보 5개 (별도 prompt)
+    logline: "logline",        // 로그라인 3안
+    theme: "theme",            // 주제·메시지 (별도 prompt)
+    synopsis: "synopsis",      // A4 1쪽 줄거리
+    characters: "characters",  // 캐릭터 시트
+    structure: "treatment",    // 기승전결 = 트리트먼트 본질
   };
 
   const onStageRun = async (key: PreAsset["key"]) => {
@@ -87,6 +157,18 @@ function DevelopMain() {
     setBusyKey(key);
     setStages(prev => prev.map(s => s.key === key ? { ...s, status: "active" } : s));
     try {
+      // ★ 사장님 명시 — 사전 자료 6단계는 깊이 우선 = Opus.
+      //   admin에서 "집필"을 Haiku로 설정한 작가는 = 그 설정 따름.
+      const { isFastModel } = await import("@/lib/storymaker/model-prefs");
+      const useFast = isFastModel("write");
+      // ★ 한 클로드 conversation 모델 — 작품 단위 누적.
+      //   develop·write·chat·adapt·review·package 모두 같은 workId 사용.
+      const workId = getWorkId(genreParam, ideaParam);
+      const conv = loadJSON<WorkConversation>(KEY.workConversation(workId), {
+        workId, messages: [], updatedAt: 0,
+      });
+      const stageLabel = STAGE_DEFS.find(d => d.key === key)?.label || key;
+      const userPromptSummary = `[${stageLabel}] 한 줄 아이디어: ${ideaParam} / 매체: ${genreParam}`;
       const res = await fetch("/api/agent/stream", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -95,7 +177,9 @@ function DevelopMain() {
           idea: ideaParam,
           genreLetter: genreParam,
           mediumFields,
-          fast: true,
+          fast: useFast,
+          workId,
+          conversationMessages: conv.messages,
         }),
       });
       if (!res.body) throw new Error("응답 없음");
@@ -124,19 +208,41 @@ function DevelopMain() {
           }
         }
       }
-      setStages(prev => prev.map(s => {
-        if (s.key === key) return { ...s, status: "done" as const };
-        // 다음 카드 active
-        const idx = STAGE_DEFS.findIndex(d => d.key === key);
-        const nextDef = STAGE_DEFS[idx + 1];
-        if (nextDef && s.key === nextDef.key && s.status === "pending") {
-          return { ...s, status: "active" as const };
-        }
-        return s;
-      }));
+      // ★ 빈 응답 = done 박힘 X (분당 토큰 한도·서버 끊김 등 = active 유지)
+      const finalText = collected.trim();
+      if (!finalText) {
+        setStages(prev => prev.map(s => s.key === key ? {
+          ...s,
+          text: "(응답이 비어있습니다 — 잠시 후 「↻ 다시」 눌러주세요. 분당 토큰 한도에 걸렸을 수 있습니다.)",
+          status: "active" as const,
+        } : s));
+      } else {
+        // ★ conversation 누적 + 자동 compaction (50 turn 넘으면 옛 30 truncate)
+        const updated = appendTurns(conv, [
+          { role: "user", content: userPromptSummary },
+          { role: "assistant", content: finalText },
+        ]);
+        saveJSON(KEY.workConversation(workId), {
+          workId,
+          messages: updated.messages,
+          compactedSummary: updated.compactedSummary,
+          updatedAt: Date.now(),
+        });
+
+        setStages(prev => prev.map(s => {
+          if (s.key === key) return { ...s, status: "done" as const };
+          // 다음 카드 active
+          const idx = STAGE_DEFS.findIndex(d => d.key === key);
+          const nextDef = STAGE_DEFS[idx + 1];
+          if (nextDef && s.key === nextDef.key && s.status === "pending") {
+            return { ...s, status: "active" as const };
+          }
+          return s;
+        }));
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "오류";
-      setStages(prev => prev.map(s => s.key === key ? { ...s, text: `(오류: ${msg})` } : s));
+      setStages(prev => prev.map(s => s.key === key ? { ...s, text: `(오류: ${msg})`, status: "active" as const } : s));
     } finally {
       setBusyKey(null);
     }
@@ -147,8 +253,8 @@ function DevelopMain() {
     return (
       <main className="main">
         <Topbar
-          eyebrow={`DEVELOP — ${wf.letter}. ${wf.name}`}
-          title={`<em style="font-style:italic">${wf.name}</em> 프로젝트 개요<span class="dot">.</span>`}
+          eyebrow="DEVELOP — 기획실"
+          title='<em style="font-style:italic">Project</em> Brief<span class="dot">.</span>'
           sub="개요를 작성하면 제목·로그라인·주제·시놉시스·캐릭터·기승전결 6단계로 사전 자료를 정리합니다. 끝나면 본문 시작 버튼으로 원고지(Write)로 넘어갑니다."
         />
 
@@ -165,7 +271,7 @@ function DevelopMain() {
           </div>
         )}
 
-        <SectionHead num={1} title="개요 입력" sub={`${wf.name} 매체별 입력 — 표준: ${wf.export_format}`} />
+        <SectionHead num={1} title="개요 입력" sub={`매체별 입력 — 표준 양식: ${wf.export_format}`} />
 
         <MediumFieldRenderer
           fields={wf.fields}
@@ -201,78 +307,222 @@ function DevelopMain() {
   return (
     <main className="main">
       <Topbar
-        eyebrow={`DEVELOP — 사전 자료 (${wf.letter}. ${wf.name})`}
+        eyebrow="DEVELOP — 사전 자료"
         title={`<em style="font-style:italic">기획</em> 작업 중<span class="dot">.</span>`}
         sub="6단계가 끝나면 본문 시작 버튼이 활성화됩니다. 단계마다 작가님이 컨펌하면 다음으로 넘어갑니다."
       />
 
-      <SectionHead num={2} title="사전 자료 6단계" sub="제목 → 로그라인 → 주제 → 시놉시스 → 캐릭터 → 기승전결" />
+      <SectionHead
+        num={2}
+        title="사전 자료 6단계"
+        sub="제목 → 로그라인 → 주제 → 시놉시스 → 캐릭터 → 기승전결"
+        right={
+          <button
+            type="button"
+            onClick={() => {
+              if (!confirm("이 작품의 사전 자료 6단계 결과를 다 비우고 처음부터 다시 시작합니다. 진행할까요?")) return;
+              if (developKey && typeof window !== "undefined") {
+                window.localStorage.removeItem(developKey);
+              }
+              setStages(STAGE_DEFS.map((s, i) => ({
+                ...s,
+                text: "",
+                status: i === 0 ? "active" : "pending",
+              })));
+              setBusyKey(null);
+            }}
+            style={{
+              padding: "6px 12px", fontSize: 11.5, fontWeight: 600,
+              background: "transparent", color: "var(--ink-3)",
+              border: "1px solid var(--line)", borderRadius: 6,
+              cursor: "pointer",
+            }}
+          >↻ 6단계 초기화</button>
+        }
+      />
 
       <div style={{ maxWidth: 1200 }}>
-        {/* 사전 자료 6단계 카드 — 2차에서 AI 호출 + 응답 채울 자리 */}
-        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
-          {stages.map((s, i) => (
-            <div
-              key={s.key}
-              style={{
-                padding: 20,
-                border: `1px solid ${s.status === "active" ? "var(--coral)" : "var(--line)"}`,
-                borderRadius: 14,
-                background: s.status === "active" ? "var(--card)" : "var(--card-soft)",
-                minHeight: 160,
-                display: "flex", flexDirection: "column", gap: 10,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{
-                  fontSize: 11, fontWeight: 700, color: "var(--ink-5)", letterSpacing: "0.1em",
+        {/* 사전 자료 6단계 카드 — 고정 높이 + 헤더 우측 액션 + 본문 스크롤 */}
+        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))" }}>
+          {stages.map((s, i) => {
+            const onCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
+              if (!s.text) return;
+              try {
+                await navigator.clipboard.writeText(s.text);
+                const btn = e.currentTarget;
+                const orig = btn.innerHTML;
+                btn.textContent = "✓ 복사됨";
+                setTimeout(() => { btn.innerHTML = orig; }, 1200);
+              } catch { /* clipboard 실패 무시 */ }
+            };
+            return (
+              <div
+                key={s.key}
+                style={{
+                  border: `1px solid ${s.status === "active" ? "var(--coral)" : "var(--line)"}`,
+                  borderRadius: 14,
+                  background: s.status === "active" ? "var(--card)" : "var(--card-soft)",
+                  height: 480, // ★ 6개 카드 동일 사이즈
+                  display: "flex", flexDirection: "column",
+                  overflow: "hidden",
+                }}
+              >
+                {/* 헤더 — 번호·라벨·우측 액션 버튼 (사장님 명시: 버튼은 위에) */}
+                <div style={{
+                  padding: "14px 18px",
+                  borderBottom: "1px solid var(--line)",
+                  display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
                 }}>
-                  0{i + 1}
-                </span>
-                <span style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>
-                  {s.label}
-                </span>
-                {busyKey === s.key && (
                   <span style={{
-                    marginLeft: "auto", fontSize: 10, fontWeight: 700,
-                    color: "var(--coral)", letterSpacing: "0.1em",
+                    fontSize: 11, fontWeight: 700, color: "var(--ink-5)", letterSpacing: "0.1em",
                   }}>
-                    AI 작성 중…
+                    0{i + 1}
                   </span>
-                )}
-                {s.status === "done" && busyKey !== s.key && (
-                  <span style={{
-                    marginLeft: "auto", fontSize: 10, fontWeight: 700,
-                    color: "var(--ink-4)", letterSpacing: "0.1em",
-                  }}>
-                    완료 ✓
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)" }}>
+                    {s.label}
                   </span>
-                )}
-              </div>
-              <div style={{ fontSize: 12, color: "var(--ink-4)", lineHeight: 1.5 }}>
-                {s.hint}
-              </div>
-              <div style={{
-                fontSize: 13, color: "var(--ink-3)", lineHeight: 1.7,
-                flex: 1, padding: "10px 0",
-                fontStyle: s.text ? "normal" : "italic",
-                whiteSpace: "pre-wrap",
-              }}>
-                {s.text || (s.status === "active" ? "(이 단계 시작 — 아래 버튼 클릭)" : "(이전 단계 완료 후 시작)")}
-              </div>
-              {(s.status === "active" || s.status === "done") && (
-                <div style={{ display: "flex", gap: 6, marginTop: "auto" }}>
-                  <Btn
-                    kind="coral"
-                    onClick={() => onStageRun(s.key)}
-                    disabled={busyKey !== null}
-                  >
-                    {s.status === "done" ? "다시 만들기" : "AI로 만들기 →"}
-                  </Btn>
+                  {busyKey === s.key && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: "2px 6px",
+                      borderRadius: 4, background: "var(--coral-soft)",
+                      color: "var(--coral-deep)", letterSpacing: "0.05em",
+                    }}>
+                      작성 중…
+                    </span>
+                  )}
+                  {s.status === "done" && busyKey !== s.key && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700,
+                      color: "var(--ink-4)", letterSpacing: "0.05em",
+                    }}>
+                      완료 ✓
+                    </span>
+                  )}
+
+                  {/* 우측 액션 버튼들 — 헤더에 작게 (사장님 명시) */}
+                  <div style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center" }}>
+                    {(s.status === "active" || s.status === "done") && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onStageRun(s.key)}
+                          disabled={busyKey !== null}
+                          title={s.status === "done" ? "다시 만들기" : "AI로 만들기"}
+                          style={{
+                            padding: "5px 10px", fontSize: 11, fontWeight: 600,
+                            background: s.status === "done" ? "transparent" : "var(--coral)",
+                            color: s.status === "done" ? "var(--ink-3)" : "#fff",
+                            border: `1px solid ${s.status === "done" ? "var(--line)" : "var(--coral)"}`,
+                            borderRadius: 6, cursor: busyKey !== null ? "not-allowed" : "pointer",
+                            opacity: busyKey !== null ? 0.5 : 1,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {s.status === "done" ? "↻ 다시" : "▶ 시작"}
+                        </button>
+                        {s.status === "done" && i < stages.length - 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextKey = stages[i + 1]?.key;
+                              if (nextKey) onStageRun(nextKey);
+                            }}
+                            disabled={busyKey !== null}
+                            title="다음 단계로"
+                            style={{
+                              padding: "5px 10px", fontSize: 11, fontWeight: 700,
+                              background: "var(--coral)", color: "#fff",
+                              border: "1px solid var(--coral)",
+                              borderRadius: 6, cursor: busyKey !== null ? "not-allowed" : "pointer",
+                              opacity: busyKey !== null ? 0.5 : 1,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            다음 →
+                          </button>
+                        )}
+                        {s.text && (
+                          <button
+                            type="button"
+                            onClick={onCopy}
+                            title="이 단락 전체 복사"
+                            aria-label="복사"
+                            style={{
+                              padding: "5px 8px", fontSize: 11,
+                              background: "transparent", color: "var(--ink-3)",
+                              border: "1px solid var(--line)",
+                              borderRadius: 6, cursor: "pointer",
+                              display: "inline-flex", alignItems: "center", gap: 3,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* 부제 hint */}
+                <div style={{
+                  padding: "8px 18px 4px",
+                  fontSize: 11.5, color: "var(--ink-4)", lineHeight: 1.5,
+                  flexShrink: 0,
+                }}>
+                  {s.hint}
+                </div>
+
+                {/* 본문 — 스크롤 영역 (사장님 명시: 카드 사이즈 동일 + 내부 스크롤) */}
+                <div style={{
+                  flex: 1, padding: "10px 18px 18px",
+                  fontSize: 13, color: "var(--ink-2)", lineHeight: 1.75,
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                }}>
+                  {s.text ? (
+                    <Markdown text={s.text} compact />
+                  ) : (
+                    <div style={{
+                      height: "100%", display: "flex",
+                      alignItems: "center", justifyContent: "center",
+                      flexDirection: "column", gap: 12,
+                      color: "var(--ink-4)", textAlign: "center",
+                    }}>
+                      {s.status === "active" ? (
+                        <>
+                          <em style={{ fontSize: 12.5 }}>
+                            우측 상단 「▶ 시작」 클릭하면<br/>AI가 작성을 시작합니다
+                          </em>
+                          <button
+                            type="button"
+                            onClick={() => onStageRun(s.key)}
+                            disabled={busyKey !== null}
+                            style={{
+                              padding: "10px 20px", fontSize: 13, fontWeight: 700,
+                              background: "var(--coral)", color: "#fff",
+                              border: "1px solid var(--coral)",
+                              borderRadius: 10, cursor: busyKey !== null ? "not-allowed" : "pointer",
+                              opacity: busyKey !== null ? 0.5 : 1,
+                            }}
+                          >
+                            ▶ AI로 만들기
+                          </button>
+                        </>
+                      ) : (
+                        <em style={{ fontSize: 12.5 }}>
+                          이전 단계 완료 후 시작
+                        </em>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div style={{
@@ -312,6 +562,46 @@ function DevelopMain() {
           >
             ← 의뢰서 수정
           </button>
+          {/* 사전 자료 다운로드 — 6단계 중 1개 이상 작성된 경우 (사장님 명시: 모든 결과 저장 가능) */}
+          {stages.some(s => s.text && s.text.trim()) && (
+            <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={async () => {
+                  const { downloadDocx } = await import("@/lib/storymaker/export");
+                  const stamp = new Date().toISOString().slice(0, 10);
+                  const md = stages
+                    .filter(s => s.text && s.text.trim())
+                    .map(s => `# ${s.label}\n> ${s.hint}\n\n${s.text}`)
+                    .join("\n\n---\n\n");
+                  const filename = `${ideaParam.slice(0, 20) || "기획"}_사전자료_${stamp}`;
+                  await downloadDocx(md, filename);
+                }}
+                style={{ background: "transparent", border: "1px solid var(--line)", fontSize: 12 }}
+                title="사전 자료 6단계 결과 워드 다운로드"
+              >
+                ↓ 사전자료 워드
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={async () => {
+                  const { downloadTxt } = await import("@/lib/storymaker/export");
+                  const stamp = new Date().toISOString().slice(0, 10);
+                  const md = stages
+                    .filter(s => s.text && s.text.trim())
+                    .map(s => `# ${s.label}\n${s.hint}\n\n${s.text}`)
+                    .join("\n\n---\n\n");
+                  const filename = `${ideaParam.slice(0, 20) || "기획"}_사전자료_${stamp}`;
+                  downloadTxt(md, filename);
+                }}
+                style={{ background: "transparent", border: "1px solid var(--line)", fontSize: 12 }}
+              >
+                ↓ TXT
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </main>

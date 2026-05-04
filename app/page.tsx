@@ -127,7 +127,7 @@ function HomeMain() {
     "메뉴판이 매일 다른 식당. 손님은 그 메뉴가 자기 인생이라는 걸 알게 된다",
     "엄마와 단둘이 사는 고2가 옥상에서 이상한 노트를 줍는다",
     "회사에서 매일 마주치던 인턴이 사실 미래에서 온 자기 자식이었다",
-    "조선의 악귀들이 홍대에서 깨어난다. 평범한 아르바이트생 셋의 몸을 빌려서",
+    "오래된 동네 목욕탕이 매일 새벽 4시에만 손님을 받는다. 그 손님은 모두 이미 죽은 사람이다",
     "매일 같은 꿈을 꾸는 디자이너. 꿈에서 만난 사람이 어느 날 회의실에 나타난다",
     "은퇴한 형사가 자신이 30년 전 종결한 사건이 미해결이었음을 깨닫는다",
     "한밤중 라디오 사연을 보낸 청취자가 다음 날 살해당한다",
@@ -161,8 +161,9 @@ function HomeMain() {
     setStats({ done, wip, pages: 0, calls: 0 });
   }, []);
 
-  const heroPlaceholder = HERO_PLACEHOLDERS[medium]
-    || "예) 번아웃으로 퇴사한 30대 직장인이 시골 마을 작은 카페를 인수하면서 벌어지는 일…";
+  // 사장님 명시: placeholder 회색 샘플도 거슬림 = 매체별 예시 X = 단순 안내만.
+  // 매체별 영감은 = 아래 「영감이 필요하면」 영역에서 작가가 클릭해서 채움.
+  const heroPlaceholder = "한 줄 아이디어로 시작하세요";
   // 매체 이름 받침 따라 "을/를" 결정 (한국어 조사 자동)
   const lastChar = wf.name.charAt(wf.name.length - 1);
   const lastCode = lastChar.charCodeAt(0);
@@ -200,13 +201,45 @@ function HomeMain() {
           {eyebrowText}
         </div>
 
-        <textarea
-          className="home-hero-input"
-          rows={3}
-          value={idea}
-          onChange={e => setIdea(e.target.value)}
-          placeholder={heroPlaceholder}
-        />
+        <div style={{ position: "relative" }}>
+          <textarea
+            className="home-hero-input"
+            rows={3}
+            value={idea}
+            onChange={e => setIdea(e.target.value)}
+            placeholder={heroPlaceholder}
+          />
+          {idea && (
+            <button
+              type="button"
+              onClick={() => setIdea("")}
+              title="지우고 새 아이디어 시작"
+              style={{
+                position: "absolute",
+                top: 12, right: 12,
+                width: 28, height: 28,
+                background: "var(--card)",
+                color: "var(--ink-3)",
+                border: "1px solid var(--line)",
+                borderRadius: "50%",
+                cursor: "pointer",
+                fontSize: 14, lineHeight: 1,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                opacity: 0.7,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "1";
+                e.currentTarget.style.borderColor = "var(--coral)";
+                e.currentTarget.style.color = "var(--coral)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "0.7";
+                e.currentTarget.style.borderColor = "var(--line)";
+                e.currentTarget.style.color = "var(--ink-3)";
+              }}
+            >✕</button>
+          )}
+        </div>
 
         <div className="home-hero-controls">
           <div className="home-hero-genre">
@@ -292,7 +325,7 @@ function HomeMain() {
         <div className="home-continue-grid">
           {recent.map((w, i) => (
             <div key={w.id ?? i} className="home-continue-card"
-              onClick={() => router.push(`/write?mode=continue&project=${encodeURIComponent(w.title)}`)}>
+              onClick={() => router.push(`/write?mode=continue&project=${encodeURIComponent(String(w.id ?? w.title))}`)}>
               <div className="home-continue-top">
                 <div className="home-continue-icon">{I[w.letter]}</div>
                 <div className="home-continue-genre">{w.genre}</div>
@@ -322,7 +355,7 @@ function HomeMain() {
 
       {/* GENRE GRID — 작업실 전환 */}
       <SectionHead
-        num={3}
+        num={2}
         title="작업실 전환"
         sub="다른 매체로 즉시 변환 — 클릭하면 위 hero가 그 매체에 맞춰 바뀝니다"
       />
@@ -376,7 +409,7 @@ function HomeMain() {
         <div className="footer-band-left">
           <span>SUNNY Story Maker</span>
           <span>·</span>
-          <span>v2.2 (Develop)</span>
+          <span>v2.3 (Develop)</span>
         </div>
         <div>마지막 동기화 — 방금 전</div>
       </div>

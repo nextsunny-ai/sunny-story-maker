@@ -84,6 +84,15 @@ function LoginPageInner() {
           return;
         }
 
+        // ★ 새 가입자 = 진짜 깨끗하게 시작. 같은 브라우저에 옛 작가의 localStorage·세션이
+        //   남아있을 수 있으니 (homeIdea·라이브러리·작가 프로필 등) signup 직후 자동 클리어.
+        try {
+          window.localStorage.clear();
+          window.sessionStorage.clear();
+        } catch {
+          // ignore — 클리어 실패는 redirect 막지 않음
+        }
+
         router.push(redirectTo);
         router.refresh();
         return;
@@ -143,7 +152,7 @@ function LoginPageInner() {
     setLoading(true);
     const supabase = createClient();
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/")}`,
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/reset-password")}`,
     });
 
     if (resetError) {
@@ -231,7 +240,7 @@ function LoginPageInner() {
                   className="field-input"
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  placeholder="유희정"
+                  placeholder="예: 홍길동"
                   autoComplete="name"
                 />
               </div>
@@ -248,36 +257,51 @@ function LoginPageInner() {
                 required
               />
             </div>
-            <div className="login-field">
-              <label>
-                비밀번호
-                {mode === "login" && (
+            {mode === "signup" ? (
+              // signup 모드 — 비밀번호 + 초대 코드 한 줄 (2단 grid). 사장님 의도: 작가가 초대 코드 어디 적는지 한눈에 보임.
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div className="login-field">
+                  <label>비밀번호</label>
+                  <input
+                    className="field-input"
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    autoComplete="new-password"
+                    required
+                  />
+                </div>
+                <div className="login-field">
+                  <label>
+                    초대 코드
+                    <span className="login-field-hint">베타 한정</span>
+                  </label>
+                  <input
+                    className="field-input"
+                    type="text"
+                    value={invite}
+                    onChange={e => setInvite(e.target.value)}
+                    placeholder="SUNNY-XXXX-XXXX"
+                    required
+                  />
+                </div>
+              </div>
+            ) : (
+              // login 모드 — 비밀번호만 (초대 코드는 아래 옵션 toggle)
+              <div className="login-field">
+                <label>
+                  비밀번호
                   <a href="#" className="login-field-link" onClick={handleForgotPassword}>
                     비밀번호 찾기
                   </a>
-                )}
-              </label>
-              <input
-                className="field-input"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
-                required
-              />
-            </div>
-            {mode === "signup" && (
-              <div className="login-field">
-                <label>
-                  초대 코드
-                  <span className="login-field-hint">베타 기간 한정</span>
                 </label>
                 <input
                   className="field-input"
-                  type="text"
-                  value={invite}
-                  onChange={e => setInvite(e.target.value)}
-                  placeholder="SUNNY-XXXX-XXXX"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
                 />
               </div>
             )}

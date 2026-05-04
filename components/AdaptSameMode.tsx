@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment } from "react";
-import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
 
 export interface ToneChip { id: string; label: string }
@@ -12,6 +11,7 @@ export interface AdaptVersion {
   brief: string;
   direction: string;
   diff: string;
+  body?: string; // AI 변환 결과 본문 (v2 이후)
 }
 
 interface AdaptSameModeProps {
@@ -23,24 +23,31 @@ interface AdaptSameModeProps {
   toggleChip: (id: string) => void;
   freeform: string;
   setFreeform: (v: string) => void;
+  onLaunch: (direction: string) => void; // AI 호출 — adapt page에서 처리
+  busy?: boolean;
 }
 
 export function AdaptSameMode({
   versions, openVer, setOpenVer,
   TONE_CHIPS, activeChips, toggleChip,
   freeform, setFreeform,
+  onLaunch, busy = false,
 }: AdaptSameModeProps) {
-  const router = useRouter();
   const I = ICONS;
   const nextV = versions[versions.length - 1].v + 1;
   const launchAdapt = () => {
-    const params = new URLSearchParams({
-      mode: "adapt-same",
-      project: "달빛 정원",
-      genre: "B",
-      version: String(nextV),
-    });
-    router.push(`/write?${params.toString()}`);
+    if (busy) return;
+    // chips → label 텍스트 + freeform 합쳐서 디렉션 만듦
+    const chipLabels = TONE_CHIPS.filter(c => activeChips.includes(c.id)).map(c => c.label);
+    const direction = [
+      chipLabels.length ? `톤·방향: ${chipLabels.join(", ")}` : "",
+      freeform.trim(),
+    ].filter(Boolean).join("\n\n").trim();
+    if (!direction) {
+      alert("디렉션 칩을 선택하거나 자유 디렉션을 입력해주세요.");
+      return;
+    }
+    onLaunch(direction);
   };
 
   return (
@@ -146,9 +153,9 @@ export function AdaptSameMode({
             <span className="atl-dot">·</span>
             <span>예상 ~ 4분</span>
           </div>
-          <button className="atl-edit-go" type="button" onClick={launchAdapt}>
+          <button className="atl-edit-go" type="button" onClick={launchAdapt} disabled={busy}>
             <span className="atl-edit-go-icon">{I.spark}</span>
-            <span>v{nextV} 생성</span>
+            <span>{busy ? "변환 중…" : `v${nextV} 생성`}</span>
           </button>
         </div>
       </div>

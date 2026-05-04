@@ -1,20 +1,24 @@
 {
-  "name": "ssm-next",
+  "name": "ssm-next-local",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start"
+    "start": "next start -p 3001"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.1",
+    "docx": "^9.6.1",
+    "lightningcss": "^1.32.0",
     "mammoth": "^1.12.0",
     "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "unpdf": "^1.6.2"
   },
   "devDependencies": {

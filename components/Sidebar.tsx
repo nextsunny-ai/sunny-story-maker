@@ -16,6 +16,7 @@ const PATH_TO_NAV: Record<string, string> = {
   "/osmu": "osmu",
   "/package": "package",
   "/library": "library",
+  "/resources": "resources",
   "/admin": "admin",
 };
 
@@ -142,7 +143,10 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
       { id: "osmu",    label: "OSMU",         icon: I.osmu },
       { id: "package", label: "Plan Package", icon: I.package },
     ]},
-    { section: "LIBRARY", items: [{ id: "library", label: "Library", icon: I.library }] },
+    { section: "LIBRARY", items: [
+      { id: "library", label: "My Works", icon: I.library },
+      { id: "resources", label: "Library", icon: I.book || I.library },
+    ]},
     { section: "ACCOUNT", items: [{ id: "admin", label: "Admin", icon: I.settings }] },
   ];
 

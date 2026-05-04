@@ -20,6 +20,12 @@ export const KEY = {
   // admin (writer tab)
   adminProfile: `${PREFIX}.admin.${USER}.profile`,
   adminLearning: `${PREFIX}.admin.${USER}.learning`,
+  adminPrimaryMedium: `${PREFIX}.admin.${USER}.primaryMedium`,
+  adminAssistantName: `${PREFIX}.admin.${USER}.assistantName`,
+  adminModelPrefs: `${PREFIX}.admin.${USER}.modelPrefs`,
+
+  // home medium override (instant card-switch on home, doesn't change admin default)
+  homeMediumOverride: `${PREFIX}.home.${USER}.mediumOverride`,
 
   // review
   reviewText: `${PREFIX}.review.${USER}.text`,
@@ -40,7 +46,29 @@ export const KEY = {
 
   // write — keyed per project (title or slug)
   writeProject: (id: string) => `${PREFIX}.write.${USER}.project.${id}`,
+  // 마지막으로 작업한 작품 — Write 빈 mode로 진입 시 자동 복원
+  writeLastProject: `${PREFIX}.write.${USER}.lastProject`,
+  // 워크북 너비 (좌우 리사이즈)
+  writeWorkbookWidth: `${PREFIX}.write.${USER}.workbookWidth`,
+  // ★ 작품 1개 = AI conversation 1개 (홈·develop·write·chat·adapt 다 같은 통)
+  //   매 호출 = 옛 user/assistant turn 다 박힘 + 새 user msg 추가
+  //   Anthropic prompt cache 1h TTL = 옛 turn cached = 토큰 1/10
+  //   AI = 작가의 작품 전체 + 모든 작업 흐름 다 인식
+  workConversation: (id: string) => `${PREFIX}.conv.${USER}.work.${id}`,
 } as const;
+
+export interface ConversationTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface WorkConversation {
+  workId: string;
+  messages: ConversationTurn[];
+  // 자동 compaction 시 옛 turn들 요약본 (다음 라운드)
+  compactedSummary?: string;
+  updatedAt: number;
+}
 
 export function loadJSON<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;

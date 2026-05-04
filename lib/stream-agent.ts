@@ -1,15 +1,28 @@
 // /api/agent/stream 호출용 공용 SSE 클라이언트.
 // 이벤트 종류: delta(text 누적), done(완료), error(오류 메시지), usage(토큰 정보)
 //
-// ★ 작가 누적 학습(admin "내 학습 노하우") 자동 첨부 — 매 호출 prompt에 박힘.
-//   localStorage KEY.adminLearning에서 읽어서 body.writerLearning으로 전달.
+// ★ 작가 누적 학습(admin "내 학습 노하우") 자동 첨부.
+// ★ workId 박혀있으면 = workConversation 자동 누적 (한 클로드 conversation 모델).
 
-import { KEY, loadJSON } from "@/lib/persist";
+import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
+import { appendTurns } from "@/lib/storymaker/work-id";
 
 interface LearningEntry {
   date: string;
   category: string;
   text: string;
+}
+
+interface WriterProfile {
+  name?: string;
+  penName?: string;
+  role?: string;
+  email?: string;
+  mainGenre?: string;
+  career?: string;
+  works?: string;
+  avoid?: string;
+  likes?: string;
 }
 
 export interface StreamAgentOptions {
@@ -18,16 +31,28 @@ export interface StreamAgentOptions {
   onDone?: () => void;
   onError?: (message: string) => void;
   signal?: AbortSignal;
+  /** ★ user prompt 요약 — workConversation에 user turn으로 박힘. 없으면 mode/idea로 자동 생성 */
+  userPromptSummary?: string;
 }
 
 export async function streamAgent(opts: StreamAgentOptions): Promise<string> {
-  const { body, onDelta, onDone, onError, signal } = opts;
+  const { body, onDelta, onDone, onError, signal, userPromptSummary } = opts;
 
-  // 작가 누적 학습 자동 첨부 (있을 때만)
+  // 작가 누적 학습 + 프로필 자동 첨부 (있을 때만)
   const learning = loadJSON<LearningEntry[]>(KEY.adminLearning, []);
-  const enrichedBody = learning.length > 0
-    ? { ...body, writerLearning: learning }
-    : body;
+  const profile = loadJSON<WriterProfile | null>(KEY.adminProfile, null);
+  const hasProfile = profile && (profile.name || profile.penName || profile.works);
+  const enrichedBody: Record<string, unknown> = { ...body };
+  if (learning.length > 0) enrichedBody.writerLearning = learning;
+  if (hasProfile) enrichedBody.writerProfile = profile;
+
+  // ★ 한 클로드 conversation 모델 — body.workId 박혀있으면 = 옛 turn 누적해서 보냄
+  const workId = typeof body.workId === "string" ? body.workId : "";
+  let conv: WorkConversation = { workId, messages: [], updatedAt: 0 };
+  if (workId) {
+    conv = loadJSON<WorkConversation>(KEY.workConversation(workId), conv);
+    enrichedBody.conversationMessages = conv.messages;
+  }
 
   let res: Response;
   try {
@@ -105,6 +130,22 @@ export async function streamAgent(opts: StreamAgentOptions): Promise<string> {
     const msg = err instanceof Error ? err.message : "스트림 읽기 오류";
     onError?.(msg);
     throw err;
+  }
+
+  // ★ workId 박혀있고 응답이 비어있지 않으면 = workConversation에 user/assistant turn 누적
+  if (workId && full.trim()) {
+    const userMsg = userPromptSummary ||
+      `[${body.mode || "?"}] ${body.idea || ""}`.slice(0, 200);
+    const updated = appendTurns(conv, [
+      { role: "user", content: userMsg },
+      { role: "assistant", content: full },
+    ]);
+    saveJSON(KEY.workConversation(workId), {
+      workId,
+      messages: updated.messages,
+      compactedSummary: updated.compactedSummary,
+      updatedAt: Date.now(),
+    });
   }
 
   return full;

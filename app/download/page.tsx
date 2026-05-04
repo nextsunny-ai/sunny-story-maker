@@ -3,14 +3,23 @@
 import { useState } from "react";
 import { Symbol } from "@/components/Symbol";
 
+type OS = "mac" | "windows";
+
 export default function DownloadPage() {
-  const [password, setPassword] = useState("");
+  const [invite, setInvite] = useState("");
+  const [os, setOs] = useState<OS>(() => {
+    if (typeof window === "undefined") return "mac";
+    // 자동 감지 — 사용자 OS 추정
+    const ua = window.navigator.userAgent.toLowerCase();
+    if (ua.includes("win")) return "windows";
+    return "mac";
+  });
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
   const onDownload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password.trim()) return;
+    if (!invite.trim()) return;
     setStatus("loading");
     setErrorMsg("");
 
@@ -18,7 +27,7 @@ export default function DownloadPage() {
       const res = await fetch("/api/download", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ password: password.trim() }),
+        body: JSON.stringify({ invite: invite.trim(), os }),
       });
 
       if (!res.ok) {
@@ -28,12 +37,11 @@ export default function DownloadPage() {
         return;
       }
 
-      // ZIP blob 다운로드 트리거
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "sunny-story-maker-local.zip";
+      a.download = `sunny-story-maker-${os}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -64,7 +72,7 @@ export default function DownloadPage() {
         <section style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <div>
             <div style={{ fontSize: 11, color: "var(--ink-5)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>
-              — LOCAL VERSION (BETA)
+              — LOCAL VERSION v2.3 · 2026-05-04
             </div>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: 38, lineHeight: 1.2, fontWeight: 500, color: "var(--ink)", letterSpacing: "-0.02em", margin: 0 }}>
               본인 PC에서 <em style={{ fontStyle: "italic" }}>무료로 사용</em><span style={{ color: "var(--coral)" }}>.</span>
@@ -73,24 +81,42 @@ export default function DownloadPage() {
               Claude Pro/Max 구독자라면, 본인 PC에 Story Maker를 설치해서 <strong style={{ color: "var(--ink-1)" }}>API 비용 없이</strong> 자유롭게 사용할 수 있습니다.
               <br />작품 데이터는 사장님 베타 인스턴스에 안전하게 저장됩니다.
             </p>
+            <div style={{
+              marginTop: 14, padding: "10px 14px",
+              background: "var(--coral-soft)", borderRadius: 8,
+              fontSize: 12, color: "var(--coral-deep)", lineHeight: 1.6,
+            }}>
+              <strong>v2.3 새 기능 (2026-05-04):</strong> 한 클로드 conversation 모델 (작품 = 1 conversation, prompt cache 1h TTL = 토큰 1/10)
+              · 자료실 7카테고리 · 공고 메타 자동 추출 · 비번 찾기/리셋
+            </div>
           </div>
 
           <div style={{ background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 12, padding: "20px 22px" }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--ink-4)", marginBottom: 10 }}>준비물</div>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: "var(--ink-2)", lineHeight: 1.9 }}>
               <li>Claude Pro 또는 Max 구독 (월 $20부터)</li>
-              <li>Claude Code 설치 + 본인 계정 로그인 완료</li>
-              <li>Node.js 20+ (없으면 nodejs.org에서 LTS 설치)</li>
+              <li><strong>그 외 다른 건 = 없어도 됩니다.</strong> 셋업 스크립트가 자동:
+                <ul style={{ paddingLeft: 16, marginTop: 4, fontSize: 12.5, color: "var(--ink-3)" }}>
+                  <li>Node.js (없으면 자동 설치)</li>
+                  <li>Python (없으면 자동 설치 — 안전망)</li>
+                  <li>Claude Code CLI (없으면 자동 설치)</li>
+                  <li>PDF 읽기 (unpdf), DOCX 읽기·쓰기 (mammoth, docx)</li>
+                  <li>그 외 Story Maker 의존성 다</li>
+                </ul>
+              </li>
             </ul>
           </div>
 
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--ink-4)", marginBottom: 10 }}>셋업 (5분)</div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--ink-4)", marginBottom: 10 }}>아주 쉬운 셋업 (5~10분)</div>
             <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13.5, color: "var(--ink-2)", lineHeight: 1.9 }}>
-              <li>우측에서 ZIP 다운로드 후 압축 해제</li>
-              <li>해당 폴더에서 <code style={{ background: "var(--card-soft)", padding: "1px 6px", borderRadius: 4, fontSize: 12 }}>npm install</code></li>
-              <li><code style={{ background: "var(--card-soft)", padding: "1px 6px", borderRadius: 4, fontSize: 12 }}>npm run dev</code> → <a href="http://localhost:3001" target="_blank" rel="noreferrer" style={{ color: "var(--coral)" }}>http://localhost:3001</a></li>
-              <li>자세한 가이드: 압축 해제 폴더의 <code style={{ background: "var(--card-soft)", padding: "1px 6px", borderRadius: 4, fontSize: 12 }}>SETUP_FOR_WRITERS.md</code></li>
+              <li>우측에서 본인 OS(Mac/Windows) 선택 + 초대코드 입력 → ZIP 다운로드</li>
+              <li>ZIP 압축 해제</li>
+              <li><strong>Mac:</strong> 폴더 안 <code style={{ background: "var(--card-soft)", padding: "1px 6px", borderRadius: 4, fontSize: 12 }}>setup.command</code> 더블클릭<br/>
+                <strong>Windows:</strong> 폴더 안 <code style={{ background: "var(--card-soft)", padding: "1px 6px", borderRadius: 4, fontSize: 12 }}>setup_windows.ps1</code> 우클릭 → "PowerShell로 실행"
+              </li>
+              <li>스크립트가 = 필요한 것 다 자동 설치 + 첫 실행 + 바탕화면 바로가기</li>
+              <li>다음부터는 = 바탕화면 바로가기 더블클릭만</li>
             </ol>
           </div>
 
@@ -107,20 +133,62 @@ export default function DownloadPage() {
           <h2 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 500, color: "var(--ink)", letterSpacing: "-0.015em", margin: "0 0 8px" }}>
             <em style={{ fontStyle: "italic" }}>다운로드</em>
           </h2>
-          <p style={{ fontSize: 13, color: "var(--ink-3)", lineHeight: 1.6, margin: "0 0 24px" }}>
-            사장님께 받은 다운로드 암호를 입력해주세요.
+          <p style={{ fontSize: 13, color: "var(--ink-3)", lineHeight: 1.6, margin: "0 0 20px" }}>
+            본인 OS 선택 + 초대코드 입력 → ZIP 다운로드.
           </p>
 
+          {/* OS 선택 */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-4)", marginBottom: 6, letterSpacing: "0.04em" }}>
+              운영체제
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {([
+                { id: "mac" as OS, label: "🍎 Mac", hint: ".command" },
+                { id: "windows" as OS, label: "⊞ Windows", hint: ".ps1" },
+              ]).map(opt => {
+                const on = os === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setOs(opt.id)}
+                    disabled={status === "loading"}
+                    style={{
+                      padding: "12px 14px", textAlign: "center",
+                      background: on ? "var(--coral-soft)" : "transparent",
+                      color: on ? "var(--coral-deep)" : "var(--ink-2)",
+                      border: `1px solid ${on ? "var(--coral)" : "var(--line)"}`,
+                      borderRadius: 10, cursor: "pointer",
+                      fontSize: 14, fontWeight: 700,
+                      display: "flex", flexDirection: "column", gap: 2,
+                    }}
+                  >
+                    <span>{opt.label}</span>
+                    <span style={{ fontSize: 10, color: on ? "var(--coral-deep)" : "var(--ink-4)", fontWeight: 500 }}>
+                      {opt.hint}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <form onSubmit={onDownload} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <input
-              type="password"
-              className="field-input"
-              placeholder="다운로드 암호"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              autoFocus
-              disabled={status === "loading"}
-            />
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-4)", marginBottom: 6, letterSpacing: "0.04em" }}>
+                초대 코드 (베타 한정)
+              </div>
+              <input
+                type="text"
+                className="field-input"
+                placeholder="SUNNY-XXXX-XXXX"
+                value={invite}
+                onChange={e => setInvite(e.target.value)}
+                autoFocus
+                disabled={status === "loading"}
+              />
+            </div>
 
             {status === "error" && (
               <div style={{ fontSize: 12, color: "var(--coral-deep)", padding: "8px 12px", background: "var(--coral-soft)", borderRadius: 8 }}>
@@ -131,30 +199,32 @@ export default function DownloadPage() {
             <button
               type="submit"
               className="btn btn-coral"
-              disabled={!password.trim() || status === "loading"}
+              disabled={!invite.trim() || status === "loading"}
               style={{ padding: "14px 18px", fontSize: 14, justifyContent: "center" }}
             >
-              {status === "loading" ? "다운로드 중…" : "ZIP 다운로드 (≈ 290KB)"}
+              {status === "loading" ? "다운로드 중…"
+                : os === "mac" ? "🍎 Mac용 ZIP 다운로드"
+                : "⊞ Windows용 ZIP 다운로드"}
             </button>
           </form>
 
           <div style={{ marginTop: 22, paddingTop: 20, borderTop: "1px solid var(--line)" }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--ink-4)", marginBottom: 10, textTransform: "uppercase" }}>
-              포함된 것
+              ZIP 안에 들어있는 것
             </div>
             <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.8 }}>
+              <li>{os === "mac" ? "setup.command (Mac 자동 셋업)" : "setup_windows.ps1 (Windows 자동 셋업)"}</li>
               <li>30년 CD 시스템 프롬프트 + humanizer 6패턴</li>
-              <li>12장르 매뉴얼 (한국 표준 양식)</li>
-              <li>워크룸 UI (단락 hover 수정 + 채팅 + 노트)</li>
-              <li>작가 노하우 학습 시스템</li>
-              <li>Supabase 작품 자동 저장</li>
+              <li>16개 매체 한국 표준 양식 (큐시트·희곡·웹툰 컷 등)</li>
+              <li>PDF·DOCX 자동 파싱·생성 라이브러리</li>
+              <li>워크룸 UI · 작가 노하우 학습 · Supabase 자동 저장</li>
             </ul>
           </div>
         </section>
       </div>
 
       <footer style={{ padding: "20px 32px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--ink-5)" }}>
-        <span>SUNNY Story Maker · LOCAL v2.1</span>
+        <span>SUNNY Story Maker · LOCAL v2.3 · 2026-05-04</span>
         <a href="/" style={{ color: "var(--ink-4)", textDecoration: "none" }}>← 홈으로</a>
       </footer>
     </main>

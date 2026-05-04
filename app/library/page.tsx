@@ -47,8 +47,8 @@ interface LibraryPersona {
 function LibraryMain() {
   const router = useRouter();
   const I = ICONS;
-  const open = (title: string) =>
-    router.push(`/write?mode=continue&project=${encodeURIComponent(title)}`);
+  const open = (idOrTitle: string) =>
+    router.push(`/write?mode=continue&project=${encodeURIComponent(idOrTitle)}`);
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [query, setQuery] = useState("");
@@ -189,7 +189,7 @@ function LibraryMain() {
       ) : view === "grid" ? (
         <div className="lib-grid">
           {filteredWorks.map(w => (
-            <div key={w.id} className="lib-card" onClick={() => open(w.title)}>
+            <div key={w.id} className="lib-card" onClick={() => open(String(w.id ?? w.title))}>
               <div className="lib-card-top">
                 <div className="lib-card-icon">{I[w.letter]}</div>
                 <div className="lib-card-stage" data-stage={w.stage === "완성" ? "done" : w.stage === "리뷰 대기" ? "review" : ""}>
@@ -214,7 +214,7 @@ function LibraryMain() {
       ) : (
         <div className="work-list">
           {filteredWorks.map(w => (
-            <div key={w.id} className="work-row" onClick={() => open(w.title)}>
+            <div key={w.id} className="work-row" onClick={() => open(String(w.id ?? w.title))}>
               <div className="work-row-title">
                 {w.title}
                 <span className="work-row-genre">{w.genre}</span>

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { spawn } from "node:child_process";
-import { writeFileSync, unlinkSync, existsSync, readFileSync } from "node:fs";
+import { writeFileSync, unlinkSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { execSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -15,6 +15,8 @@ import {
   buildAdaptPrompt,
   buildRevisePrompt,
   buildLoglinePrompt,
+  buildTitlePrompt,
+  buildThemePrompt,
   buildSynopsisPrompt,
   buildTreatmentPrompt,
   buildCharactersPrompt,
@@ -26,6 +28,7 @@ import {
   buildOsmuPrompt,
   buildTargetedReviewPrompt,
   buildDynamicContext,
+  buildGrantMetaPrompt,
   type TargetPersona,
   type Workflow,
 } from "@/lib/storymaker/prompts";
@@ -45,6 +48,11 @@ interface WriterLearningEntry {
   date: string;
   category: string;  // loved | rejected | direction | metaphor | free
   text: string;
+}
+
+interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
 interface RequestBody {
@@ -67,6 +75,17 @@ interface RequestBody {
   fast?: boolean;                  // true → Haiku, false → Opus
   mediumFields?: Record<string, string | string[] | number>; // 매체별 의뢰서 입력 (V1 workflows.ts fields)
   writerLearning?: WriterLearningEntry[];  // ★ admin "내 학습 노하우" 누적 — 매 호출에 prompt에 박힘
+  workId?: string;  // ★ 작품 메모리 키 — 있으면 _works/[workId]/*.md 자동 read 후 prior 박음
+  // ★ 작품 1개 = conversation 1개 = AI가 작품 전체 기억하면서 이어 작업
+  //   매 호출 = 옛 user/assistant turn들 누적 박힘 + 새 user msg 추가
+  //   prompt cache 1h TTL = 옛 turn들도 cached = 입력 토큰 1/10
+  conversationMessages?: ConversationMessage[];
+}
+
+interface WriterLearningEntry {
+  date: string;
+  category: string;
+  text: string;
 }
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -79,7 +98,6 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 function formatWriterLearning(learning?: WriterLearningEntry[]): string {
   if (!learning || learning.length === 0) return "";
-  // 가장 최근 50건만 (토큰 절약), 카테고리별로 그룹
   const recent = learning.slice(-50);
   const grouped: Record<string, string[]> = {};
   for (const e of recent) {
@@ -102,7 +120,47 @@ function buildUserPrompt(b: RequestBody): string {
   const base = buildBasePrompt(b);
   const learning = formatWriterLearning(b.writerLearning);
   // 작가 누적 학습은 base prompt 앞에 박음 — AI가 가장 먼저 인지하도록
-  return learning ? `${learning}\n---\n\n${base}` : base;
+  const memory = formatWorkMemory(b.workId);
+  const parts = [memory, learning, base].filter(Boolean);
+  return parts.join("\n\n---\n\n");
+}
+
+/** 작품 메모리 (.md 파일들) — 매 AI 호출 자동 prior. 사장님 명시: 백그라운드 Claude 들이 시작 시 read */
+function formatWorkMemory(workId?: string): string {
+  if (!workId) return "";
+  try {
+    // sanitize (load route와 동일 로직)
+    const safeId = workId
+      .replace(/[\\/:*?"<>|]/g, "_")
+      .replace(/\s+/g, "_")
+      .replace(/\.+$/g, "")
+      .slice(0, 120) || "work";
+
+    const workDir = path.join(process.cwd(), "_works", safeId);
+    if (!existsSync(workDir)) return "";
+
+    // 동기 read (server-side, fast). 정렬 = 파일명 (01_, 02_, ...)
+    const entries = readdirSync(workDir);
+    const mdFiles = entries.filter((f: string) => f.endsWith(".md")).sort();
+    if (mdFiles.length === 0) return "";
+
+    const sections: string[] = [];
+    sections.push("## ★★★ 이 작품의 누적 메모리 (매 호출마다 자동 read — 작품 = 항상 인지)");
+    sections.push("이 작가가 옛 호출에서 작업한 모든 컨텍스트. AI는 이걸 먼저 다 읽고 = 이전 작업 흐름 그대로 이어 작업.");
+
+    for (const filename of mdFiles) {
+      try {
+        const content = readFileSync(path.join(workDir, filename), "utf-8");
+        if (content && content.trim()) {
+          sections.push(`### 📂 ${filename}\n\n${content.trim()}`);
+        }
+      } catch { /* skip */ }
+    }
+
+    return sections.join("\n\n");
+  } catch {
+    return "";
+  }
 }
 
 function buildBasePrompt(b: RequestBody): string {
@@ -128,6 +186,12 @@ function buildBasePrompt(b: RequestBody): string {
 
     case "revise":
       return buildRevisePrompt(b.text ?? "", b.direction ?? "", genre, b.targetSection, b.versionNumber);
+
+    case "title":
+      return buildTitlePrompt(b.idea ?? "", genre, b.userInput);
+
+    case "theme":
+      return buildThemePrompt(b.idea ?? "", genre, b.userInput);
 
     case "logline":
       return buildLoglinePrompt(b.idea ?? "", genre, b.userInput, b.mediumFields);
@@ -159,6 +223,9 @@ function buildBasePrompt(b: RequestBody): string {
 
     case "osmu":
       return buildOsmuPrompt(b.idea ?? "", b.sourceIp);
+
+    case "extract-grant-meta":
+      return buildGrantMetaPrompt(b.text ?? "");
 
     default:
       throw new Error(`Unknown mode: ${b.mode}`);
@@ -215,7 +282,7 @@ function getClaudeOAuthToken(): string | null {
   }
 }
 
-function streamViaOAuth(systemPrompt: string, userMessage: string, model: string, token: string): ReadableStream {
+function streamViaOAuth(systemPrompt: string, messages: ConversationMessage[], model: string, token: string): ReadableStream {
   return new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder();
@@ -224,19 +291,46 @@ function streamViaOAuth(systemPrompt: string, userMessage: string, model: string
       };
 
       try {
+        // ★ messages 마지막 turn에 cache_control 박음 — 작품 전체 conversation = 다음 호출에서 cached
+        //   (Anthropic prompt cache: 마지막 cache_control 지점까지 prefix가 cached)
+        const apiMessages = messages.map((m, i) => {
+          if (i === messages.length - 1 && m.role === "user") {
+            // 마지막 user msg에는 박지 X — 매번 새로 들어오니 = cache miss. 직전 assistant까지 cached.
+            return { role: m.role, content: m.content };
+          }
+          // 마지막 직전 turn = cache_control (= 그 이전까지 다 cached prefix)
+          if (i === messages.length - 2) {
+            return {
+              role: m.role,
+              content: [{ type: "text", text: m.content, cache_control: { type: "ephemeral", ttl: "1h" } }],
+            };
+          }
+          return { role: m.role, content: m.content };
+        });
+
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${token}`,
             "anthropic-version": "2023-06-01",
-            "anthropic-beta": "oauth-2025-04-20",
+            // ★ extended-cache-ttl-2025-04-11 = 1h TTL beta + oauth + prompt-caching
+            "anthropic-beta": "oauth-2025-04-20,extended-cache-ttl-2025-04-11",
             "content-type": "application/json",
           },
           body: JSON.stringify({
             model,
             max_tokens: 8000,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userMessage }],
+            // ★ system prompt = 1h TTL cache (= 작가가 1시간 안 다음 호출 = 70KB 스킬 cache hit = 토큰 1/10)
+            //   매 호출마다 70KB 박음 X — Anthropic 서버에서 cached prefix 재사용
+            //   "한 클로드가 작품 전체 인식한 상태로 이어 작업" 모델
+            system: [
+              {
+                type: "text",
+                text: systemPrompt,
+                cache_control: { type: "ephemeral", ttl: "1h" },
+              },
+            ],
+            messages: apiMessages,
             stream: true,
           }),
         });
@@ -459,6 +553,14 @@ export async function POST(req: NextRequest) {
   const dynamicContext = buildDynamicContext(body.profile ?? null, body.lessons ?? "");
   const finalUserMessage = dynamicContext + userPrompt;
 
+  // ★ 작품 1개 = conversation 1개 = 옛 turn들 누적
+  //   conversationMessages 박혀 있으면 = 옛 turn + 새 user msg
+  //   없으면 = 첫 호출 = single user msg (= 옛 흐름)
+  const apiMessages: ConversationMessage[] = [
+    ...(body.conversationMessages ?? []),
+    { role: "user", content: finalUserMessage },
+  ];
+
   let model = body.fast
     ? (process.env.ANTHROPIC_MODEL_FAST || "claude-haiku-4-5-20251001")
     : (process.env.ANTHROPIC_MODEL || "claude-opus-4-7");
@@ -477,7 +579,7 @@ export async function POST(req: NextRequest) {
   if (useClaudeCode) {
     const oauthToken = getClaudeOAuthToken();
     if (oauthToken) {
-      return new Response(streamViaOAuth(getSystemPrompt(), finalUserMessage, model, oauthToken), {
+      return new Response(streamViaOAuth(getSystemPrompt(), apiMessages, model, oauthToken), {
         headers: {
           "content-type": "text/event-stream; charset=utf-8",
           "cache-control": "no-cache, no-transform",
@@ -485,6 +587,7 @@ export async function POST(req: NextRequest) {
         },
       });
     }
+    // CLI fallback = single user msg만 지원 (claude.exe 한계). 옛 turn = system prompt 머리에 박는 식 = 다음 라운드.
     return new Response(streamViaClaudeCode(getSystemPrompt(), finalUserMessage, model), {
       headers: {
         "content-type": "text/event-stream; charset=utf-8",
@@ -504,6 +607,17 @@ export async function POST(req: NextRequest) {
       };
 
       try {
+        // ★ apiMessages = 옛 conversation + 새 user msg (= 작품 전체 인식)
+        // 마지막 직전 turn = cache_control (= prefix cached)
+        const sdkMessages = apiMessages.map((m, i) => {
+          if (i === apiMessages.length - 2) {
+            return {
+              role: m.role,
+              content: [{ type: "text" as const, text: m.content, cache_control: { type: "ephemeral" as const, ttl: "1h" as const } }],
+            };
+          }
+          return { role: m.role, content: m.content };
+        });
         const response = await client.messages.stream({
           model,
           max_tokens: 8192,
@@ -511,10 +625,11 @@ export async function POST(req: NextRequest) {
             {
               type: "text",
               text: getSystemPrompt(),
-              cache_control: { type: "ephemeral" },
+              cache_control: { type: "ephemeral", ttl: "1h" },
             },
           ],
-          messages: [{ role: "user", content: finalUserMessage }],
+          // @ts-expect-error - 1h ttl is beta, SDK type may not yet include it
+          messages: sdkMessages,
         });
 
         for await (const event of response) {
