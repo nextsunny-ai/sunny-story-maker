@@ -561,15 +561,19 @@ export async function POST(req: NextRequest) {
     { role: "user", content: finalUserMessage },
   ];
 
-  let model = body.fast
-    ? (process.env.ANTHROPIC_MODEL_FAST || "claude-haiku-4-5-20251001")
-    : (process.env.ANTHROPIC_MODEL || "claude-opus-4-7");
+  // ★ Vercel 환경 변수 = newline 박힐 수 있음 → trim() 강제. 또 = 옛 invalid model id (claude-opus-4-7) → valid latest로 매핑.
+  let model = (body.fast
+    ? (process.env.ANTHROPIC_MODEL_FAST || "haiku")
+    : (process.env.ANTHROPIC_MODEL || "opus")).trim();
 
-  // CLI 단축어를 Anthropic API full ID로 매핑
+  // CLI 단축어 + 옛 invalid id 둘 다 = Anthropic API valid full ID로 매핑
   const MODEL_MAP: Record<string, string> = {
     haiku: "claude-haiku-4-5-20251001",
-    sonnet: "claude-sonnet-4-6",
-    opus: "claude-opus-4-7",
+    sonnet: "claude-sonnet-4-5-20250929",
+    opus: "claude-opus-4-5-20250929",
+    // 옛 invalid id 호환
+    "claude-opus-4-7": "claude-opus-4-5-20250929",
+    "claude-sonnet-4-6": "claude-sonnet-4-5-20250929",
   };
   if (MODEL_MAP[model]) model = MODEL_MAP[model];
 
