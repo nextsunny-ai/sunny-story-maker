@@ -430,6 +430,48 @@ export interface TargetPersona {
   voice_tone?: string;
 }
 
+/**
+ * ★ 간단 리뷰 prompt — 사장님 명시 2026-05-04
+ * 작가가 = 빠른 판단 = 3-5줄 평가만 받기. 깊이 X.
+ */
+export function buildSimpleReviewPrompt(text: string, genre?: Genre): string {
+  const genrePart = genre ? `\n## 매체/장르\n${genre.name} (${genre.sub})\n` : "";
+  const truncated = text.length > 5000 ? text.slice(0, 5000) + "...(이하 생략)" : text;
+
+  return `# 작업 요청: 간단 리뷰 (= 작가 빠른 판단용)
+
+너는 프로 시나리오 작가 + 배급사 콘텐츠 평가 위원이다. 작가가 = 깊은 분석 X = 빠른 판단을 원한다.
+
+## 분석 대상
+\`\`\`
+${truncated}
+\`\`\`
+${genrePart}
+## 출력 — 짧게, 5줄 이내
+
+### 한 줄 평
+한 문장. 이 작품의 = 가장 큰 인상.
+
+### ★ 강점 1개
+구체 씬·대사 인용 1개 + 왜 강점인지 짧게.
+
+### ⚠ 약점 1개
+구체 씬·대사 인용 1개 + 왜 약점인지 짧게.
+
+### 우선 수정
+이 작품 = 외부 발송 전 = 반드시 손볼 것 1가지.
+
+### 종합 (★ 한 단어)
+PASS / CONSIDER / RECOMMEND 중 하나. 등급 + 한 줄 근거.
+
+## 룰
+- 마크다운 가독 OK (헤더·강조). 단 = 짧게.
+- 격언체 X / 추상 X = 구체 씬·대사 인용
+- 작가가 = 30초 만에 = 판단 가능한 수준
+- 깊은 분석 = 「심층 리뷰」 모드에서.
+`;
+}
+
 export function buildTargetedReviewPrompt(text: string, targets: TargetPersona[], genre?: Genre): string {
   const genrePart = genre ? `\n## 매체/장르\n${genre.name} (${genre.sub})\n` : "";
   const truncated = text.length > 7000 ? text.slice(0, 7000) + "...(이하 생략)" : text;

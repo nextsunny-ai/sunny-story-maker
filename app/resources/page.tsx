@@ -156,44 +156,77 @@ function CategoryView({
         </div>
       ) : (
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
-          {items.map(it => (
-            <button
-              key={it.id}
-              type="button"
-              onClick={() => onItem(it)}
-              style={{
-                textAlign: "left",
-                border: "1px solid var(--line)",
-                borderRadius: 12,
-                background: "var(--card-soft)",
-                padding: 16,
-                cursor: "pointer",
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", lineHeight: 1.4 }}>{it.title}</div>
-              {it.body && (
-                <div style={{ fontSize: 12, color: "var(--ink-3)", lineHeight: 1.6,
-                  display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                }}>
-                  {it.body}
+          {items.map(it => {
+            const cardContent = (
+              <>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", lineHeight: 1.4, display: "flex", alignItems: "center", gap: 6 }}>
+                  {it.title}
+                  {it.url && <span style={{ fontSize: 11, color: "var(--coral)" }}>↗</span>}
                 </div>
-              )}
-              {it.tags && it.tags.length > 0 && (
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: "auto" }}>
-                  {it.tags.map(t => (
-                    <span key={t} style={{
-                      fontSize: 10, padding: "2px 6px", background: "var(--coral-soft)",
-                      color: "var(--coral-deep)", borderRadius: 4, fontWeight: 600,
-                    }}>{t}</span>
-                  ))}
-                </div>
-              )}
-            </button>
-          ))}
+                {it.body && (
+                  <div style={{ fontSize: 12, color: "var(--ink-3)", lineHeight: 1.6,
+                    display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}>
+                    {it.body}
+                  </div>
+                )}
+                {it.url && (
+                  <div style={{ fontSize: 11, color: "var(--coral-deep)", fontWeight: 600, marginTop: 4 }}>
+                    {it.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                  </div>
+                )}
+                {it.tags && it.tags.length > 0 && (
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: "auto" }}>
+                    {it.tags.map(t => (
+                      <span key={t} style={{
+                        fontSize: 10, padding: "2px 6px", background: "var(--coral-soft)",
+                        color: "var(--coral-deep)", borderRadius: 4, fontWeight: 600,
+                      }}>{t}</span>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+            const cardStyle: React.CSSProperties = {
+              textAlign: "left",
+              border: "1px solid var(--line)",
+              borderRadius: 12,
+              background: "var(--card-soft)",
+              padding: 16,
+              cursor: "pointer",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              textDecoration: "none",
+              color: "inherit",
+            };
+            // ★ url 박힌 항목 = a 태그 = 새 탭 / 그 외 = 모달
+            if (it.url) {
+              return (
+                <a
+                  key={it.id}
+                  href={it.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={cardStyle}
+                  title={`${it.url} (새 탭에서 열림)`}
+                >
+                  {cardContent}
+                </a>
+              );
+            }
+            return (
+              <button
+                key={it.id}
+                type="button"
+                onClick={() => onItem(it)}
+                style={cardStyle}
+              >
+                {cardContent}
+              </button>
+            );
+          })}
         </div>
       )}
     </>

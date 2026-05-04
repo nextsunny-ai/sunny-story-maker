@@ -696,6 +696,27 @@ function ReviewMain() {
               !reviewing && unifiedReview && !reviewError ? (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <Btn icon={I.spark} onClick={onRunReview}>다시 리뷰</Btn>
+                  {/* ★ 카피 버튼 (사장님 명시 2026-05-04) */}
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      try {
+                        await navigator.clipboard.writeText(displayedText);
+                        const btn = e.currentTarget;
+                        const orig = btn.textContent;
+                        btn.textContent = "✓ 복사됨";
+                        setTimeout(() => { btn.textContent = orig; }, 1500);
+                      } catch { /* ignore */ }
+                    }}
+                    style={{
+                      padding: "6px 12px", fontSize: 12, fontWeight: 600,
+                      background: "transparent", color: "var(--ink-2)",
+                      border: "1px solid var(--line)", borderRadius: 6,
+                      cursor: "pointer",
+                      display: "inline-flex", alignItems: "center", gap: 4,
+                    }}
+                    title="현재 탭 본문 복사 (작가노트·메일에 붙여넣기)"
+                  >📋 복사</button>
                   <Btn kind="primary" icon={I.save} onClick={() => onSaveCurrent("docx")}>현재 워드</Btn>
                   <Btn icon={I.save} onClick={() => onSaveCurrent("txt")}>현재 txt</Btn>
                 </div>
