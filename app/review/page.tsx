@@ -475,15 +475,26 @@ function ReviewMain() {
     await exportDocument(md, baseFilename(safeName), format);
   };
 
-  // 리뷰어별 섹션 (화면 표시용 + 개별 다운로드용)
-  const reviewerSections = unifiedReview ? splitByReviewer(unifiedReview) : [];
+  // ★ 사장님 명시 (2026-05-04): 통합 리뷰 먼저, 개별 그 다음
+  //    AI 응답에 ===PERSONAS_BREAK=== 마커 박음 → split
+  const personasBreakIdx = unifiedReview.indexOf("===PERSONAS_BREAK===");
+  const integratedReview = personasBreakIdx >= 0
+    ? unifiedReview.slice(0, personasBreakIdx).trim()
+    : ""; // 마커 없으면 = 옛 형식 (= 통합 X = 개별만)
+  const personasReview = personasBreakIdx >= 0
+    ? unifiedReview.slice(personasBreakIdx + "===PERSONAS_BREAK===".length).trim()
+    : unifiedReview;
 
-  // 결과 화면 탭 — 통합 / 리뷰어별 (페르소나 이름 자체가 익명이라 별도 익명 탭 X)
+  // 리뷰어별 섹션 (화면 표시용 + 개별 다운로드용) — 마커 아래 부분에서만 split
+  const reviewerSections = personasReview ? splitByReviewer(personasReview) : [];
+
+  // 결과 화면 탭 — 통합표 / 리뷰어별
   const [resultTab, setResultTab] = useState<string>("all");
 
   // 활성 탭의 표시 텍스트
   const displayedText = (() => {
     if (resultTab === "all") return unifiedReview;
+    if (resultTab === "integrated") return integratedReview || personasReview;
     const found = reviewerSections.find(s => s.name === resultTab);
     return found ? found.body : unifiedReview;
   })();
@@ -765,7 +776,8 @@ function ReviewMain() {
               border: "1px solid var(--line)",
             }}>
               {[
-                { id: "all", label: "📋 통합" },
+                { id: "all", label: "📋 전체" },
+                ...(integratedReview ? [{ id: "integrated", label: "★ 종합 한눈에" }] : []),
                 ...reviewerSections.map((s, i) => ({
                   id: `r${i}_${s.name}`,
                   label: `🎯 ${s.name.length > 18 ? s.name.slice(0, 16) + "…" : s.name}`,

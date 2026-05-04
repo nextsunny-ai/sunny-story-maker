@@ -363,6 +363,37 @@ function WriterTab() {
         sub="작가마다 스타일이 다릅니다. 본인만의 표현·룰을 누적하면 모든 작업에 자동 반영 — 다른 작가에겐 적용 X."
       />
 
+      {/* ★ 자동 반영 작동 표시 — 작가가 = 박은 학습이 진짜 작동하는지 시각 피드백 */}
+      <div style={{
+        padding: "10px 14px",
+        marginBottom: 14,
+        background: learning.length > 0 ? "rgba(64, 200, 130, 0.08)" : "rgba(180, 180, 180, 0.08)",
+        border: `1px solid ${learning.length > 0 ? "rgba(64, 200, 130, 0.35)" : "rgba(180, 180, 180, 0.3)"}`,
+        borderRadius: 8,
+        fontSize: 12.5,
+        color: "var(--ink-2)",
+        lineHeight: 1.6,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+      }}>
+        {learning.length > 0 ? (
+          <>
+            <span style={{ color: "rgb(64, 160, 100)", fontWeight: 700 }}>✓ 자동 반영 중</span>
+            <span style={{ color: "var(--ink-3)" }}>
+              ({learning.length}건) — 모든 페이지(develop·write·chat·adapt·review·osmu·package)의 AI 호출에 자동 박힙니다.
+            </span>
+          </>
+        ) : (
+          <>
+            <span style={{ color: "var(--ink-4)", fontWeight: 700 }}>· 학습 없음</span>
+            <span style={{ color: "var(--ink-4)" }}>
+              — 아래에서 좋아함/피함/디렉션/비유 1개씩 박으면 = 다음 호출부터 즉시 반영됩니다.
+            </span>
+          </>
+        )}
+      </div>
+
       <div className="adm-plan">
         <div className="adm-plan-tag">{(profile.penName || profile.name || "작가")} 누적 학습</div>
         <div className="adm-plan-name">{learningStats.count}<em>건</em> · {learningStats.chars.toLocaleString()}자</div>

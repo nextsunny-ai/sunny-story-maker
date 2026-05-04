@@ -26,8 +26,19 @@ function readSkill(file: string): string {
   }
 }
 
-/** 사장님 핵심 노하우 자료 + 자동 학습 learned.md */
+/** ★★★ SKILL 자료 박지 X (외부 배포 = 사적 정보 보호)
+ *
+ * lib/skills/*.md = 자료 작성자(사장님) 사적 자료 (페르소나·작품 IP·캐릭터 이름·소속 등)
+ * → 외부 작가들에게 노출되면 안 됨. = 통째로 박지 X.
+ *
+ * 작법 노하우 = FALLBACK_SYSTEM_PROMPT에 충분히 박혀있음 (humanizer 6패턴·Tier 시스템·5단계·12장르·캐릭터 비유 체계).
+ *
+ * 사장님 본인 = LOCAL에서만 = 사적 자료 활용하려면:
+ *   .env.local 에 = LOAD_SKILLS=true 박음 (= 사적 정보 박힘 = 외부 배포 X)
+ */
 function loadSkillBundle(): string {
+  if (process.env.LOAD_SKILLS !== "true") return "";
+
   const parts: string[] = [];
   const readme = readSkill("00_readme.md");
   const skills_01 = readSkill("01_skills.md");

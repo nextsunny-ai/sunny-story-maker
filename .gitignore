@@ -47,3 +47,6 @@ STORY_MAKER/
 STORY_MAKER_DESIGN/
 
 .vercel
+
+# Claude Code internal
+.claude-flow/

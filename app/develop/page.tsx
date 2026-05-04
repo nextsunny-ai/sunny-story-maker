@@ -16,6 +16,7 @@ import {
 } from "@/components/MediumFieldRenderer";
 import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
 import { getWorkId, appendTurns } from "@/lib/storymaker/work-id";
+import { ItemMiniChat } from "@/components/ItemMiniChat";
 
 export default function DevelopPage() {
   return (
@@ -37,12 +38,14 @@ interface PreAsset {
   status: "pending" | "active" | "done";
 }
 
+// ★ 사장님 명시 (2026-05-04): 캐릭터 = 3번째로 이동.
+//   캐릭터 일찍 잡으면 = 시놉시스·기승전결도 = 캐릭터 기반으로 자연스러움.
 const STAGE_DEFS: Omit<PreAsset, "text" | "status">[] = [
   { key: "title",     label: "제목",       hint: "작품 제목 후보 + 한 줄 평" },
   { key: "logline",   label: "로그라인",    hint: "한 문장 핵심 컨셉" },
+  { key: "characters", label: "캐릭터 설정", hint: "주인공 + 핵심 인물 시트" },
   { key: "theme",     label: "주제",       hint: "작품이 던지는 질문 / 메시지" },
   { key: "synopsis",  label: "시놉시스",    hint: "A4 1쪽 줄거리" },
-  { key: "characters", label: "캐릭터 설정", hint: "주인공 + 핵심 인물 시트" },
   { key: "structure", label: "기승전결",    hint: "구성 (매체에 따라 3막/회차/8단 등)" },
 ];
 
@@ -111,11 +114,13 @@ function DevelopMain() {
     return () => clearTimeout(timer);
   }, [developKey, mediumFields, stages]);
 
-  // 옛 작업 = stages 중 하나라도 done이면 = phase = "stages"로 자동 진입.
-  // 일관성 정정:
-  //   1) status=done인데 text 비어있는 카드 = pending으로 reset
-  //   2) 순서대로 첫 비어있는 카드 = 무조건 active (= 그 외 active 박혀있으면 pending으로 정정)
-  // [stages] deps = 실시간 정정.
+  // ★ 사장님 명시 (2026-05-04): 6항목 = 작가가 자유 선택 (강제 순차 X)
+  //   - 작가가 = "시놉시스만 뽑기" / "캐릭터만 뽑기" 가능
+  //   - 모든 카드 = 독립 작동
+  //   - useEffect 룰:
+  //     1) status=done인데 text 비어있는 카드 = pending reset
+  //     2) ★ "첫 비어있는 카드 active" 강제 X (= 작가가 = 직접 선택)
+  //     3) 모든 카드 = 그냥 「▶ 시작」 누르면 = 그 카드만 active로 박힘
   useEffect(() => {
     let hasRealDone = false;
     const cleaned = stages.map((s) => {
@@ -125,16 +130,15 @@ function DevelopMain() {
       if (s.status === "done") hasRealDone = true;
       return s;
     });
-    // 첫 비어있는(=non-done) 카드 = active 강제
-    const firstIncomplete = cleaned.findIndex(s => s.status !== "done");
-    const fixed = cleaned.map((s, i) => {
-      if (i === firstIncomplete) {
-        return s.status === "active" ? s : { ...s, status: "active" as const };
-      }
-      // 다른 곳 active 박혀있으면 = pending으로
-      if (s.status === "active") return { ...s, status: "pending" as const };
-      return s;
-    });
+    // ★ 첫 비어있는 카드 active 강제 X — 작가 자유 선택 (사장님 명시)
+    // 단, busyKey가 없고 = 모든 카드가 = pending이고 = done도 X면 = 첫 카드만 active 힌트 (작가 진입 가이드)
+    const allPendingOrDone = cleaned.every(s => s.status !== "active");
+    const noneDone = cleaned.every(s => s.status !== "done");
+    let fixed = cleaned;
+    if (allPendingOrDone && noneDone) {
+      // 첫 진입 = 첫 카드만 = active 힌트 (이후 = 작가 자유)
+      fixed = cleaned.map((s, i) => i === 0 ? { ...s, status: "active" as const } : s);
+    }
     const changed = fixed.some((f, i) => f.status !== stages[i].status);
     if (changed) setStages(fixed);
     if (hasRealDone && phase !== "stages") setPhase("stages");
@@ -362,7 +366,7 @@ function DevelopMain() {
                   border: `1px solid ${s.status === "active" ? "var(--coral)" : "var(--line)"}`,
                   borderRadius: 14,
                   background: s.status === "active" ? "var(--card)" : "var(--card-soft)",
-                  height: 480, // ★ 6개 카드 동일 사이즈
+                  minHeight: 480, // ★ 미니 채팅 박힌 카드 = 늘어남 (사장님 명시: 카드 + 채팅 같이)
                   display: "flex", flexDirection: "column",
                   overflow: "hidden",
                 }}
@@ -478,8 +482,8 @@ function DevelopMain() {
 
                 {/* 본문 — 스크롤 영역 (사장님 명시: 카드 사이즈 동일 + 내부 스크롤) */}
                 <div style={{
-                  flex: 1, padding: "10px 18px 18px",
-                  fontSize: 13, color: "var(--ink-2)", lineHeight: 1.75,
+                  flex: 1, padding: "10px 18px 12px",
+                  fontSize: 13, color: "var(--ink-2)", lineHeight: 1.5, /* ★ 1.75 → 1.5 (시나리오 표준) */
                   overflowY: "auto",
                   overflowX: "hidden",
                 }}>
@@ -514,12 +518,33 @@ function DevelopMain() {
                         </>
                       ) : (
                         <em style={{ fontSize: 12.5 }}>
-                          이전 단계 완료 후 시작
+                          「▶ 시작」 누르면 AI가 작성 시작
                         </em>
                       )}
                     </div>
                   )}
                 </div>
+
+                {/* ★ 미니 채팅 — 사장님 명시: 카드 결과 = 같이 다듬기 (협업 워크룸) */}
+                {s.text && s.text.trim() && (
+                  <div style={{ padding: "0 14px 12px" }}>
+                    <ItemMiniChat
+                      workId={getWorkId(genreParam, ideaParam)}
+                      cardKey={s.key}
+                      cardLabel={s.label}
+                      currentText={s.text}
+                      mode={STAGE_MODE[s.key]}
+                      idea={ideaParam}
+                      genreLetter={genreParam}
+                      mediumFields={mediumFields}
+                      onApply={(newText) => {
+                        setStages(prev => prev.map(x =>
+                          x.key === s.key ? { ...x, text: newText, status: "done" } : x
+                        ));
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
