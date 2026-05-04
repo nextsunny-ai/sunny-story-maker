@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
 import { AppShell } from "@/components/AppShell";
@@ -8,6 +8,17 @@ import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
 import { Field, Btn } from "@/components/ui";
 import { KEY, usePersistedState } from "@/lib/persist";
+
+/** ★ /api/works/list — _works/ 자동 스캔 응답 (사장님 명시 2026-05-04) */
+interface ApiWorkInfo {
+  workId: string;
+  title: string;
+  genre?: string;
+  preview?: string;
+  fileCount: number;
+  updatedAt: number;
+  size: number;
+}
 
 export default function LibraryPage() {
   return (
@@ -53,8 +64,50 @@ function LibraryMain() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [query, setQuery] = useState("");
 
-  const [works] = usePersistedState<LibraryWork[]>(KEY.libraryWorks, []);
+  const [worksLocal] = usePersistedState<LibraryWork[]>(KEY.libraryWorks, []);
   const [personas, setPersonas] = usePersistedState<LibraryPersona[]>(KEY.libraryPersonas, []);
+
+  // ★ _works/ 폴더 자동 스캔 (사장님 명시 2026-05-04)
+  const [apiWorks, setApiWorks] = useState<ApiWorkInfo[]>([]);
+  const [worksDir, setWorksDir] = useState<string>("");
+  const [apiLoading, setApiLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/works/list");
+        if (!res.ok) throw new Error("작품 list API 실패");
+        const data = await res.json() as { works: ApiWorkInfo[]; worksDir?: string };
+        if (!cancelled) {
+          setApiWorks(data.works || []);
+          setWorksDir(data.worksDir || "");
+        }
+      } catch { /* ignore — localStorage 작품만 표시 */ }
+      finally {
+        if (!cancelled) setApiLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ★ API 작품 + localStorage 작품 통합 (workId 기준 dedup)
+  const works = useMemo<LibraryWork[]>(() => {
+    const apiAsLib: LibraryWork[] = apiWorks.map(w => ({
+      id: w.workId,
+      title: w.title,
+      genre: w.genre || "",
+      letter: w.genre || "A",
+      stage: w.fileCount >= 5 ? "집필 중" : w.fileCount >= 3 ? "트리트먼트" : "기획",
+      prog: Math.min(1, w.fileCount / 6), // 6단계 기준
+      updated: new Date(w.updatedAt).toLocaleDateString("ko-KR"),
+      size: `${(w.size / 1024).toFixed(1)} KB · ${w.fileCount}개 .md`,
+    }));
+    // localStorage 작품 추가 (= API에 없는 것만)
+    const apiIds = new Set(apiAsLib.map(w => w.id));
+    const localOnly = worksLocal.filter(w => !apiIds.has(String(w.id)));
+    return [...apiAsLib, ...localOnly];
+  }, [apiWorks, worksLocal]);
 
   // 새 페르소나 추가 폼
   const [showAddForm, setShowAddForm] = useState(false);
