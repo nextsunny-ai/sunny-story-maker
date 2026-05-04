@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { Suspense, useRef, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { ICONS } from "@/lib/icons";
 import { GENRES } from "@/lib/genres";
@@ -99,7 +99,9 @@ type GrantMode = "new" | "existing" | "direct";
 export default function PackagePage() {
   return (
     <AppShell>
-      <PackageMain />
+      <Suspense fallback={null}>
+        <PackageMain />
+      </Suspense>
     </AppShell>
   );
 }

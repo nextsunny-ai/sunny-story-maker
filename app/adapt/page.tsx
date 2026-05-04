@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
 import { GENRES } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
@@ -38,6 +39,7 @@ const TONE_CHIPS: ToneChip[] = [
 
 function AdaptMain() {
   const I = ICONS;
+  const router = useRouter();
 
   const [mode, setMode] = useState<"same" | "cross">("same");
   const [showLibrary, setShowLibrary] = useState(false);

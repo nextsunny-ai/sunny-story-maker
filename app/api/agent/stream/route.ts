@@ -628,8 +628,7 @@ export async function POST(req: NextRequest) {
               cache_control: { type: "ephemeral", ttl: "1h" },
             },
           ],
-          // @ts-expect-error - 1h ttl is beta, SDK type may not yet include it
-          messages: sdkMessages,
+          messages: sdkMessages as Parameters<typeof client.messages.stream>[0]["messages"],
         });
 
         for await (const event of response) {
