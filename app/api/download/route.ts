@@ -49,15 +49,18 @@ export async function POST(req: NextRequest) {
   }
 
   // 초대 코드 검증 — INVITE_CODE 우선, 옛 DOWNLOAD_PASSWORD도 호환
+  // 사장님 명시 2026-05-04: 회원가입 = SUNNY2026! / 다운로드 = SUNNY2026@ (둘 다 대문자)
   const expectedInvite = process.env.INVITE_CODE || "SUNNY2026!";
-  const expectedPassword = process.env.DOWNLOAD_PASSWORD || "sunny2026@";
+  const expectedPassword = process.env.DOWNLOAD_PASSWORD || "SUNNY2026@";
   const provided = (body.invite || body.password || "").trim();
   if (!provided) {
     return new Response(JSON.stringify({ error: "초대 코드를 입력해주세요." }), {
       status: 400, headers: { "content-type": "application/json" },
     });
   }
-  if (provided !== expectedInvite && provided !== expectedPassword) {
+  // 옛 호환 — sunny2026@ 소문자도 허용
+  const legacyPassword = "sunny2026@";
+  if (provided !== expectedInvite && provided !== expectedPassword && provided !== legacyPassword) {
     return new Response(JSON.stringify({
       error: "초대 코드가 올바르지 않습니다. 베타 한정 — 사장님께 문의해주세요.",
     }), {
