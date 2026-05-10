@@ -76,68 +76,24 @@ export function enrichBody(body: Record<string, unknown>): Record<string, unknow
 }
 
 /**
- * Tauri Rust IPC를 통한 stream — Channel 이벤트를 SSE Response로 변환.
- */
-async function streamViaTauri(body: Record<string, unknown>): Promise<Response> {
-  const tauriCore = await import("@tauri-apps/api/core");
-  const { invoke, Channel } = tauriCore;
-
-  const userMessage = JSON.stringify(body);
-  const systemPrompt = "You are SUNNY Story Maker. Process the request body and respond.";
-  const fast = (body as { fast?: boolean }).fast === true;
-  const model = fast ? "claude-haiku-4-5-20251001" : "claude-opus-4-7";
-
-  const channel = new Channel<{ event: string; [k: string]: unknown }>();
-  const encoder = new TextEncoder();
-
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      channel.onmessage = (msg) => {
-        const eventType = msg.event;
-        const data = JSON.stringify(msg);
-        const sseLine = `event: ${eventType}\ndata: ${data}\n\n`;
-        controller.enqueue(encoder.encode(sseLine));
-        if (eventType === "done") controller.close();
-      };
-      try {
-        await invoke("stream_agent", {
-          args: { model, systemPrompt, userMessage },
-          channel,
-        });
-      } catch (e) {
-        const errMsg = e instanceof Error ? e.message : String(e);
-        const sseLine = `event: error\ndata: ${JSON.stringify({ event: "error", message: errMsg })}\n\n`;
-        controller.enqueue(encoder.encode(sseLine));
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(stream, {
-    status: 200,
-    headers: {
-      "content-type": "text/event-stream; charset=utf-8",
-      "cache-control": "no-cache, no-transform",
-    },
-  });
-}
-
-/**
- * ★ /api/agent/stream 호출 wrapper (= enrichBody 자동 + isTauri 분기).
+ * ★ /api/agent/stream 호출 wrapper (= enrichBody 자동).
  *
  * 4개 페이지 (grant·develop·review·write) = 직접 fetch 대신 = 이 함수 사용.
- * - Tauri 모드 = invoke로 Rust stream agent (= OAuth = 비용 0)
- * - 웹 모드 = Vercel API fetch (= Settings에 박은 작가 BYOK 키 사용)
+ *
+ * ★ 2026-05-11 V2.11.1 fix:
+ * Tauri 모드도 = Vercel API 호출 (= same-origin = `story.sunnytoon.com`).
+ * 이유: Vercel API = `getSystemPrompt()` 호출 = 30년 CD 시스템 프롬프트 + humanizer + 12장르
+ *       + lib/skills/learned.md 작법 노하우 다 박힘. invoke로 직접 호출 시 = 단순 prompt만 박힘 = 사고.
+ *
+ * 비용 0 path (= V2.12 별도):
+ * - `/api/build-prompt` endpoint 신규 + Tauri Rust = invoke('stream_agent', { systemPrompt, oauthToken })
+ * - = OAuth Pro 구독 사용 + system prompt 보존 = 비용 0 (= 진짜 BYOK)
  */
 export async function streamFetch(
   body: Record<string, unknown>,
   init?: { signal?: AbortSignal }
 ): Promise<Response> {
   const enriched = enrichBody(body);
-
-  if (isTauri()) {
-    return streamViaTauri(enriched);
-  }
 
   return fetch("/api/agent/stream", {
     method: "POST",
@@ -160,14 +116,12 @@ export async function streamAgent(opts: StreamAgentOptions): Promise<string> {
 
   let res: Response;
   try {
-    res = isTauri()
-      ? await streamViaTauri(enrichedBody)
-      : await fetch("/api/agent/stream", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(enrichedBody),
-          signal,
-        });
+    res = await fetch("/api/agent/stream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(enrichedBody),
+      signal,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "네트워크 오류";
     onError?.(msg);

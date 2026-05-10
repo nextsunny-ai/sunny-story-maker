@@ -60,6 +60,29 @@ function loadSkillBundle(): string {
   return parts.length > 0 ? parts.join("\n") : "";
 }
 
+/** ★★★ V2.11.1 (2026-05-11) — `learned.md`만 별도로 박음 (= 사적 정보 X 검증된 작법 노하우만)
+ *
+ * 이유: 사장님 명시 = "전문 작가 스킬 = 기본을 박아놓고 = 처음에 읽고 = 그 상태로 일해야".
+ * - `loadSkillBundle()` = LOAD_SKILLS=true만 = 사적 정보 노출 위험 = production OFF
+ * - 결과 = 작가 = `learned.md` 작법 노하우 = 못 받음 = 일반 클로드처럼 응답
+ *
+ * 정정: `learned.md` = 사적 정보 X 검증됨 (= 협업 원칙 + 시나리오 핵심 노하우 + AI 티 제거 6패턴 등 = 작법만)
+ *      → `LOAD_LEARNED !== "false"` 디폴트 ON = production에서도 박힘.
+ *
+ * 사장님이 매주 갱신: scripts/learn-skills.ts (= OAuth Pro 구독 사용 = 비용 0).
+ *
+ * 사적 정보 검출 시 = LOAD_LEARNED=false 박아 비활성화 가능.
+ */
+function loadLearnedOnly(): string {
+  if (process.env.LOAD_LEARNED === "false") return ""; // 옵션 = 비활성화 가능
+  if (process.env.LOAD_SKILLS === "true") return ""; // loadSkillBundle()이 박는 경우 = 중복 X
+
+  const learned = readSkill("learned.md");
+  if (!learned.trim()) return "";
+
+  return `# 누적 학습 (= 매주 갱신되는 작법 노하우)\n\n${learned}`;
+}
+
 
 /** Story Maker fallback prompt — 프로 시나리오 작가 정체성 + 12장르 + humanizer 6패턴 + Tier 시스템 + 한국 대사 룰 + 캐릭터 비유 체계 */
 const FALLBACK_SYSTEM_PROMPT = `# Story Maker — 시나리오·대본 전문 작가 에이전트
@@ -198,15 +221,26 @@ const IDENTITY_OVERRIDE = `
 
 let _cachedSystemPrompt: string | null = null;
 
-/** 정적 system prompt — Anthropic prompt cache 적중 대상 */
+/** 정적 system prompt — Anthropic prompt cache 적중 대상.
+ *
+ * 합치기 순서 (= V2.11.1):
+ * 1. SKILL 9개 (LOAD_SKILLS=true 시만, 사장님 LOCAL용)
+ * 2. learned.md (디폴트 ON = production도 박힘 = 작가에게 작법 노하우 전달)
+ * 3. FALLBACK_SYSTEM_PROMPT (= 30년 CD + humanizer + Tier + 12장르 + 5단계 + 한국 대사 + 캐릭터 비유)
+ * 4. IDENTITY_OVERRIDE (= 자기 호칭 + 사적 정보 보호 + 마크다운 금지)
+ */
 export function getSystemPrompt(): string {
   if (_cachedSystemPrompt !== null) return _cachedSystemPrompt;
 
-  const skillBundle = loadSkillBundle();
-  // SKILL 자료 + Story Maker fallback + 자기 호칭 강제 (이 순서가 중요)
-  // fallback이 SKILL 다음에 와서 정체성 강하게. IDENTITY_OVERRIDE는 마지막에 와서 LLM 응답 직전에 작용
-  _cachedSystemPrompt = skillBundle
-    ? `${skillBundle}\n\n---\n\n${FALLBACK_SYSTEM_PROMPT}${IDENTITY_OVERRIDE}`
-    : `${FALLBACK_SYSTEM_PROMPT}${IDENTITY_OVERRIDE}`;
+  const skillBundle = loadSkillBundle();   // LOAD_SKILLS=true시만 (사장님 LOCAL)
+  const learnedOnly = loadLearnedOnly();   // 디폴트 ON (= 작법 노하우만 = production도 박힘)
+
+  const parts: string[] = [];
+  if (skillBundle) parts.push(skillBundle);
+  if (learnedOnly) parts.push(learnedOnly);
+  parts.push(FALLBACK_SYSTEM_PROMPT);
+  parts.push(IDENTITY_OVERRIDE);
+
+  _cachedSystemPrompt = parts.join("\n\n---\n\n");
   return _cachedSystemPrompt;
 }
