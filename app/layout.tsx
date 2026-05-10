@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { FeedbackWidget } from "@/components/FeedbackWidget";
 
 export const metadata: Metadata = {
   title: "SUNNY Story Maker — 작가의 첫 줄",
@@ -12,7 +13,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ko" data-tone="B">
-      <body>{children}</body>
+      <body>
+        {children}
+        <FeedbackWidget />
+      </body>
     </html>
   );
 }

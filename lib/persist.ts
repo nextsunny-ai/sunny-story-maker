@@ -55,6 +55,9 @@ export const KEY = {
   //   Anthropic prompt cache 1h TTL = 옛 turn cached = 토큰 1/10
   //   AI = 작가의 작품 전체 + 모든 작업 흐름 다 인식
   workConversation: (id: string) => `${PREFIX}.conv.${USER}.work.${id}`,
+
+  // ★ BYOK = 작가 본인 ANTHROPIC_API_KEY (Settings 페이지 입력 → stream-agent에서 자동 첨부) — 글로벌 룰 16
+  userApiKey: `${PREFIX}.account.${USER}.apiKey`,
 } as const;
 
 export interface ConversationTurn {

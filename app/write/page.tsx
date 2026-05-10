@@ -11,6 +11,7 @@ import { Btn } from "@/components/ui";
 import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
 import { appendTurns } from "@/lib/storymaker/work-id";
 import { downloadDocx, downloadTxt } from "@/lib/storymaker/export";
+import { streamFetch } from "@/lib/stream-agent";
 import { getWorkflow, QUICK_ACTIONS } from "@/lib/workflows";
 import {
   MediumFieldRenderer,
@@ -632,10 +633,7 @@ function WriteMain() {
 
     (async () => {
       try {
-        const res = await fetch("/api/agent/stream", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
+        const res = await streamFetch({
             mode: apiMode,
             idea: ideaParam,
             genreLetter: genreParam,
@@ -644,9 +642,7 @@ function WriteMain() {
             ...(persistKey ? { workId: persistKey } : {}),
             ...(initConv ? { conversationMessages: initConv.messages } : {}),
             ...(developPrior ? { prior: developPrior } : {}),
-          }),
-          signal: controller.signal,
-        });
+        }, { signal: controller.signal });
         if (!res.body) throw new Error("응답 없음");
 
         const reader = res.body.getReader();
@@ -970,10 +966,7 @@ function WriteMain() {
       : null;
     const sendUserSummary = `[작가 디렉션] ${text}`.slice(0, 200);
     try {
-      const res = await fetch("/api/agent/stream", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+      const res = await streamFetch({
           mode: "script",
           idea: ideaParam,
           genreLetter: genreParam,
@@ -988,9 +981,7 @@ function WriteMain() {
             ...(recentChat ? { "작가-보조작가 옛 대화 (최근 12개 — 옛 디렉션도 다 인지하고 작업)": recentChat } : {}),
             "작가 디렉션 (이번 요청)": text,
           },
-        }),
-        signal: ac.signal,
-      });
+      }, { signal: ac.signal });
       if (!res.body) throw new Error("응답 없음");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();

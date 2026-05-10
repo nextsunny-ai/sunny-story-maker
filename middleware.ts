@@ -6,8 +6,15 @@ const PUBLIC_PATHS: readonly string[] = [
   "/login",
   "/auth/callback",
   "/download",
+  // 정책·약관·릴리스 정보 (= 가입 전·외부 누구나 OK)
+  "/privacy",
+  "/terms",
+  "/changelog",
+  "/status",
+  // API
   "/api/upload",
   "/api/download",
+  "/api/health", // status 페이지가 호출
   "/api/agent/stream", // 베타: mock UI라 일단 자유 접근
 ];
 

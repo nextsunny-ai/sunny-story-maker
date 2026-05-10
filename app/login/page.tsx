@@ -6,13 +6,7 @@ import { ICONS } from "@/lib/icons";
 import { Symbol } from "@/components/Symbol";
 import { createClient } from "@/lib/supabase/client";
 
-// ★ 사장님 명시 2026-05-05: 대소문자 무관 (sunny2026!·SUNNY2026!·Sunny2026! 다 OK)
-const INVITE_CODE_PRIMARY = process.env.NEXT_PUBLIC_INVITE_CODE || "sunny2026!";
-function isValidInvite(code: string): boolean {
-  const c = code.trim().toLowerCase();
-  return c === INVITE_CODE_PRIMARY.toLowerCase();
-}
-const INVITE_CODE = INVITE_CODE_PRIMARY; // 표시용 (= 화면 노출 X = placeholder는 "베타 초대 코드"만)
+// ★ 2026-05-11 INVITE_CODE 게이트 제거 (Option B = 이메일 인증 자동 가입 + 약관 체크박스). 글로벌 룰 16 BYOK 모델 합의.
 
 export default function LoginPage() {
   return (
@@ -29,17 +23,16 @@ function LoginPageInner() {
   const redirectTo = searchParams.get("redirect") || "/";
 
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [showInvite, setShowInvite] = useState(false);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [invite, setInvite] = useState("");
+  const [termsAgreed, setTermsAgreed] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false); // ★ 비번 보기 토글
+  const [showPassword, setShowPassword] = useState(false); // ★ 비번 보기 토글 (옛 V2.11 사장님 명시)
 
   const quotes = [
     { line: "첫 줄을 쓰는 일은,", em: "언제나 가장 어려운 일.", by: "어떤 작가" },
@@ -63,8 +56,8 @@ function LoginPageInner() {
 
     try {
       if (mode === "signup") {
-        if (!invite || !isValidInvite(invite)) {
-          setError("초대 코드가 올바르지 않습니다. 베타 기간엔 초대 코드가 필요합니다.");
+        if (!termsAgreed) {
+          setError("서비스 이용약관 및 개인정보처리방침 동의가 필요합니다.");
           setLoading(false);
           return;
         }
@@ -130,19 +123,12 @@ function LoginPageInner() {
     setError(null);
     setInfo(null);
 
-    // ★ 사장님 명시 2026-05-05: OAuth도 베타 초대 코드 게이트 통과 필수.
-    // 가입·로그인 구분 X (Supabase OAuth는 첫 클릭 = 자동 가입+로그인 통합).
-    // 옛 가입자도 초대 코드 박아야 = 베타 통제 + 보안.
-    if (!isValidInvite(invite)) {
-      setShowInvite(true); // login 모드면 초대 코드 입력 박스 자동 노출
-      setError("Google 로그인도 베타 초대 코드가 필요합니다. 위에 입력 후 다시 시도해주세요.");
-      return;
-    }
+    // ★ 2026-05-11 INVITE_CODE 게이트 제거 (Option B = 이메일 인증 자동 가입 + 약관 체크박스).
+    // Google OAuth = Google 자체 인증 = 신뢰. 약관 동의는 = 가입 후 Settings에서 별도 박을 수도 있음.
 
     setLoading(true);
 
     const supabase = createClient();
-    // ★ invite_code = user_metadata에 박음 (백엔드 trigger 검증용 = 출시 후 추가 박힐 거).
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -298,20 +284,6 @@ function LoginPageInner() {
                     required
                   />
                 </div>
-                <div className="login-field">
-                  <label>
-                    초대 코드
-                    <span className="login-field-hint">베타 한정</span>
-                  </label>
-                  <input
-                    className="field-input"
-                    type="text"
-                    value={invite}
-                    onChange={e => setInvite(e.target.value)}
-                    placeholder="베타 초대 코드"
-                    required
-                  />
-                </div>
               </div>
             ) : (
               // login 모드 — 비밀번호만 (초대 코드는 아래 옵션 toggle)
@@ -337,28 +309,24 @@ function LoginPageInner() {
                 />
               </div>
             )}
-            {mode === "login" && !showInvite && (
-              <a href="#" className="login-invite-toggle" onClick={e => { e.preventDefault(); setShowInvite(true); }}>
-                + 초대 코드 입력 <span className="login-field-hint">베타 기간 한정</span>
-              </a>
-            )}
-            {mode === "login" && showInvite && (
-              <div className="login-field">
-                <label>
-                  초대 코드
-                  <span className="login-field-hint">베타 기간 한정</span>
-                </label>
-                <input
-                  className="field-input"
-                  type="text"
-                  value={invite}
-                  onChange={e => setInvite(e.target.value)}
-                  placeholder="sunny2026!"
-                  autoFocus
-                />
-              </div>
-            )}
           </div>
+
+          {mode === "signup" && (
+            <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 16, fontSize: 12.5, color: "rgba(255,255,255,0.72)", lineHeight: 1.55, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={termsAgreed}
+                onChange={e => setTermsAgreed(e.target.checked)}
+                style={{ marginTop: 2, accentColor: "var(--coral, #ff6b6b)" }}
+              />
+              <span>
+                <a href="/terms" target="_blank" rel="noreferrer" style={{ color: "var(--coral, #ff6b6b)", textDecoration: "underline" }}>서비스 이용약관</a>
+                {" 및 "}
+                <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: "var(--coral, #ff6b6b)", textDecoration: "underline" }}>개인정보처리방침</a>
+                에 동의합니다.
+              </span>
+            </label>
+          )}
 
           {error && (
             <div

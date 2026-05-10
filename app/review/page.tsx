@@ -12,6 +12,7 @@ import { KEY, usePersistedState, saveJSON, loadJSON, type WorkConversation } fro
 import { getWorkId, appendTurns } from "@/lib/storymaker/work-id";
 import { REVIEWERS, recommendForGenre, type Reviewer } from "@/lib/storymaker/reviewers";
 import { Markdown } from "@/components/Markdown";
+import { streamFetch } from "@/lib/stream-agent";
 
 export default function ReviewPage() {
   return (
@@ -298,10 +299,7 @@ function ReviewMain() {
     let convCollected = "";
 
     try {
-      const res = await fetch("/api/agent/stream", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+      const res = await streamFetch({
           mode: reviewMode === "simple" ? "simple-review" : "targeted-review",
           text,
           ...(reviewMode === "deep" ? { targets: selectedPersonas.map(toTargetPersona) } : {}),
@@ -309,7 +307,6 @@ function ReviewMain() {
           fast: (await import("@/lib/storymaker/model-prefs")).isFastModel("review"),
           ...(workId ? { workId } : {}),
           ...(conv ? { conversationMessages: conv.messages } : {}),
-        }),
       });
 
       if (!res.ok || !res.body) {

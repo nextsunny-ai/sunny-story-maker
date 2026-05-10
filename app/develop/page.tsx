@@ -17,6 +17,7 @@ import {
 import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
 import { getWorkId, appendTurns } from "@/lib/storymaker/work-id";
 import { ItemMiniChat } from "@/components/ItemMiniChat";
+import { streamFetch } from "@/lib/stream-agent";
 
 export default function DevelopPage() {
   return (
@@ -173,10 +174,7 @@ function DevelopMain() {
       });
       const stageLabel = STAGE_DEFS.find(d => d.key === key)?.label || key;
       const userPromptSummary = `[${stageLabel}] 한 줄 아이디어: ${ideaParam} / 매체: ${genreParam}`;
-      const res = await fetch("/api/agent/stream", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+      const res = await streamFetch({
           mode,
           idea: ideaParam,
           genreLetter: genreParam,
@@ -184,7 +182,6 @@ function DevelopMain() {
           fast: useFast,
           workId,
           conversationMessages: conv.messages,
-        }),
       });
       if (!res.body) throw new Error("응답 없음");
       const reader = res.body.getReader();

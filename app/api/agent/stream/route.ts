@@ -82,6 +82,7 @@ interface RequestBody {
   //   매 호출 = 옛 user/assistant turn들 누적 박힘 + 새 user msg 추가
   //   prompt cache 1h TTL = 옛 turn들도 cached = 입력 토큰 1/10
   conversationMessages?: ConversationMessage[];
+  userApiKey?: string;             // ★ BYOK = 작가 본인 ANTHROPIC_API_KEY (Settings 페이지에서 입력). 대표님 비용 0 보장. (글로벌 룰 16)
 }
 
 interface WriterLearningEntry {
@@ -510,15 +511,11 @@ function streamViaClaudeCode(systemPrompt: string, userMessage: string, model: s
 }
 
 export async function POST(req: NextRequest) {
+  // ★ BYOK 정통 모델 (글로벌 룰 16, 2026-05-11):
+  // - LOCAL/Tauri (USE_CLAUDE_CODE=true) → 작가 본인 OAuth (~/.claude/.credentials.json) = Pro 구독으로 감당 = 추가 비용 0
+  // - 웹 = body.userApiKey (Settings 페이지) = 작가 본인 종량제 부담
+  // - 대표님 ANTHROPIC_API_KEY (Vercel 환경변수) = 박지 X (영구 룰)
   const useClaudeCode = process.env.USE_CLAUDE_CODE === "true";
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-
-  if (!useClaudeCode && !apiKey) {
-    return new Response(
-      JSON.stringify({ error: "ANTHROPIC_API_KEY가 설정되지 않았습니다. (또는 USE_CLAUDE_CODE=true)" }),
-      { status: 500, headers: { "content-type": "application/json" } }
-    );
-  }
 
   let body: RequestBody;
   try {
@@ -527,6 +524,19 @@ export async function POST(req: NextRequest) {
     return new Response(
       JSON.stringify({ error: "잘못된 요청 형식입니다." }),
       { status: 400, headers: { "content-type": "application/json" } }
+    );
+  }
+
+  const userApiKey = body.userApiKey?.trim();
+
+  // BYOK 검증: OAuth (LOCAL/Tauri) 또는 작가 본인 키 (웹) 둘 중 하나 필요
+  if (!useClaudeCode && !userApiKey) {
+    return new Response(
+      JSON.stringify({
+        error: "API 키가 필요합니다. 두 가지 방법 중 선택하세요:\n\n(1) [추천] 데스크탑 버전 다운로드 — Claude Pro 구독 ($20/월)만 있으면 추가 비용 0원으로 무제한 사용 가능합니다. story.sunnytoon.com/download 에서 받으세요.\n\n(2) 웹에서 계속 사용 — Settings 페이지에서 본인 ANTHROPIC_API_KEY를 등록하세요. 키 발급: https://console.anthropic.com/settings/keys (사용한 만큼 본인 카드로 결제됩니다)",
+        code: "USER_API_KEY_REQUIRED",
+      }),
+      { status: 401, headers: { "content-type": "application/json" } }
     );
   }
 
@@ -621,7 +631,8 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const client = new Anthropic({ apiKey: apiKey! });
+  // ★ 작가 본인 API 키로 호출 (BYOK) — 대표님 키 X (글로벌 룰 16)
+  const client = new Anthropic({ apiKey: userApiKey! });
 
   const stream = new ReadableStream({
     async start(controller) {
