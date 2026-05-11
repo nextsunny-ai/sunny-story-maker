@@ -6,15 +6,17 @@ const PUBLIC_PATHS: readonly string[] = [
   "/login",
   "/auth/callback",
   "/download",
-  // 정책·약관·릴리스 정보 (= 가입 전·외부 누구나 OK)
+  // 정책·약관·릴리스 정보·사용 가이드 (= 가입 전·외부 누구나 OK)
   "/privacy",
   "/terms",
   "/changelog",
   "/status",
+  "/guide",
   // API
   "/api/upload",
   "/api/download",
   "/api/health", // status 페이지가 호출
+  "/api/updater", // Tauri auto-updater (= 인증 X = 모든 작가 PC 호출)
   "/api/agent/stream", // 베타: mock UI라 일단 자유 접근
 ];
 

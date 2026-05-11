@@ -1,0 +1,68 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "SUNNY Story Maker",
+  "version": "2.11.0",
+  "identifier": "com.sunnytoon.story-maker",
+  "build": {
+    "frontendDist": "https://story.sunnytoon.com",
+    "devUrl": "http://localhost:3001",
+    "beforeDevCommand": "npm run dev"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "SUNNY Story Maker",
+        "label": "main",
+        "width": 1280,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "publisher": "Sunny Soft",
+    "homepage": "https://story.sunnytoon.com",
+    "category": "Productivity",
+    "shortDescription": "12개 매체 한국 작가팀 워크플로우",
+    "longDescription": "AI Pitch부터 시나리오까지 한 화면에서. Claude Pro/Max 구독으로 추가 비용 없이 무제한 사용.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installMode": "perMachine",
+        "languages": ["Korean", "English"]
+      }
+    },
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://story.sunnytoon.com/api/updater/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "dialog": true,
+      "pubkey": ""
+    }
+  }
+}

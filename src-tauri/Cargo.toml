@@ -1,0 +1,54 @@
+[package]
+name = "sunny-story-maker"
+version = "2.11.0"
+description = "12개 매체 한국 작가팀 워크플로우"
+authors = ["Sunny Soft <support@sunnytoon.com>"]
+license = ""
+repository = "https://github.com/nextsunny-ai/sunny-story-maker"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.1", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.1", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-http = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-store = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+bytes = "1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP client (Anthropic API stream)
+reqwest = { version = "0.12", features = ["json", "stream"] }
+futures-util = "0.3"
+
+# Logging / errors
+log = "0.4"
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Filesystem helpers
+dirs = "5.0"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# JWT (license)
+jsonwebtoken = "9.3"
