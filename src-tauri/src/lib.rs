@@ -76,21 +76,38 @@ async fn license_clear() -> Result<(), String> {
 #[derive(Debug, Serialize)]
 pub struct ClaudeCliStatus {
     pub available: bool,
+    /// "ready" | "not-installed" | "not-logged-in"
+    pub reason: String,
     pub error: Option<String>,
 }
 
 #[tauri::command]
 async fn claude_cli_status() -> ClaudeCliStatus {
-    if claude_cli::is_available() {
-        ClaudeCliStatus { available: true, error: None }
-    } else {
-        ClaudeCliStatus {
-            available: false,
-            error: Some(
-                "Claude Code CLI가 설치되지 않았습니다. https://claude.com/code 에서 설치 후 `claude /login` 실행해주세요.".into()
+    let reason = claude_cli::status_reason().to_string();
+    let (available, error) = match reason.as_str() {
+        "ready" => (true, None),
+        "not-installed" => (
+            false,
+            Some(
+                "Claude Code CLI가 설치되지 않았습니다. https://claude.com/code 에서 설치 후 다시 시작해주세요."
+                    .to_string(),
             ),
-        }
-    }
+        ),
+        "not-logged-in" => (
+            false,
+            Some(
+                "Claude 로그인이 필요합니다. 아래 '터미널 열어 로그인하기' 버튼을 누르세요. 터미널 창에서 안내된 OAuth URL을 브라우저로 열어 로그인하면 완료됩니다."
+                    .to_string(),
+            ),
+        ),
+        _ => (false, Some("알 수 없는 상태입니다.".to_string())),
+    };
+    ClaudeCliStatus { available, reason, error }
+}
+
+#[tauri::command]
+async fn claude_open_login_terminal() -> Result<(), String> {
+    claude_cli::open_login_terminal()
 }
 
 // 옛 호환 — anthropic_oauth_status를 호출하던 코드가 있을 수 있음 (라이선스 페이지 등).
@@ -164,6 +181,7 @@ pub fn run() {
             license_save,
             license_clear,
             claude_cli_status,
+            claude_open_login_terminal,
             anthropic_oauth_status, // 옛 호환
             stream_agent,
         ])

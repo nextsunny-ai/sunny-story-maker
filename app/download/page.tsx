@@ -109,7 +109,7 @@ export default function DownloadPage() {
         <section style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <div>
             <div style={{ fontSize: 11, color: "var(--ink-5)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>
-              — DESKTOP APP v2.11
+              — DESKTOP APP v2.12
             </div>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: 38, lineHeight: 1.2, fontWeight: 500, color: "var(--ink)", letterSpacing: "-0.02em", margin: 0 }}>
               본인 PC에서 <em style={{ fontStyle: "italic" }}>무료로 사용</em><span style={{ color: "var(--coral)" }}>.</span>

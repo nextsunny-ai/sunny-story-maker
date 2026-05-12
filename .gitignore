@@ -50,3 +50,8 @@ STORY_MAKER_DESIGN/
 
 # Claude Code internal
 .claude-flow/
+
+# Tauri signer private keys (★ NEVER COMMIT private key — public key only via tauri.conf.json)
+src-tauri/.keys/
+*.key
+!**/node_modules/**/*.key

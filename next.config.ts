@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
     "/api/sori/**/*": ["./lib/skills/**/*"],
     "/api/agent/**/*": ["./lib/skills/**/*"],
     "/api/download/**/*": ["./_private_downloads/**/*"],
+    // ★ V2.12 자동 업데이터 = .sig + .exe 파일 read 필요
+    "/api/updater/**/*": ["./_private_downloads/**/*"],
+    "/api/updater-download/**/*": ["./_private_downloads/**/*"],
   },
 };
 

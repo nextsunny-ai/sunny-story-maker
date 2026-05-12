@@ -33,9 +33,102 @@ pub enum CliError {
     Subprocess(i32, String),
 }
 
-/// claude CLI 설치 여부 (시작 시 검증용).
-pub fn is_available() -> bool {
+/// claude CLI 설치 여부 (= binary 검색).
+pub fn is_installed() -> bool {
     find_claude_bin().is_some()
+}
+
+/// claude /login 완료 여부 (= ~/.claude/.credentials.json + accessToken + 만료 X).
+pub fn is_logged_in() -> bool {
+    let mut path = match dirs::home_dir() {
+        Some(p) => p,
+        None => return false,
+    };
+    path.push(".claude");
+    path.push(".credentials.json");
+    if !path.exists() {
+        return false;
+    }
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    let v: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    let oauth = match v.get("claudeAiOauth") {
+        Some(o) => o,
+        None => return false,
+    };
+    let token = oauth.get("accessToken").and_then(|t| t.as_str());
+    if token.map(|t| t.is_empty()).unwrap_or(true) {
+        return false;
+    }
+    if let Some(expires_at) = oauth.get("expiresAt").and_then(|e| e.as_i64()) {
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        if expires_at < now_ms {
+            return false;
+        }
+    }
+    true
+}
+
+/// claude CLI 사용 가능 여부 (= 설치 + 로그인).
+pub fn is_available() -> bool {
+    is_installed() && is_logged_in()
+}
+
+/// 진단 사유 = "ready" | "not-installed" | "not-logged-in"
+pub fn status_reason() -> &'static str {
+    if !is_installed() {
+        "not-installed"
+    } else if !is_logged_in() {
+        "not-logged-in"
+    } else {
+        "ready"
+    }
+}
+
+/// 작가가 = "Claude 로그인 시작" 버튼 클릭 = `claude auth login --claudeai` 자동 실행.
+/// = OAuth 2.0 authorization code flow = 자동 브라우저 열림 + Claude 페이지 = 작가 = 1~2 클릭 = 완료.
+/// 1회 셋업 예외 (글로벌 룰 15 cmd 창 X = 일반 실행에는 적용. OAuth 1회는 TTY 필요 = 어쩔 수 없는 path).
+pub fn open_login_terminal() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: cmd /k = 명령 실행 후 창 유지 (= 작가가 OAuth URL 확인 가능).
+        // start = 새 창 = 부모 .exe와 독립. --claudeai = Claude 구독 path (= 정확).
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "cmd", "/k", "claude", "auth", "login", "--claudeai"])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let script = "tell application \"Terminal\" to do script \"claude auth login --claudeai\"";
+        std::process::Command::new("osascript")
+            .args(["-e", script])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let tried = std::process::Command::new("gnome-terminal")
+            .args(["--", "bash", "-c", "claude auth login --claudeai; echo; read -p '엔터로 닫기'"])
+            .spawn();
+        if tried.is_err() {
+            let tried2 = std::process::Command::new("konsole")
+                .args(["-e", "bash", "-c", "claude auth login --claudeai; echo; read -p '엔터로 닫기'"])
+                .spawn();
+            if tried2.is_err() {
+                std::process::Command::new("xterm")
+                    .args(["-e", "bash -c 'claude auth login --claudeai; echo; read -p \"엔터로 닫기\"'"])
+                    .spawn()
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// claude CLI binary 경로 검색.

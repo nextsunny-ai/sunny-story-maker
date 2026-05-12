@@ -338,18 +338,21 @@ function WriteMain() {
   const isDirectMode = searchParams.get("fast") === "1"; // AI로 바로 집필 = 곧장 본문(script)
   const isPlanMode = searchParams.get("plan") === "1";   // ★ V3 정정 (2026-05-13): /develop으로 redirect (= 옛 V2.2 잔존 path 차단)
 
-  // ★ V3 정정 (대표님 명시 2026-05-13): /write?plan=1 = 옛 V2.2 "TV 드라마 작업 의뢰서" 화면.
-  //   대표님 옛 명시 "초창기에 없앴어. V1 이후에 없앴을 걸" = V2.2 클로드 사고로 부활.
-  //   매체별 사전 입력 폼 = 이미 /develop Phase 1에 있음. 거기로 redirect 통합.
+  // ★ V3 정정 (대표님 명시 2026-05-13 재확정): 옛 V2.2 "TV 드라마 작업 의뢰서" 화면 = 통째 차단.
+  //   원칙: /write = 본문·채팅 작업창만. 의뢰서 폼은 = /develop Phase 1로 통합.
+  //   redirect case (둘 다 = /develop으로):
+  //     (a) ?plan=1 = 옛 path
+  //     (b) mode=new && !ideaParam = idea 없는 신규 = /develop에서 idea 입력
+  const needsRedirect = isPlanMode || (mode === "new" && !ideaParam && !isDemo);
   useEffect(() => {
-    if (isPlanMode) {
+    if (needsRedirect) {
       const params = new URLSearchParams();
       params.set("mode", "new");
       if (ideaParam) params.set("idea", ideaParam);
       if (genreParam) params.set("genre", genreParam);
       router.replace(`/develop?${params.toString()}`);
     }
-  }, [isPlanMode, ideaParam, genreParam, router]);
+  }, [needsRedirect, ideaParam, genreParam, router]);
 
   // ★ early return은 모든 hook 다음으로 — React Rules of Hooks 위반 방지.
   //   (NoProjectGate redirect는 useEffect로 처리해서 hook 순서 일정 유지)
@@ -1089,8 +1092,10 @@ function WriteMain() {
     }
   };
 
-  // 의뢰 분석 폼 vs 본문 모드 — early return 시 hook 순서 어긋나니까 = flag만 잡고 return은 끝에서
-  const showBriefForm = mode === "new" && !briefDone && !isDemo;
+  // ★ V3 차단 (대표님 명시 2026-05-13): 옛 V2.2 "TV 드라마 작업 의뢰서" 화면 = 영구 차단.
+  //   showBriefForm = false 강제. 의뢰서 폼 JSX 코드는 보존 (옛 작업 보존 = 글로벌 룰 17).
+  //   매체별 사전 입력 = /develop Phase 1에서 처리.
+  const showBriefForm = false;
 
   // 좌우 리사이즈 — 워크북 너비 (drag로 조절). ★ early return 위에 박아야 hook 순서 안전
   const [workbookWidth, setWorkbookWidth] = useState<number>(320);
@@ -1178,6 +1183,12 @@ function WriteMain() {
   // 작품 선택 안내 화면 — mode 없고 demo 아니면 (모든 hook 호출 끝난 후 분기)
   if (showNoProjectGate) {
     return <NoProjectGate />;
+  }
+
+  // ★ V3 차단 (2026-05-13): redirect 진행 중 = 깜빡임 방지 = null 반환.
+  //   useEffect의 router.replace 완료 전 = 옛 의뢰서 폼 JSX render X.
+  if (needsRedirect) {
+    return null;
   }
 
   return (

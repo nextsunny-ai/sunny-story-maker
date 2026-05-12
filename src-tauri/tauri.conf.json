@@ -32,6 +32,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi"],
+    "createUpdaterArtifacts": true,
     "publisher": "Sunny Soft",
     "homepage": "https://story.sunnytoon.com",
     "category": "Productivity",
@@ -62,7 +63,7 @@
         "https://story.sunnytoon.com/api/updater/{{target}}/{{arch}}/{{current_version}}"
       ],
       "dialog": true,
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENBQzc1NzQzNDBBMUMxOQpSV1FaSEFvMGRIV3NERWNpU0xKdzV1ZThwRGpuL29Xd1Y4UmJqWGhwUjdYSnNJWlZyb0pEVVhqSgo="
     }
   }
 }
