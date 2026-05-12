@@ -4,10 +4,14 @@
 // 1. 가입 (story.sunnytoon.com Supabase) → trial_30days 자동 발급
 // 2. .exe 다운로드 → 더블클릭
 // 3. 첫 실행 = login (Supabase) → JWT 라이선스 받음 → ~/.sunny-story-maker/license.json 저장
-// 4. 사용 = Anthropic API 직접 stream (= ~/.claude/.credentials.json OAuth 토큰)
+// 4. 사용 = `claude` CLI subprocess 호출 (= 작가 본인 Pro/Max 구독)
 // 5. 7일 후 = 자동 라이선스 재발급 → 사장님 plan 변경 = 즉시 반영
+//
+// ★ 2026-05-13 정정: OAuth 토큰 직접 Messages API 호출 path = 차단됨 (HTTP 401).
+//   진짜 작동 path = `claude` CLI subprocess (Anthropic 공식 도구, 약관 OK).
+//   route.ts:streamViaClaudeCode 함수를 Rust로 이식 = claude_cli.rs.
 
-mod anthropic;
+mod claude_cli;
 mod license;
 
 use serde::{Deserialize, Serialize};
@@ -67,23 +71,36 @@ async fn license_clear() -> Result<(), String> {
     license::clear().map_err(|e| e.to_string())
 }
 
-// ─── Anthropic OAuth 토큰 ──────────────────────────────────
+// ─── claude CLI 상태 (= 시작 시 검증용) ─────────────────────
 
 #[derive(Debug, Serialize)]
-pub struct OAuthStatus {
+pub struct ClaudeCliStatus {
     pub available: bool,
     pub error: Option<String>,
 }
 
 #[tauri::command]
-async fn anthropic_oauth_status() -> OAuthStatus {
-    match anthropic::get_oauth_token() {
-        Ok(_) => OAuthStatus { available: true, error: None },
-        Err(e) => OAuthStatus { available: false, error: Some(e.to_string()) },
+async fn claude_cli_status() -> ClaudeCliStatus {
+    if claude_cli::is_available() {
+        ClaudeCliStatus { available: true, error: None }
+    } else {
+        ClaudeCliStatus {
+            available: false,
+            error: Some(
+                "Claude Code CLI가 설치되지 않았습니다. https://claude.com/code 에서 설치 후 `claude /login` 실행해주세요.".into()
+            ),
+        }
     }
 }
 
-// ─── Stream Agent (= Anthropic API 직접 stream) ────────────
+// 옛 호환 — anthropic_oauth_status를 호출하던 코드가 있을 수 있음 (라이선스 페이지 등).
+// 같은 결과로 claude_cli_status를 위임.
+#[tauri::command]
+async fn anthropic_oauth_status() -> ClaudeCliStatus {
+    claude_cli_status().await
+}
+
+// ─── Stream Agent (= claude CLI subprocess stream) ──────────
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(tag = "event", rename_all = "snake_case")]
@@ -103,95 +120,23 @@ pub struct StreamArgs {
     pub user_message: String,
 }
 
-/// Stream agent — Channel을 통해 SSE delta를 클라이언트에 전송.
+/// Stream agent — `claude` CLI subprocess 호출 → stdout SSE → Channel로 frontend 전송.
 /// JS 측: `invoke("stream_agent", { args, channel })` + channel.onmessage = (event) => ...
 #[tauri::command]
 async fn stream_agent(args: StreamArgs, channel: Channel<StreamEvent>) -> Result<(), String> {
-    use futures_util::StreamExt;
-    use tokio::io::AsyncBufReadExt;
-
-    let token = anthropic::get_oauth_token().map_err(|e| {
-        let _ = channel.send(StreamEvent::Error {
-            message: format!("OAuth 토큰 없음: {}. 'claude /login' 실행 후 다시 시도해주세요.", e),
-        });
-        e.to_string()
-    })?;
-
-    let res = anthropic::stream_messages(&token, &args.model, &args.system_prompt, &args.user_message)
-        .await
-        .map_err(|e| {
-            let _ = channel.send(StreamEvent::Error { message: e.to_string() });
-            e.to_string()
-        })?;
-
-    // SSE stream 파싱: bytes_stream() → StreamReader → BufReader → lines()
-    let byte_stream = res
-        .bytes_stream()
-        .map(|r| r.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)));
-    let reader = tokio_util::io::StreamReader::new(byte_stream);
-    let mut lines = tokio::io::BufReader::new(reader).lines();
-
-    let mut buf = String::new();
-    while let Some(line) = lines.next_line().await.map_err(|e| e.to_string())? {
-        if line.is_empty() {
-            // 이벤트 종료 = buf flush
-            if !buf.is_empty() {
-                process_sse_chunk(&buf, &channel);
-                buf.clear();
-            }
-            continue;
+    match claude_cli::stream(&args.system_prompt, &args.user_message, &args.model, &channel).await {
+        Ok(_) => {
+            let _ = channel.send(StreamEvent::Done);
+            Ok(())
         }
-        buf.push_str(&line);
-        buf.push('\n');
-    }
-    if !buf.is_empty() {
-        process_sse_chunk(&buf, &channel);
-    }
-
-    let _ = channel.send(StreamEvent::Done);
-    Ok(())
-}
-
-fn process_sse_chunk(chunk: &str, channel: &Channel<StreamEvent>) {
-    // SSE 이벤트 = "event: foo\ndata: {...}"
-    let mut event_type: Option<&str> = None;
-    let mut data_line: Option<&str> = None;
-    for line in chunk.lines() {
-        if let Some(rest) = line.strip_prefix("event:") {
-            event_type = Some(rest.trim());
-        } else if let Some(rest) = line.strip_prefix("data:") {
-            data_line = Some(rest.trim());
+        Err(e) => {
+            // Error 이벤트는 claude_cli::stream 내부에서 이미 send 되었을 가능성이 큼.
+            // 보장 차원에서 한 번 더 send (frontend = 중복 무시).
+            let msg = e.to_string();
+            let _ = channel.send(StreamEvent::Error { message: msg.clone() });
+            let _ = channel.send(StreamEvent::Done);
+            Err(msg)
         }
-    }
-    let (Some(event_type), Some(data_line)) = (event_type, data_line) else {
-        return;
-    };
-    let parsed: serde_json::Value = match serde_json::from_str(data_line) {
-        Ok(v) => v,
-        Err(_) => return,
-    };
-    match event_type {
-        "content_block_delta" => {
-            if let Some(text) = parsed.get("delta").and_then(|d| d.get("text")).and_then(|t| t.as_str()) {
-                let _ = channel.send(StreamEvent::Delta { text: text.to_string() });
-            }
-        }
-        "message_delta" => {
-            if let Some(usage) = parsed.get("usage") {
-                let input = usage.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                let output = usage.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                let _ = channel.send(StreamEvent::Usage {
-                    input_tokens: input,
-                    output_tokens: output,
-                });
-            }
-        }
-        "error" => {
-            if let Some(msg) = parsed.get("error").and_then(|e| e.get("message")).and_then(|m| m.as_str()) {
-                let _ = channel.send(StreamEvent::Error { message: msg.to_string() });
-            }
-        }
-        _ => {}
     }
 }
 
@@ -218,7 +163,8 @@ pub fn run() {
             license_check_local,
             license_save,
             license_clear,
-            anthropic_oauth_status,
+            claude_cli_status,
+            anthropic_oauth_status, // 옛 호환
             stream_agent,
         ])
         .run(tauri::generate_context!())

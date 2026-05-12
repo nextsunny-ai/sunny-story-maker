@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "SUNNY Story Maker",
-  "version": "2.11.0",
+  "version": "2.12.0",
   "identifier": "com.sunnytoon.story-maker",
   "build": {
     "frontendDist": "https://story.sunnytoon.com",
@@ -36,7 +36,7 @@
     "homepage": "https://story.sunnytoon.com",
     "category": "Productivity",
     "shortDescription": "12개 매체 한국 작가팀 워크플로우",
-    "longDescription": "AI Pitch부터 시나리오까지 한 화면에서. Claude Pro/Max 구독으로 추가 비용 없이 무제한 사용.",
+    "longDescription": "AI Pitch부터 시나리오까지 한 화면에서. 작가 본인 PC의 Claude Code CLI를 통해 본인 Pro/Max 구독으로 작업.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

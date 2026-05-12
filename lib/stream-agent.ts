@@ -4,7 +4,11 @@
 // ★ 작가 누적 학습(admin "내 학습 노하우") 자동 첨부.
 // ★ workId 박혀있으면 = workConversation 자동 누적 (한 클로드 conversation 모델).
 // ★ BYOK 자동 첨부 (Settings에서 박은 작가 본인 ANTHROPIC_API_KEY) — 글로벌 룰 16
-// ★ Tauri 데스크탑 = invoke로 Rust stream agent 호출 (= OAuth Pro 구독 = 비용 0)
+// ★ Tauri 데스크탑 = isTauri 분기 → /api/build-prompt → invoke("stream_agent", ...)
+//   = `claude` CLI subprocess 호출 (= 작가 본인 Pro/Max 구독, 비용 0)
+//
+// 2026-05-13 정정: OAuth 토큰 직접 Messages API path 차단됨 (HTTP 401, Anthropic 정책).
+// 정공법 = Rust 측 `claude` CLI subprocess (= Anthropic 공식 도구, 약관 OK).
 
 import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
 import { appendTurns } from "@/lib/storymaker/work-id";
@@ -47,9 +51,6 @@ function isTauri(): boolean {
 
 /**
  * ★ body 자동 첨부 헬퍼 (= learning + profile + conversation + BYOK userApiKey).
- *
- * streamAgent + streamFetch 모두 사용. 4개 페이지 (grant·develop·review·write) =
- * 직접 fetch 사용 시 = enrichBody 거쳐서 박기.
  */
 export function enrichBody(body: Record<string, unknown>): Record<string, unknown> {
   const learning = loadJSON<LearningEntry[]>(KEY.adminLearning, []);
@@ -75,25 +76,133 @@ export function enrichBody(body: Record<string, unknown>): Record<string, unknow
   return enriched;
 }
 
+interface BuildPromptResponse {
+  systemPrompt: string;
+  userMessage: string;
+  model: string;
+  conversationMessages?: Array<{ role: "user" | "assistant"; content: string }>;
+}
+
 /**
- * ★ /api/agent/stream 호출 wrapper (= enrichBody 자동).
+ * /api/build-prompt 호출 → Tauri Rust subprocess에 전달할 system/user prompt + model 빌드.
+ * Vercel에서 Claude API 호출 X = 단순 텍스트 빌드만 = 사장님 비용 0.
+ */
+async function buildPromptForTauri(body: Record<string, unknown>): Promise<BuildPromptResponse> {
+  const res = await fetch("/api/build-prompt", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`build-prompt 실패 (HTTP ${res.status}): ${errText.slice(0, 300)}`);
+  }
+  return res.json();
+}
+
+/**
+ * Tauri Rust IPC stream — claude CLI subprocess 호출 + Channel 이벤트를 SSE Response로 변환.
  *
- * 4개 페이지 (grant·develop·review·write) = 직접 fetch 대신 = 이 함수 사용.
+ * 흐름:
+ * 1. /api/build-prompt 호출 → systemPrompt + userMessage + model 받음
+ * 2. invoke("stream_agent", { args: { systemPrompt, userMessage, model }, channel })
+ * 3. Rust = `claude --print --system-prompt-file ... --output-format stream-json` subprocess
+ * 4. stdout = stream_event content_block_delta → channel.send(Delta { text })
+ * 5. 이 함수 = channel.onmessage 받음 → SSE event 형식으로 ReadableStream에 push
+ */
+async function streamViaTauri(body: Record<string, unknown>): Promise<Response> {
+  const promptData = await buildPromptForTauri(body);
+
+  const tauriCore = await import("@tauri-apps/api/core");
+  const { invoke, Channel } = tauriCore;
+
+  type RustEvent =
+    | { event: "delta"; text: string }
+    | { event: "usage"; input_tokens: number; output_tokens: number }
+    | { event: "error"; message: string }
+    | { event: "done" };
+
+  const channel = new Channel<RustEvent>();
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let closed = false;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        try { controller.close(); } catch { /* noop */ }
+      };
+
+      channel.onmessage = (msg) => {
+        if (closed) return;
+        const eventType = msg.event;
+        let dataPayload: Record<string, unknown> = {};
+        if (eventType === "delta") {
+          dataPayload = { text: (msg as { text: string }).text };
+        } else if (eventType === "usage") {
+          const u = msg as { input_tokens: number; output_tokens: number };
+          dataPayload = {
+            input_tokens: u.input_tokens,
+            output_tokens: u.output_tokens,
+            via: "tauri-claude-cli",
+          };
+        } else if (eventType === "error") {
+          dataPayload = { message: (msg as { message: string }).message };
+        } else {
+          dataPayload = {};
+        }
+        const sseLine = `event: ${eventType}\ndata: ${JSON.stringify(dataPayload)}\n\n`;
+        try {
+          controller.enqueue(encoder.encode(sseLine));
+        } catch { /* stream closed */ }
+        if (eventType === "done") {
+          close();
+        }
+      };
+
+      try {
+        await invoke("stream_agent", {
+          args: {
+            model: promptData.model,
+            systemPrompt: promptData.systemPrompt,
+            userMessage: promptData.userMessage,
+          },
+          channel,
+        });
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        const sseLine = `event: error\ndata: ${JSON.stringify({ message: errMsg })}\n\n`;
+        try { controller.enqueue(encoder.encode(sseLine)); } catch { /* noop */ }
+        close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+    },
+  });
+}
+
+/**
+ * ★ /api/agent/stream 호출 wrapper (= enrichBody 자동 + isTauri 분기).
  *
- * ★ 2026-05-11 V2.11.1 fix:
- * Tauri 모드도 = Vercel API 호출 (= same-origin = `story.sunnytoon.com`).
- * 이유: Vercel API = `getSystemPrompt()` 호출 = 30년 CD 시스템 프롬프트 + humanizer + 12장르
- *       + lib/skills/learned.md 작법 노하우 다 박힘. invoke로 직접 호출 시 = 단순 prompt만 박힘 = 사고.
- *
- * 비용 0 path (= V2.12 별도):
- * - `/api/build-prompt` endpoint 신규 + Tauri Rust = invoke('stream_agent', { systemPrompt, oauthToken })
- * - = OAuth Pro 구독 사용 + system prompt 보존 = 비용 0 (= 진짜 BYOK)
+ * - Tauri 모드 = build-prompt + invoke (= 작가 Pro 구독 = 비용 0)
+ * - 웹 모드 = Vercel API fetch (= Settings에 박은 작가 BYOK 키 사용)
  */
 export async function streamFetch(
   body: Record<string, unknown>,
   init?: { signal?: AbortSignal }
 ): Promise<Response> {
   const enriched = enrichBody(body);
+
+  if (isTauri()) {
+    return streamViaTauri(enriched);
+  }
 
   return fetch("/api/agent/stream", {
     method: "POST",
@@ -116,12 +225,14 @@ export async function streamAgent(opts: StreamAgentOptions): Promise<string> {
 
   let res: Response;
   try {
-    res = await fetch("/api/agent/stream", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(enrichedBody),
-      signal,
-    });
+    res = isTauri()
+      ? await streamViaTauri(enrichedBody)
+      : await fetch("/api/agent/stream", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(enrichedBody),
+          signal,
+        });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "네트워크 오류";
     onError?.(msg);
