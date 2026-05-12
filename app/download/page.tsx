@@ -135,7 +135,7 @@ export default function DownloadPage() {
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--ink-4)", marginBottom: 10 }}>설치 (4단계 · 3분)</div>
             <ol style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: "var(--ink-2)", lineHeight: 1.95 }}>
               <li>우측 <strong style={{ color: "var(--ink-1)" }}>"Windows 데스크탑 앱"</strong> 다운로드 클릭 → SetupExe 파일 받기 (4.5MB)</li>
-              <li>받은 파일 더블클릭 → Windows Defender 경고 시 <strong style={{ color: "var(--coral)" }}>"추가 정보 → 실행"</strong> 한 번 클릭 (= 첫 출시 unsigned, 안전합니다)</li>
+              <li>받은 파일 더블클릭 → Windows Defender 경고 시 <strong style={{ color: "var(--coral)" }}>"추가 정보 → 실행"</strong> 한 번 클릭 (= 첫 출시 unsigned, 안전합니다 · <a href="/guide#defender-guide" style={{ color: "var(--coral)", textDecoration: "underline" }}>단계별 가이드</a>)</li>
               <li>"다음 다음 다음" 설치 완료 → 시작 메뉴 + 바탕화면 단축키 자동 생성</li>
               <li>바탕화면 단축키 더블클릭 → 끝. 매번 더블클릭하면 됩니다.</li>
             </ol>
@@ -222,6 +222,18 @@ export default function DownloadPage() {
           >
             {status === "loading" ? "다운로드 중…" : !authed ? "로그인 후 다운로드 →" : "다운로드"}
           </button>
+
+          {/* ★ 다운로드 직후 = Defender 경고 안내 (= 작가 헤맴 방지) ★ */}
+          {selected === "windows-exe" && (
+            <div style={{ marginTop: 14, padding: "12px 14px", background: "rgba(160, 24, 95, 0.04)", border: "1px solid rgba(160, 24, 95, 0.18)", borderRadius: 8, fontSize: 12, color: "var(--ink-2)", lineHeight: 1.6 }}>
+              <strong style={{ color: "#A0185F" }}>🛡️ 다운로드 후 빨간 화면이 뜨면 = 정상.</strong>
+              <br />
+              "추가 정보 → 실행" 한 번 클릭하면 통과됩니다.{" "}
+              <a href="/guide#defender-guide" style={{ color: "#A0185F", textDecoration: "underline", fontWeight: 600 }}>
+                3단계 안내 보기 →
+              </a>
+            </div>
+          )}
 
           <div style={{ marginTop: 22, paddingTop: 20, borderTop: "1px solid var(--line)", fontSize: 11, color: "var(--ink-5)", lineHeight: 1.7 }}>
             ※ Mac·iOS·Android 데스크탑 앱 = V2.12 출시 예정.<br />

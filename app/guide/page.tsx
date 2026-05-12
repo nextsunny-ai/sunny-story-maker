@@ -5,12 +5,14 @@ export const metadata = {
 };
 
 /**
- * /guide — 작가 사용법 안내 페이지 (V2.11.2)
+ * /guide — 작가 사용법 안내 페이지 (V2.11.3)
  *
  * 사장님 명시 옛: "매번 카톡으로 설명 = X = 영구 가이드 페이지로".
+ * 사장님 명시 2026-05-12: "Windows Defender 경고 = 작가 헤맴 = 안내 강화".
  *
  * 박힌 내용:
  * - 4단계 설치 가이드
+ * - ★ Windows Defender 우회 전용 섹션 (= 단계별 + 시각화) ★
  * - FAQ 10개
  * - 트러블슈팅
  */
@@ -62,10 +64,10 @@ const STEPS = [
   },
   {
     n: 4,
-    title: "더블클릭 = 끝",
+    title: "더블클릭 → Windows 경고 → 실행 → 설치 완료",
     body: (
       <>
-        받은 SetupExe 더블클릭 → <strong style={{ color: "var(--coral)" }}>Windows Defender 경고 시 "추가 정보 → 실행"</strong> 한 번 → "다음 다음 다음" 설치 완료.
+        받은 setup.exe 더블클릭 → <strong style={{ color: "var(--coral)" }}>Windows Defender 경고 뜸 (★ 정상 ★)</strong> → 아래 "Windows Defender 경고 안내" 섹션 따라 "추가 정보 → 실행" 한 번 → "다음 다음 다음" 설치.
         <br />
         시작 메뉴 + 바탕화면 단축키 자동 생성. 매번 단축키 더블클릭만.
       </>
@@ -75,8 +77,8 @@ const STEPS = [
 
 const FAQ = [
   {
-    q: "Windows Defender가 경고를 띄우는데 안전한가요?",
-    a: "네. 첫 출시 = unsigned (개발자 서명 X) 상태라 Windows가 경고를 띄웁니다. \"추가 정보 → 실행\" 한 번 클릭하면 통과되고, 이후엔 다시 묻지 않습니다. V2.12에서 Code Signing 인증서 적용 예정.",
+    q: "Windows Defender 경고가 뜨는데 안전한가요? 바이러스 아닌가요?",
+    a: "★ 정상이고 안전합니다 ★. Story Maker는 바이러스가 아닙니다. Windows Defender(SmartScreen)는 \"인터넷에서 받은 모든 새 앱\"에 처음 한 번 경고를 띄우는 기본 보안 기능입니다. \"새로 만든 앱 = 아직 많은 사람이 안 써본 앱\" = Microsoft가 \"신뢰도 데이터\"를 모으는 동안 띄우는 표준 안내입니다. 가이드 페이지 \"Windows Defender 경고 안내\" 섹션 따라 \"추가 정보 → 실행\" 한 번 클릭하면 통과되고, 이후엔 다시 묻지 않습니다.",
   },
   {
     q: "API 비용이 정말 0원인가요?",
@@ -96,7 +98,7 @@ const FAQ = [
   },
   {
     q: "업데이트는 어떻게 받나요?",
-    a: "V2.11.2 현재 = 수동 (= /download 페이지에서 새 버전 받음). V2.12부터 = 앱 시작 시 자동 알림 + 1클릭 설치 예정. /changelog 페이지에서 최신 버전 확인 가능.",
+    a: "V2.11.x 현재 = 수동 (= /download 페이지에서 새 버전 받음). V2.12부터 = 앱 시작 시 자동 알림 + 1클릭 설치 예정. /changelog 페이지에서 최신 버전 확인 가능.",
   },
   {
     q: "작법 노하우는 자동 업데이트되나요?",
@@ -122,8 +124,8 @@ const TROUBLESHOOTING = [
     fix: "Claude Code가 설치되지 않았거나 본인 계정으로 로그인되지 않은 상태. 터미널에서 `claude /login` 실행 후 본인 계정 로그인. 그 다음 Story Maker 재시작.",
   },
   {
-    issue: "Windows Defender가 \"이 앱을 차단했습니다\" 띄움",
-    fix: "\"추가 정보\" 텍스트 클릭 → \"실행\" 버튼. 한 번만 하면 됩니다.",
+    issue: "Windows Defender \"PC 보호\" 빨간 화면이 뜸",
+    fix: "정상입니다. 아래 \"Windows Defender 경고 안내\" 섹션의 3단계를 그대로 따라하시면 됩니다. 한 번만 하면 다시 안 뜹니다.",
   },
   {
     issue: "분당 토큰 한도 초과 (429 에러)",
@@ -134,6 +136,95 @@ const TROUBLESHOOTING = [
     fix: "앱 재시작 → 최신 버전으로 업데이트 (V2.11.2부터 fix됨). /changelog 확인.",
   },
 ];
+
+// ★ Windows Defender 경고 안내 = 단계별 시각화 (SVG mock-up) ★
+const DEFENDER_STEPS = [
+  {
+    n: 1,
+    title: "빨간 화면이 뜹니다 (= 정상)",
+    desc: "setup.exe 더블클릭 시 = 아래 화면이 자동으로 뜹니다. Story Maker는 안전한 앱이지만 Windows Defender는 \"새 앱 = 일단 경고\"하는 표준 보안 절차로 처리합니다.",
+    mockup: "redScreen",
+  },
+  {
+    n: 2,
+    title: "왼쪽 아래 \"추가 정보\" 텍스트 클릭",
+    desc: "화면 왼쪽 아래 작은 글씨로 \"추가 정보\"가 있습니다. 그걸 클릭하세요. (\"실행 안 함\" 버튼이 옆에 있는데 그건 누르지 마세요)",
+    mockup: "clickMoreInfo",
+  },
+  {
+    n: 3,
+    title: "나타난 \"실행\" 버튼 클릭 → 설치 진행",
+    desc: "\"추가 정보\" 클릭하면 = 회색 \"실행\" 버튼이 화면 아래쪽에 나타납니다. 그걸 클릭하면 = 정상 설치 시작. \"다음 다음 다음\" 누르면 끝.",
+    mockup: "clickRun",
+  },
+];
+
+// 화면 mock-up (SVG)
+function MockupRedScreen() {
+  return (
+    <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", maxWidth: 360, border: "1px solid var(--line)", borderRadius: 8, display: "block" }}>
+      <rect width="320" height="200" fill="#A0185F" />
+      <rect x="280" y="10" width="22" height="22" fill="none" stroke="#fff" strokeWidth="1.5" />
+      <text x="285" y="26" fontSize="14" fill="#fff" fontFamily="sans-serif">×</text>
+      <text x="20" y="50" fontSize="20" fontWeight="700" fill="#fff" fontFamily="sans-serif">Windows의 PC 보호</text>
+      <text x="20" y="80" fontSize="11" fill="#fff" fontFamily="sans-serif">Microsoft Defender SmartScreen에서</text>
+      <text x="20" y="96" fontSize="11" fill="#fff" fontFamily="sans-serif">인식할 수 없는 앱의 시작을 차단했습니다.</text>
+      <text x="20" y="112" fontSize="11" fill="#fff" fontFamily="sans-serif">PC가 위험에 노출될 수 있습니다.</text>
+      <text x="20" y="148" fontSize="13" fill="#fff" fontFamily="sans-serif" textDecoration="underline" fontWeight="700">추가 정보</text>
+      <circle cx="60" cy="143" r="22" fill="none" stroke="#FFD700" strokeWidth="2.5" />
+      <path d="M 80 140 L 95 138" stroke="#FFD700" strokeWidth="2" fill="none" markerEnd="url(#arrow1)" />
+      <defs>
+        <marker id="arrow1" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#FFD700" />
+        </marker>
+      </defs>
+      <text x="100" y="142" fontSize="11" fill="#FFD700" fontFamily="sans-serif" fontWeight="700">여기 클릭</text>
+    </svg>
+  );
+}
+
+function MockupClickMoreInfo() {
+  return (
+    <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", maxWidth: 360, border: "1px solid var(--line)", borderRadius: 8, display: "block" }}>
+      <rect width="320" height="200" fill="#A0185F" />
+      <text x="20" y="50" fontSize="20" fontWeight="700" fill="#fff" fontFamily="sans-serif">Windows의 PC 보호</text>
+      <text x="20" y="78" fontSize="10" fill="#fff" fontFamily="sans-serif">Microsoft Defender SmartScreen에서</text>
+      <text x="20" y="92" fontSize="10" fill="#fff" fontFamily="sans-serif">인식할 수 없는 앱의 시작을 차단했습니다.</text>
+      <text x="20" y="120" fontSize="10" fill="#fff" fontFamily="sans-serif">앱: SUNNY Story Maker_2.11.0_x64-setup.exe</text>
+      <text x="20" y="134" fontSize="10" fill="#fff" fontFamily="sans-serif">게시자: 알 수 없는 게시자</text>
+      <rect x="80" y="158" width="70" height="26" fill="#fff" rx="2" />
+      <text x="92" y="176" fontSize="12" fill="#A0185F" fontFamily="sans-serif" fontWeight="700">실행</text>
+      <rect x="160" y="158" width="120" height="26" fill="none" stroke="#fff" strokeWidth="1.5" rx="2" />
+      <text x="170" y="176" fontSize="12" fill="#fff" fontFamily="sans-serif">실행 안 함</text>
+      <circle cx="115" cy="171" r="22" fill="none" stroke="#FFD700" strokeWidth="3" />
+      <path d="M 138 171 L 150 171" stroke="#FFD700" strokeWidth="2.5" fill="none" markerEnd="url(#arrow2)" />
+      <defs>
+        <marker id="arrow2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,6 L9,3 z" fill="#FFD700" />
+        </marker>
+      </defs>
+      <text x="100" y="200" fontSize="11" fill="#FFD700" fontFamily="sans-serif" fontWeight="700" style={{ display: "none" }}>여기 클릭</text>
+    </svg>
+  );
+}
+
+function MockupClickRun() {
+  return (
+    <svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", maxWidth: 360, border: "1px solid var(--line)", borderRadius: 8, display: "block" }}>
+      <rect width="320" height="200" fill="#fff" stroke="#888" strokeWidth="1" />
+      <rect x="0" y="0" width="320" height="28" fill="#0078D4" />
+      <text x="14" y="20" fontSize="13" fill="#fff" fontFamily="sans-serif">Story Maker 설치 마법사</text>
+      <text x="40" y="80" fontSize="14" fill="#222" fontFamily="sans-serif" fontWeight="600">Story Maker 설치를 시작합니다</text>
+      <text x="40" y="110" fontSize="11" fill="#666" fontFamily="sans-serif">설치 위치: C:\Program Files\SUNNY Story Maker</text>
+      <text x="40" y="128" fontSize="11" fill="#666" fontFamily="sans-serif">필요 공간: 약 50MB</text>
+      <rect x="200" y="155" width="50" height="26" fill="#0078D4" rx="2" />
+      <text x="208" y="173" fontSize="12" fill="#fff" fontFamily="sans-serif" fontWeight="600">다음 →</text>
+      <rect x="255" y="155" width="50" height="26" fill="none" stroke="#0078D4" strokeWidth="1.5" rx="2" />
+      <text x="265" y="173" fontSize="12" fill="#0078D4" fontFamily="sans-serif">취소</text>
+      <text x="40" y="185" fontSize="10" fill="#0a7" fontFamily="sans-serif" fontWeight="700">★ 정상 설치 화면 = 이걸 보면 = 성공 ★</text>
+    </svg>
+  );
+}
 
 export default function GuidePage() {
   return (
@@ -182,6 +273,78 @@ export default function GuidePage() {
               </li>
             ))}
           </ol>
+        </section>
+
+        {/* ★★★ Windows Defender 경고 안내 (전용 섹션) ★★★ */}
+        <section
+          id="defender-guide"
+          style={{
+            marginBottom: 60,
+            padding: "32px 28px",
+            background: "linear-gradient(180deg, rgba(160, 24, 95, 0.04), rgba(160, 24, 95, 0.02))",
+            border: "2px solid rgba(160, 24, 95, 0.18)",
+            borderRadius: 16,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+            <span style={{ fontSize: 22 }}>🛡️</span>
+            <span style={{ fontSize: 11, color: "#A0185F", letterSpacing: "0.1em", textTransform: "uppercase", fontWeight: 700 }}>
+              Windows Defender 경고가 떴을 때
+            </span>
+          </div>
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 12px", letterSpacing: "-0.015em" }}>
+            정상이에요. 3단계만 따라하세요<span style={{ color: "var(--coral)" }}>.</span>
+          </h2>
+          <p style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.75, marginBottom: 28 }}>
+            <strong>Story Maker는 안전한 앱입니다.</strong> Windows Defender(SmartScreen)는 <em>인터넷에서 받은 모든 새 앱</em>에 대해 "처음 한 번" 경고를 띄우는 보안 기능입니다. 새로 만든 앱은 Microsoft가 "신뢰도 데이터"를 모으는 동안 = 표준 경고가 뜹니다. <strong style={{ color: "#A0185F" }}>한 번만</strong> 아래 3단계를 따라하시면 = 다시는 안 뜹니다.
+          </p>
+
+          <ol style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 24 }}>
+            {DEFENDER_STEPS.map((step) => (
+              <li
+                key={step.n}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 360px",
+                  gap: 24,
+                  alignItems: "start",
+                  padding: "20px 22px",
+                  background: "var(--card)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 12,
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 }}>
+                    <span style={{ fontFamily: "var(--font-display)", fontSize: 36, fontWeight: 500, color: "#A0185F", lineHeight: 1 }}>
+                      {step.n}
+                    </span>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: "var(--ink)" }}>{step.title}</span>
+                  </div>
+                  <p style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.7, margin: 0 }}>{step.desc}</p>
+                </div>
+                <div>
+                  {step.mockup === "redScreen" && <MockupRedScreen />}
+                  {step.mockup === "clickMoreInfo" && <MockupClickMoreInfo />}
+                  {step.mockup === "clickRun" && <MockupClickRun />}
+                </div>
+              </li>
+            ))}
+          </ol>
+
+          <div style={{ marginTop: 24, padding: "16px 20px", background: "rgba(10, 119, 80, 0.06)", border: "1px solid rgba(10, 119, 80, 0.2)", borderRadius: 10 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0a7750", marginBottom: 4 }}>✓ 설치 완료 후</div>
+            <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.65 }}>
+              시작 메뉴와 바탕화면에 "SUNNY Story Maker" 단축키가 자동 생성됩니다. 이후엔 그 단축키 더블클릭만 하면 = 바로 실행. Defender 경고는 다시 뜨지 않습니다.
+            </div>
+          </div>
+
+          <details style={{ marginTop: 16, fontSize: 13, color: "var(--ink-3)" }}>
+            <summary style={{ cursor: "pointer", fontWeight: 600, padding: "8px 0" }}>왜 이 경고가 뜨는지 더 자세히</summary>
+            <div style={{ padding: "8px 0 0 16px", lineHeight: 1.7 }}>
+              Windows의 보안 기능 "SmartScreen Reputation"은 = 새 앱에 대해 "수만 명이 다운로드해서 안전 확인이 끝났는지"를 기준으로 = 경고 여부를 결정합니다. Story Maker는 갓 만들어진 신생 앱이라 = 아직 그 데이터가 누적되지 않은 상태입니다. 사용자가 늘면 자동으로 경고가 사라집니다 (Microsoft 자동 처리). 또는 = 추후 정식 Code Signing 인증서를 적용하면 = 즉시 경고가 사라집니다 (V2.12 검토).
+            </div>
+          </details>
         </section>
 
         {/* FAQ */}
