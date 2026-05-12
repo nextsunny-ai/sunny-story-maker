@@ -327,6 +327,7 @@ function projectKeyFor(mode: string | null, isDemo: boolean, projectParam: strin
 }
 
 function WriteMain() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode");
   const ideaParam = searchParams.get("idea") || "";
@@ -335,7 +336,20 @@ function WriteMain() {
   const actionParam = searchParams.get("action") || ""; // 빠른 의뢰: 그 단계로 점프
   const isDemo = searchParams.get("demo") === "1";
   const isDirectMode = searchParams.get("fast") === "1"; // AI로 바로 집필 = 곧장 본문(script)
-  const isPlanMode = searchParams.get("plan") === "1";   // 기획 후 집필 = 사전 자료 단계
+  const isPlanMode = searchParams.get("plan") === "1";   // ★ V3 정정 (2026-05-13): /develop으로 redirect (= 옛 V2.2 잔존 path 차단)
+
+  // ★ V3 정정 (대표님 명시 2026-05-13): /write?plan=1 = 옛 V2.2 "TV 드라마 작업 의뢰서" 화면.
+  //   대표님 옛 명시 "초창기에 없앴어. V1 이후에 없앴을 걸" = V2.2 클로드 사고로 부활.
+  //   매체별 사전 입력 폼 = 이미 /develop Phase 1에 있음. 거기로 redirect 통합.
+  useEffect(() => {
+    if (isPlanMode) {
+      const params = new URLSearchParams();
+      params.set("mode", "new");
+      if (ideaParam) params.set("idea", ideaParam);
+      if (genreParam) params.set("genre", genreParam);
+      router.replace(`/develop?${params.toString()}`);
+    }
+  }, [isPlanMode, ideaParam, genreParam, router]);
 
   // ★ early return은 모든 hook 다음으로 — React Rules of Hooks 위반 방지.
   //   (NoProjectGate redirect는 useEffect로 처리해서 hook 순서 일정 유지)

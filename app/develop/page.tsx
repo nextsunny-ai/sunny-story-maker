@@ -39,7 +39,8 @@ interface PreAsset {
   status: "pending" | "active" | "done";
 }
 
-// ★ 사장님 명시 (2026-05-04): 캐릭터 = 3번째로 이동.
+// ★ 대표님 명시 (2026-05-04 옛 의도 + 2026-05-13 V3 정정):
+//   캐릭터 = 3번째 (= 옛 V2.4 코멘트 명시했지만 배열 실제 변경 X 사고).
 //   캐릭터 일찍 잡으면 = 시놉시스·기승전결도 = 캐릭터 기반으로 자연스러움.
 const STAGE_DEFS: Omit<PreAsset, "text" | "status">[] = [
   { key: "title",     label: "제목",       hint: "작품 제목 후보 + 한 줄 평" },
@@ -256,7 +257,7 @@ function DevelopMain() {
         <Topbar
           eyebrow="DEVELOP — 기획실"
           title='<em style="font-style:italic">Project</em> Brief<span class="dot">.</span>'
-          sub="개요를 작성하면 제목·로그라인·주제·시놉시스·캐릭터·기승전결 6단계로 사전 자료를 정리합니다. 끝나면 본문 시작 버튼으로 원고지(Write)로 넘어갑니다."
+          sub="개요를 작성하면 제목·로그라인·캐릭터·주제·시놉시스·기승전결 6단계로 사전 자료를 정리합니다. 끝나면 본문 시작 버튼으로 원고지(Write)로 넘어갑니다."
         />
 
         {ideaParam && (
@@ -316,7 +317,7 @@ function DevelopMain() {
       <SectionHead
         num={2}
         title="사전 자료 6단계"
-        sub="제목 → 로그라인 → 주제 → 시놉시스 → 캐릭터 → 기승전결"
+        sub="제목 → 로그라인 → 캐릭터 → 주제 → 시놉시스 → 기승전결"
         right={
           <button
             type="button"
