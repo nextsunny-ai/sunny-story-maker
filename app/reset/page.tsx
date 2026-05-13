@@ -127,7 +127,7 @@ export default function ResetPage() {
               paddingLeft: 18, marginBottom: 18,
             }}>
               <li>작가 프로필 (이름·작가명·대표 작품 등)</li>
-              <li>누적 학습 노하우 (admin 작가 탭에서 박은 거)</li>
+              <li>누적 학습 노하우 (admin 작가 탭에서 입력한 거)</li>
               <li>라이브러리 작품 목록 + 각 작품 본문·노트</li>
               <li>리뷰어 페르소나 (직접 만든 것)</li>
               <li>리뷰·각색·OSMU·Write 페이지의 임시 입력</li>

@@ -539,7 +539,7 @@ function WriterTab() {
           <>
             <span style={{ color: "var(--ink-4)", fontWeight: 700 }}>· 학습 없음</span>
             <span style={{ color: "var(--ink-4)" }}>
-              — 아래에서 좋아함/피함/디렉션/비유 1개씩 박으면 = 다음 호출부터 즉시 반영됩니다.
+              — 아래에서 좋아함/피함/디렉션/비유 1개씩 추가하면 = 다음 호출부터 즉시 반영됩니다.
             </span>
           </>
         )}

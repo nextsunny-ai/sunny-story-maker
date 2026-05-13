@@ -47,11 +47,11 @@ interface ItemMiniChatProps {
 }
 
 const PRESETS_BY_KEY: Record<string, string[]> = {
-  title: ["더 심플하게", "더 임팩트 있게", "주인공 이름 박기", "다른 안 5개"],
+  title: ["더 심플하게", "더 임팩트 있게", "주인공 이름 넣기", "다른 안 5개"],
   logline: ["더 짧게", "감정 더", "갈등 명확히", "다른 톤으로"],
-  characters: ["주인공 더 차분하게", "조연 한 명 추가", "나이 올리기", "비유 체계 박기"],
+  characters: ["주인공 더 차분하게", "조연 한 명 추가", "나이 올리기", "비유 체계 추가"],
   theme: ["더 구체적으로", "현대 감각으로", "질문형으로"],
-  synopsis: ["더 어둡게", "더 따뜻하게", "반전 박기", "결말 오픈"],
+  synopsis: ["더 어둡게", "더 따뜻하게", "반전 추가", "결말 오픈"],
   structure: ["기승전결 비중 조정", "에피소드 분할", "절정 강화"],
 };
 
@@ -232,8 +232,8 @@ export function ItemMiniChat({
       >
         {messages.length === 0 && (
           <div style={{ color: "var(--ink-4)", fontSize: 11.5, fontStyle: "italic" }}>
-            예: "더 심플하게" / "주인공 이름 박을까?" / "내 캐릭터 시트 = (붙여넣기)"<br/>
-            보조작가와 같이 다듬어가는 채팅. 좋은 답 = 「✓ 카드에 박기」 누르면 = 카드에 적용.
+            예: "더 심플하게" / "주인공 이름 넣을까?" / "내 캐릭터 시트 = (붙여넣기)"<br/>
+            보조작가와 같이 다듬어가는 채팅. 좋은 답 = 「✓ 카드에 저장」 누르면 = 카드에 적용.
           </div>
         )}
         {messages.map(m => (
@@ -308,7 +308,7 @@ export function ItemMiniChat({
               send();
             }
           }}
-          placeholder="디렉션 박기 / 자기 자료 붙여넣기 (Enter = 보내기, Shift+Enter = 줄바꿈)"
+          placeholder="디렉션 입력 / 자기 자료 붙여넣기 (Enter = 보내기, Shift+Enter = 줄바꿈)"
           disabled={busy}
           style={{
             flex: 1,
@@ -359,7 +359,7 @@ export function ItemMiniChat({
                 whiteSpace: "nowrap",
               }}
             >
-              ✓ 카드에 박기
+              ✓ 카드에 저장
             </button>
           )}
         </div>

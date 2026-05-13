@@ -53,7 +53,7 @@ function ResourcesMain() {
 
       {!activeCat ? (
         <>
-          <SectionHead num={1} title="카테고리" sub={`${RESOURCE_CATEGORIES.length}개 카테고리 — 각 자료 = 작가가 본문에 직접 박는 식 사용`} />
+          <SectionHead num={1} title="카테고리" sub={`${RESOURCE_CATEGORIES.length}개 카테고리 — 각 자료 = 작가가 본문에 직접 가져다 쓰는 식`} />
           <div style={{
             display: "grid",
             gap: 16,
