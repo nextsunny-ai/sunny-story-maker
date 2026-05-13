@@ -25,10 +25,10 @@ export const dynamic = "force-dynamic";
 
 // 현재 라이브 버전 (= 매 릴리스 시 갱신)
 const LATEST = {
-  version: "2.12.2",
-  pub_date: "2026-05-13T14:00:00Z",
+  version: "2.12.3",
+  pub_date: "2026-05-14T01:00:00Z",
   notes:
-    "V2.12.2 — Google 로그인 = 외부 브라우저 OAuth + deep link (story-maker://) = 크롬에 박힌 구글 세션 그대로 사용 = 진짜 1클릭, 비번 입력 없음. + V2.12.1 변경 (바탕화면 단축키 · 단일 인스턴스 · ClaudeCliGate 깜빡임 수정).",
+    "V2.12.3 — Google OAuth PKCE code verifier 미스매치 사고 정정 (= exchangeCodeForSession을 .exe 안에서 호출하도록 = code verifier가 박힌 같은 localStorage 사용). + V2.12.2 (외부 브라우저 OAuth + deep link) + V2.12.1 (바탕화면 단축키 · 단일 인스턴스 · ClaudeCliGate 깜빡임 수정).",
 };
 
 /**

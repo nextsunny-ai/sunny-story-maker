@@ -162,21 +162,33 @@ function LoginPageInner() {
           const url = event.payload;
           if (!url || !url.startsWith("story-maker://auth")) return;
 
-          // URL fragment(#)에서 access_token·refresh_token 추출
-          const fragment = url.split("#")[1] || "";
-          const params = new URLSearchParams(fragment);
-          const access_token = params.get("access_token") || "";
-          const refresh_token = params.get("refresh_token") || "";
-          if (!access_token || !refresh_token) {
-            setError("Deep link에서 세션 정보를 못 받았습니다.");
+          // ★ V2.12.3 = code를 받아서 = .exe 안에서 exchangeCodeForSession 호출
+          //   (= 같은 supabase client = code verifier가 .exe localStorage에 박혀있음 = 통과)
+          let code = "";
+          try {
+            // story-maker://auth?code=xxx 형식 → URL 파싱
+            const u = new URL(url);
+            code = u.searchParams.get("code") || "";
+            // fallback = fragment에 박혀있는 경우
+            if (!code && u.hash) {
+              const hp = new URLSearchParams(u.hash.replace(/^#/, ""));
+              code = hp.get("code") || "";
+            }
+          } catch {
+            // 옛 path fallback (= ?code= 직접 추출)
+            const m = url.match(/[?&#]code=([^&]+)/);
+            code = m ? decodeURIComponent(m[1]) : "";
+          }
+          if (!code) {
+            setError("Deep link에서 OAuth code를 못 받았습니다.");
             setLoading(false);
             return;
           }
 
-          // Supabase 세션 박음
-          const { error: setErr } = await supabase.auth.setSession({ access_token, refresh_token });
-          if (setErr) {
-            setError(translateAuthError(setErr.message));
+          // ★ .exe 안에서 = exchangeCodeForSession 호출 = .exe localStorage의 verifier 사용 = 통과
+          const { error: exErr } = await supabase.auth.exchangeCodeForSession(code);
+          if (exErr) {
+            setError(translateAuthError(exErr.message));
             setLoading(false);
             return;
           }

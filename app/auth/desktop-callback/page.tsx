@@ -32,58 +32,38 @@ function DesktopCallbackInner() {
   const [state, setState] = useState<State>("loading");
   const [message, setMessage] = useState<string>("");
 
+  // ★ V2.12.3 = PKCE code verifier 미스매치 사고 정정.
+  //   옛 path: 이 페이지에서 exchangeCodeForSession 호출 = 크롬 localStorage 사용 = .exe에 박힌 verifier 못 찾음 = "PKCE code verifier not found"
+  //   새 path: 이 페이지 = code만 그대로 deep link로 .exe에 전달 = .exe 안에서 exchange = .exe localStorage의 verifier 사용 = 작동 ✓
   useEffect(() => {
-    (async () => {
-      const code = searchParams.get("code");
-      const errorParam = searchParams.get("error_description") || searchParams.get("error");
+    const code = searchParams.get("code");
+    const errorParam = searchParams.get("error_description") || searchParams.get("error");
 
-      if (errorParam) {
-        setState("error");
-        setMessage(decodeURIComponent(errorParam));
-        return;
-      }
-      if (!code) {
-        setState("error");
-        setMessage("OAuth 코드가 없습니다. (= URL에 ?code= 파라미터 누락)");
-        return;
-      }
+    if (errorParam) {
+      setState("error");
+      setMessage(decodeURIComponent(errorParam));
+      return;
+    }
+    if (!code) {
+      setState("error");
+      setMessage("OAuth 코드가 없습니다. (= URL에 ?code= 파라미터 누락)");
+      return;
+    }
 
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error || !data.session) {
-          setState("error");
-          setMessage(error?.message || "세션 교환 실패");
-          return;
-        }
-        const { access_token, refresh_token, expires_in } = data.session;
+    // ★ code를 그대로 deep link로 .exe에 전달 (= exchangeCodeForSession은 .exe 안에서)
+    const params = new URLSearchParams({ code });
+    const deepLink = `story-maker://auth?${params.toString()}`;
 
-        // ★ Deep link로 .exe에 세션 전달 (= URL fragment에 박음 = 서버 로그에 안 남음)
-        const params = new URLSearchParams({
-          access_token,
-          refresh_token,
-          expires_in: String(expires_in ?? 3600),
-          type: "google",
-        });
-        const deepLink = `story-maker://auth#${params.toString()}`;
+    setState("success");
+    setMessage("Google 인증 완료 — 스토리메이커 앱으로 돌아갑니다…");
 
-        setState("success");
-        setMessage("로그인 완료 — 스토리메이커 앱으로 돌아갑니다…");
+    setTimeout(() => {
+      window.location.href = deepLink;
+    }, 500);
 
-        // 약간의 지연 후 deep link 호출 (= 사용자에게 안내 보여주고)
-        setTimeout(() => {
-          window.location.href = deepLink;
-        }, 500);
-
-        // 추가 안내 = 5초 후 = "창을 닫아도 됩니다" 메시지
-        setTimeout(() => {
-          setMessage("로그인 완료 — 이 브라우저 창을 닫고 SUNNY Story Maker 앱으로 돌아가세요.");
-        }, 3000);
-      } catch (e) {
-        setState("error");
-        setMessage(e instanceof Error ? e.message : String(e));
-      }
-    })();
+    setTimeout(() => {
+      setMessage("Google 인증 완료 — 이 브라우저 창을 닫고 SUNNY Story Maker 앱으로 돌아가세요.");
+    }, 3000);
   }, [searchParams]);
 
   return (
