@@ -16,8 +16,10 @@ const PUBLIC_PATHS: readonly string[] = [
   "/api/upload",
   "/api/download",
   "/api/health", // status 페이지가 호출
-  "/api/updater", // Tauri auto-updater (= 인증 X = 모든 작가 PC 호출)
-  "/api/updater-download", // ★ V2.12 = 자동 업데이터 .exe 다운로드 (= signature 검증으로 위변조 방지)
+  "/api/updater", // 스토리메이커 Tauri auto-updater
+  "/api/updater-download", // ★ V2.12 = 스토리메이커 .exe 다운로드
+  "/api/agent-updater", // ★ V1.0 = SUNNY Agent Pro auto-updater
+  "/api/agent-updater-download", // ★ V1.0 = SUNNY Agent Pro .exe 다운로드
   "/api/agent/stream", // 베타: mock UI라 일단 자유 접근
 ];
 

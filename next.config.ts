@@ -7,9 +7,12 @@ const nextConfig: NextConfig = {
     "/api/sori/**/*": ["./lib/skills/**/*"],
     "/api/agent/**/*": ["./lib/skills/**/*"],
     "/api/download/**/*": ["./_private_downloads/**/*"],
-    // ★ V2.12 자동 업데이터 = .sig + .exe 파일 read 필요
+    // ★ V2.12 스토리메이커 자동 업데이터
     "/api/updater/**/*": ["./_private_downloads/**/*"],
     "/api/updater-download/**/*": ["./_private_downloads/**/*"],
+    // ★ V1.0 SUNNY Agent Pro 자동 업데이터
+    "/api/agent-updater/**/*": ["./_agent_downloads/**/*"],
+    "/api/agent-updater-download/**/*": ["./_agent_downloads/**/*"],
   },
 };
 
