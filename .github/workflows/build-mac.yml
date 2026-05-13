@@ -1,0 +1,55 @@
+name: Build macOS DMG
+
+# SUNNY Story Maker — macOS .dmg 빌드 (= Windows에서 빌드 불가 = GitHub macOS runner 사용)
+# 트리거: 수동 실행(workflow_dispatch) 또는 = "mac-build-*" 태그 push
+# 결과: .dmg artifact 업로드 (= 다운받아서 _private_downloads/sunny-story-maker-mac.dmg 로 commit)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "mac-build-*"
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build Tauri (macOS .dmg)
+        run: npm run tauri:build
+        env:
+          # 자동 업데이터 서명 키 (= GitHub Secrets에 박아둠)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: List build output
+        run: ls -la src-tauri/target/release/bundle/dmg/ || true
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunny-story-maker-mac-dmg
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
+          if-no-files-found: warn
+          retention-days: 14
