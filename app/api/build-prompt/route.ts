@@ -179,9 +179,52 @@ function buildBasePrompt(b: RequestBody): string {
       return buildOsmuPrompt(b.idea ?? "", b.sourceIp);
     case "extract-grant-meta":
       return buildGrantMetaPrompt(b.text ?? "");
+    case "chat":
+      // ★ V2.13 = 본문 작성 모드에서 = 작가가 채팅 = 자유 대화 응답 (본문 추가 X)
+      return buildChatPrompt(b);
     default:
       throw new Error(`Unknown mode: ${b.mode}`);
   }
+}
+
+/**
+ * ★ V2.13 — /write 페이지 채팅 = 자유 대화 응답 (본문 자동 추가 X).
+ * 작가가 = 의견·평가·수정·질문 메시지 = AI가 = 그에 맞는 응답 = 새 단락 자동 추가 X.
+ */
+function buildChatPrompt(b: RequestBody): string {
+  const genre = findGenre(b.genreLetter);
+  const priorPart = b.prior
+    ? "\n\n## 작가가 이번 요청에 박은 컨텍스트\n" +
+      Object.entries(b.prior)
+        .map(([k, v]) => `### ${k}\n${(v || "").slice(0, 2500)}`)
+        .join("\n\n")
+    : "";
+
+  return `# 작업: 작가와 대화 (본문 작성 모드)
+
+## 매체
+**${genre.name} (${genre.sub})** — 작가가 현재 작품 본문 작성 중. 채팅창에서 작가가 메시지를 보냄.
+
+## 작가 의도 (★ 절대 준수)
+1. 작가가 **수정 요청** (예: "첫 씬이 짧다", "X번 단락 다시", "톤 바꿔") = 그 단락 어떻게 수정할지 = **대화로 의견·제안 박음**. 본문 자동 다시 박지 X = 작가가 "그대로 적용해줘" 명시할 때만 박음.
+2. 작가가 **질문·평가·의견** (예: "어때?", "괜찮아?", "이 톤 맞아?") = **의견 응답**. 본문 추가 X.
+3. 작가가 **설명 요청** (예: "왜 이렇게 썼어?", "이유는?") = **이유 설명**. 본문 추가 X.
+
+## 응답 형식
+- 평어체 또는 작가 호칭. 짧게 (2~5문장 권장). 작가가 자세히 요청 시만 길게.
+- 작가의 직전 메시지 = 그대로 읽고 = 그에 맞게 응답.
+- 인사·자기소개·"다음 단계 안내" 자동 박지 X.
+- 마크다운 표기 (** ## ---) 자제 = 평문 대화처럼.
+- 본문 작성 형식 (S#1. 장소-시간, [컷1] 등) = 박지 X (= 단순 대화).
+
+## ★ "다음 단락 박아줘" 명시
+작가가 "이대로 박아줘", "다음 단락 작성", "이어서" 등 명시하면 = 그때는 **다음 단락 작성 모드**로 전환:
+- 위 매체 표준 양식 (S#1. 등) 적용
+- 본문만 박음 (메타 X)
+${priorPart}
+
+## 출력
+작가 직전 메시지에 맞는 대화 응답. 본문 자동 추가 X.`;
 }
 
 /**

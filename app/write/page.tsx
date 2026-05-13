@@ -101,7 +101,7 @@ function buildNewWorkContext(idea: string, genreLetter: string, activeStepName?:
     : "새 작품";
 
   return {
-    work: { title: titlePreview, chapter: "초안", elapsed: "방금 시작", medium: `${wf.letter}. ${wf.name}` },
+    work: { title: titlePreview, chapter: "초안", elapsed: "방금 시작", medium: `${wf.letter}. ${wf.name} · ${wf.sub}` },
     notes: idea
       ? [{ id: "n_idea", label: `핵심: ${idea.length > 30 ? idea.slice(0, 28) + "…" : idea}` },
          { id: "n_genre", label: `매체: ${wf.name}` }]
@@ -927,28 +927,49 @@ function WriteMain() {
       addNote(text.length < 30 ? text : text.slice(0, 28) + "…");
     }
 
-    // ★ 채팅 = 본문 컨트롤. 모든 메시지 → script mode 호출 + 새 단락 추가
-    //   (단순 대화 X. 작가 디렉션이 본문에 즉시 반영되어야 채팅의 의미)
+    // ★ V2.13 정정 — 작가 메시지 의도 분기 (대화 모드 vs 본문 이어쓰기)
+    //   옛 사고: 무조건 새 단락 추가 + "디렉션 반영해서 본문 이어 작성 중..." 하드코딩
+    //   = 작가가 "첫 씬 짧으니 길게" 해도 = AI는 그냥 다음 씬 작성 = 대화 X
+    //
+    //   새 path: 작가 메시지 키워드 분석
+    //   - 수정·평가·질문·의견 키워드 = "chat" 모드 = 본문 자동 추가 X = AI 응답만
+    //   - "다음·이어·계속" 명시 또는 키워드 X = "script" 모드 = 새 단락 추가 (옛 path)
+    const isChatIntent = /수정|다시|짧게|길게|바꿔|고쳐|어때|어떻게|괜찮|좋아|싫어|별로|왜|이유|설명|뜻|의미|느낌|톤|평가|짧은|긴|이상|어색|자연|개선|첫\s*씬|첫\s*단락|\d+번|\d+\s*씬|\d+\s*단락/i.test(text);
+    const isContinueIntent = /다음|이어|계속|^더\s|새\s*단락|다음\s*씬/i.test(text);
+    const mode: "chat" | "script" = isChatIntent && !isContinueIntent ? "chat" : "script";
+
     const currentScript = paras
       .filter(p => p.text && p.text.trim())
       .map(p => p.text)
       .join("\n\n");
 
-    const newPara: Para = {
-      id: "p_" + Date.now(),
-      n: paras.length + 1,
-      label: "이어쓰기",
-      text: "",
-      status: "streaming",
-    };
-    setParas(prev => [...prev, newPara]);
+    // chat 모드 = 본문 자동 추가 X. script 모드만 새 단락.
+    let newPara: Para | null = null;
+    if (mode === "script") {
+      newPara = {
+        id: "p_" + Date.now(),
+        n: paras.length + 1,
+        label: "이어쓰기",
+        text: "",
+        status: "streaming",
+      };
+      setParas(prev => [...prev, newPara!]);
 
-    setChat(prev => [...prev, {
-      id: "m_ack_" + Date.now(),
-      role: "ai",
-      text: "디렉션 반영해서 본문 이어 작성 중...",
-      t: "방금"
-    }]);
+      setChat(prev => [...prev, {
+        id: "m_ack_" + Date.now(),
+        role: "ai",
+        text: "디렉션 반영해서 본문 이어 작성 중...",
+        t: "방금"
+      }]);
+    } else {
+      // chat 모드 = AI 응답 메시지를 빈 상태로 추가 (stream으로 채워짐)
+      setChat(prev => [...prev, {
+        id: "m_chat_" + Date.now(),
+        role: "ai",
+        text: "",
+        t: "방금"
+      }]);
+    }
 
     const ac = new AbortController();
     aiAbortRef.current = ac; // ★ 외부 ⏸ 잠깐 버튼이 이 코멘트 호출도 abort 가능하도록
@@ -984,7 +1005,8 @@ function WriteMain() {
     const sendUserSummary = `[작가 디렉션] ${text}`.slice(0, 200);
     try {
       const res = await streamFetch({
-          mode: "script",
+          // ★ V2.13 = mode 분기 (script = 본문 추가, chat = 대화만)
+          mode,
           idea: ideaParam,
           genreLetter: genreParam,
           mediumFields,
@@ -1020,41 +1042,57 @@ function WriteMain() {
             const data = JSON.parse(dataLine);
             if (eventType === "delta" && data.text) {
               collected += data.text;
-              setParas(prev => prev.map(p =>
-                p.id === newPara.id ? { ...p, text: firstD ? data.text : p.text + data.text } : p
-              ));
+              if (mode === "chat") {
+                // chat 모드 = AI 응답을 chat 마지막 메시지에 누적
+                setChat(prev => {
+                  if (prev.length === 0) return prev;
+                  const last = prev[prev.length - 1];
+                  if (last.role !== "ai") return prev;
+                  return [...prev.slice(0, -1), { ...last, text: firstD ? data.text : last.text + data.text }];
+                });
+              } else {
+                setParas(prev => prev.map(p =>
+                  p.id === newPara!.id ? { ...p, text: firstD ? data.text : p.text + data.text } : p
+                ));
+              }
               firstD = false;
             } else if (eventType === "done") {
-              // 마커 분리 (본문/분석)
-              const NOTES_MARKER = /\n*={3,}\s*AI[_\s]?NOTES\s*={3,}\n*/i;
-              const m = collected.match(NOTES_MARKER);
-              let bodyOnly = collected;
-              let notesPart: string | null = null;
-              if (m && m.index !== undefined) {
-                bodyOnly = collected.slice(0, m.index).trimEnd();
-                notesPart = collected.slice(m.index + m[0].length).trim();
-              }
-              setParas(prev => prev.map(p =>
-                p.id === newPara.id
-                  ? { ...p, text: bodyOnly, status: "done" as const }
-                  : p
-              ));
-              if (notesPart) {
-                setChat(prev => [...prev, {
-                  id: "ai_notes_" + Date.now(),
-                  role: "ai",
-                  text: "📋 자가 검증·분석\n\n" + notesPart,
-                  t: "방금"
-                }]);
+              if (mode === "chat") {
+                // chat 모드 = 마커 분리 없음 = 응답 그대로 (옛 메시지에 이미 누적됨)
+              } else {
+                // 마커 분리 (본문/분석)
+                const NOTES_MARKER = /\n*={3,}\s*AI[_\s]?NOTES\s*={3,}\n*/i;
+                const m = collected.match(NOTES_MARKER);
+                let bodyOnly = collected;
+                let notesPart: string | null = null;
+                if (m && m.index !== undefined) {
+                  bodyOnly = collected.slice(0, m.index).trimEnd();
+                  notesPart = collected.slice(m.index + m[0].length).trim();
+                }
+                setParas(prev => prev.map(p =>
+                  p.id === newPara!.id
+                    ? { ...p, text: bodyOnly, status: "done" as const }
+                    : p
+                ));
+                if (notesPart) {
+                  setChat(prev => [...prev, {
+                    id: "ai_notes_" + Date.now(),
+                    role: "ai",
+                    text: "📋 자가 검증·분석\n\n" + notesPart,
+                    t: "방금"
+                  }]);
+                }
               }
             } else if (eventType === "error") {
               setChat(prev => [...prev, {
                 id: "err_" + Date.now(), role: "ai",
                 text: `⚠ AI 호출 오류: ${data.message}`, t: "방금"
               }]);
-              setParas(prev => prev.map(p =>
-                p.id === newPara.id ? { ...p, status: "done" as const } : p
-              ));
+              if (mode === "script" && newPara) {
+                setParas(prev => prev.map(p =>
+                  p.id === newPara!.id ? { ...p, status: "done" as const } : p
+                ));
+              }
             }
           } catch { /* ignore */ }
         }
@@ -1075,18 +1113,22 @@ function WriteMain() {
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") {
         setAiBusy(false);
-        setParas(prev => prev.map(p =>
-          p.id === newPara.id ? { ...p, status: "done" as const } : p
-        ));
+        if (newPara) {
+          setParas(prev => prev.map(p =>
+            p.id === newPara!.id ? { ...p, status: "done" as const } : p
+          ));
+        }
         return;
       }
       const msg = err instanceof Error ? err.message : "네트워크 오류";
       setChat(prev => [...prev, {
         id: "err_" + Date.now(), role: "ai", text: `⚠ 호출 실패: ${msg}`, t: "방금"
       }]);
-      setParas(prev => prev.map(p =>
-        p.id === newPara.id ? { ...p, status: "done" as const } : p
-      ));
+      if (newPara) {
+        setParas(prev => prev.map(p =>
+          p.id === newPara!.id ? { ...p, status: "done" as const } : p
+        ));
+      }
     } finally {
       setAiBusy(false);
     }
@@ -1248,7 +1290,23 @@ function WriteMain() {
               onAddNote={addNote}
               onRemoveNote={removeNote}
               onClose={() => setBookOpen(false)}
-              mediumLabel={`${wf.letter}. ${wf.name}`}
+              mediumLabel={(() => {
+                // ★ 작가가 /develop에서 선택한 옵션 = 매체 표시에 연동
+                //   예: "B. 영화 · 단편 (~30분)" / "A. TV 드라마 · 16부작" / "C. 숏드라마 · 80화"
+                const primaryFieldKey: Record<string, string> = {
+                  A: "episodes", B: "runtime", C: "total_episodes", D: "target_age",
+                  E: "ep_length", F: "length_target", G: "format_type", H: "chars_per_ep",
+                  I: "venue_size", J: "length_type", K: "area", L: "branch_count", M: "ep_length",
+                };
+                const key = primaryFieldKey[wf.letter];
+                const optValue = key && mediumFields?.[key];
+                const optStr = Array.isArray(optValue)
+                  ? optValue.join(", ")
+                  : (optValue ?? "").toString().trim();
+                return optStr
+                  ? `${wf.letter}. ${wf.name} · ${optStr}`
+                  : `${wf.letter}. ${wf.name} · ${wf.sub}`;
+              })()}
             />
           </>
         )}
