@@ -383,14 +383,25 @@ function Paragraph({ p, paused, onRewrite, onEdit, onContinue }: {
     setEditing(false);
   };
 
+  // ★ 한국 시나리오 자동 형식 감지 (2026-05-14 대표님 명시 사고 정정):
+  //   - "S#1.", "씬 1.", "INT.", "EXT." = scene heading = 라벨 X + 굵게
+  //   - 따옴표 "..." 또는 캐릭터: 대사 형태 = 대사 = 라벨 "대사"
+  //   - 그 외 = 지문 (액션·묘사)
+  const trimmedText = (p.text || "").trim();
+  const isSceneHeading = /^(S#\s*\d+|씬\s*\d+|INT[\.\s]|EXT[\.\s]|장면\s*\d+|자막[\.\s])/i.test(trimmedText);
+  const looksLikeDialogue = /^["「『][^"」』]+["」』]\s*$/.test(trimmedText)
+    || /^[가-힣A-Za-z]{1,12}\s*:\s*/.test(trimmedText)
+    || /^[가-힣A-Za-z]{1,12}\s*\(.*\)\s*\n/.test(trimmedText);
+  const autoLabel = isSceneHeading ? "씬" : looksLikeDialogue ? "대사" : (p.label || "지문");
+
   return (
     <div
-      className={"wpara is-" + p.status + (paused && isStreaming ? " is-paused" : "")}
+      className={"wpara is-" + p.status + (paused && isStreaming ? " is-paused" : "") + (isSceneHeading ? " is-heading" : "")}
       data-para-id={p.id}
     >
       <div className="wpara-gutter">
         <span className="wpara-num">{String(p.n).padStart(2, "0")}</span>
-        <span className="wpara-label">{p.label}</span>
+        <span className="wpara-label">{autoLabel}</span>
       </div>
 
       <div className="wpara-body">
