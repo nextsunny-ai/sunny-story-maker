@@ -21,7 +21,11 @@ const TARGETS: Record<string, { file: string; contentType: string }> = {
     file: "sunny-story-maker-windows.exe",
     contentType: "application/vnd.microsoft.portable-executable",
   },
-  // macOS·Linux = .dmg / .AppImage 빌드 후 추가
+  // ★ macOS (V2.13.0~) — Tauri 자동 업데이터 = .app.tar.gz 형식 사용 (.dmg 아님)
+  darwin: {
+    file: "sunny-story-maker-mac.app.tar.gz",
+    contentType: "application/gzip",
+  },
 };
 
 interface Params {

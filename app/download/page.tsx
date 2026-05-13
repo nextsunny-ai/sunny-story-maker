@@ -236,14 +236,15 @@ export default function DownloadPage() {
           )}
 
           <div style={{ marginTop: 22, paddingTop: 20, borderTop: "1px solid var(--line)", fontSize: 11, color: "var(--ink-5)", lineHeight: 1.7 }}>
-            ※ Mac·iOS·Android 데스크탑 앱 = V2.12 출시 예정.<br />
-            ※ 현재 Mac/Linux = ZIP 자동 설치 path 사용 가능 (Node.js·Claude Code 자동).
+            ※ Windows .exe = V2.13.0 (4.7 MB · NSIS 자동 설치 · 자동 업데이터).<br />
+            ※ macOS .dmg = V2.13.0 (Apple Silicon aarch64 · 7.7 MB).<br />
+            ※ iOS·Android = 다음 단계.
           </div>
         </section>
       </div>
 
       <footer style={{ padding: "20px 32px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--ink-5)" }}>
-        <span>SUNNY Story Maker · v2.11.2 · 2026-05-11</span>
+        <span>SUNNY Story Maker · v2.13.0 · 2026-05-14</span>
         <div style={{ display: "flex", gap: 16 }}>
           <a href="/guide" style={{ color: "var(--ink-4)", textDecoration: "none" }}>가이드</a>
           <a href="/changelog" style={{ color: "var(--ink-4)", textDecoration: "none" }}>변경 이력</a>

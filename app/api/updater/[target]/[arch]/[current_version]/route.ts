@@ -90,8 +90,12 @@ export async function GET(
   if (target === "windows") {
     installerFilename = "sunny-story-maker-windows.exe";
     downloadUrl = "https://story.sunnytoon.com/api/updater-download/windows";
+  } else if (target === "darwin") {
+    // ★ V2.13.0 ~ macOS 활성 (= .app.tar.gz 형식, Tauri 자동 업데이터 표준)
+    installerFilename = "sunny-story-maker-mac.app.tar.gz";
+    downloadUrl = "https://story.sunnytoon.com/api/updater-download/darwin";
   }
-  // macOS·Linux = 다음 단계 (= macOS .dmg + .sig 빌드 후 활성)
+  // Linux = 다음 단계
 
   if (!downloadUrl || !installerFilename) {
     // 지원 안 하는 플랫폼 = 204 (= update X)

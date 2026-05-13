@@ -33,9 +33,10 @@ const FILES = {
     contentType: "application/zip",
   },
   mac: {
-    file: "sunny-story-maker-mac.zip",
-    download: "sunny-story-maker-mac.zip",
-    contentType: "application/zip",
+    // ★ V2.13.0 — 진짜 macOS .dmg (Apple Silicon aarch64) = GitHub Actions 빌드
+    file: "sunny-story-maker-mac.dmg",
+    download: "SUNNY Story Maker.dmg",
+    contentType: "application/x-apple-diskimage",
   },
   fallback: {
     file: "sunny-story-maker-local.zip",
