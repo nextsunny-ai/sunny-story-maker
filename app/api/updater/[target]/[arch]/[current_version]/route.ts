@@ -25,10 +25,10 @@ export const dynamic = "force-dynamic";
 
 // 현재 라이브 버전 (= 매 릴리스 시 갱신)
 const LATEST = {
-  version: "2.12.4",
-  pub_date: "2026-05-14T02:00:00Z",
+  version: "2.13.0",
+  pub_date: "2026-05-14T05:00:00Z",
   notes:
-    "V2.12.4 — cmd 창 깜빡임 사고 정정 (= subprocess 호출 시 CREATE_NO_WINDOW flag 박음 = where claude · claude --print 등 = Windows에서 검은 창 안 뜸). + V2.12.3 (Google OAuth PKCE fix) + V2.12.2 (외부 브라우저 OAuth + deep link) + V2.12.1 (바탕화면 단축키 · 단일 인스턴스).",
+    "V2.13.0 — 자동저장 시스템 전면 강화 (대표님 명시 사고 방지): (1) 행동 기반 트리거 7가지 = 단락 추가·채팅·노트·AI 응답 완료·페이지 이동·5분 정기·명시 저장 버튼. (2) 저장 상태 영구 표시 우측 상단 = 본 PC만 / 클라우드 OK / 실패 명확 구분. (3) localStorage 작가별 분리 = USER 동적 (= 옛 anon 고정 사고 정정) + 옛 anon.* 데이터 자동 마이그레이션. (4) beforeunload + visibilitychange = 페이지 떠날 때 keepalive fetch로 클라우드 강제 push.",
 };
 
 /**

@@ -37,6 +37,7 @@ interface LibraryWork {
   prog: number;
   updated: string;
   size: string;
+  source?: "cloud" | "local"; // ☁ 클라우드 / 💻 본 PC만 (2026-05-14)
 }
 
 interface LibraryPersona {
@@ -67,31 +68,46 @@ function LibraryMain() {
   const [worksLocal] = usePersistedState<LibraryWork[]>(KEY.libraryWorks, []);
   const [personas, setPersonas] = usePersistedState<LibraryPersona[]>(KEY.libraryPersonas, []);
 
-  // ★ _works/ 폴더 자동 스캔 (사장님 명시 2026-05-04)
+  // ★ Supabase works 테이블 + localStorage 통합 (사장님 명시 2026-05-04)
   const [apiWorks, setApiWorks] = useState<ApiWorkInfo[]>([]);
   const [worksDir, setWorksDir] = useState<string>("");
   const [apiLoading, setApiLoading] = useState(true);
+  // ★ 클라우드 연결 상태 — 작가에게 "클라우드 OK / 로그인 끊김" 명확히 표시 (2026-05-14)
+  const [cloudStatus, setCloudStatus] = useState<"loading" | "ok" | "unauthorized" | "error">("loading");
+  const [cloudMsg, setCloudMsg] = useState<string>("");
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/works/list");
-        if (!res.ok) throw new Error("작품 list API 실패");
-        const data = await res.json() as { works: ApiWorkInfo[]; worksDir?: string };
-        if (!cancelled) {
-          setApiWorks(data.works || []);
-          setWorksDir(data.worksDir || "");
+        if (cancelled) return;
+        if (res.status === 401) {
+          setCloudStatus("unauthorized");
+          setCloudMsg("로그인 세션 끊김 — 클라우드 작품 안 보임. 다시 로그인하면 다른 PC 작업도 복원됨.");
+          return;
         }
-      } catch { /* ignore — localStorage 작품만 표시 */ }
-      finally {
+        if (!res.ok) {
+          setCloudStatus("error");
+          setCloudMsg(`클라우드 list 실패 (HTTP ${res.status}) — 본 PC 작품만 표시.`);
+          return;
+        }
+        const data = await res.json() as { works: ApiWorkInfo[]; worksDir?: string };
+        setApiWorks(data.works || []);
+        setWorksDir(data.worksDir || "");
+        setCloudStatus("ok");
+      } catch (err) {
+        if (cancelled) return;
+        setCloudStatus("error");
+        setCloudMsg(`네트워크 끊김 — 본 PC 작품만 표시. ${err instanceof Error ? err.message : ""}`);
+      } finally {
         if (!cancelled) setApiLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, []);
 
-  // ★ API 작품 + localStorage 작품 통합 (workId 기준 dedup)
+  // ★ API 작품 + localStorage 작품 통합 (workId 기준 dedup) — source 표시 (2026-05-14)
   const works = useMemo<LibraryWork[]>(() => {
     const apiAsLib: LibraryWork[] = apiWorks.map(w => ({
       id: w.workId,
@@ -99,13 +115,15 @@ function LibraryMain() {
       genre: w.genre || "",
       letter: w.genre || "A",
       stage: w.fileCount >= 5 ? "집필 중" : w.fileCount >= 3 ? "트리트먼트" : "기획",
-      prog: Math.min(1, w.fileCount / 6), // 6단계 기준
+      prog: Math.min(1, w.fileCount / 6),
       updated: new Date(w.updatedAt).toLocaleDateString("ko-KR"),
       size: `${(w.size / 1024).toFixed(1)} KB · ${w.fileCount}개 .md`,
+      source: "cloud" as const,
     }));
-    // localStorage 작품 추가 (= API에 없는 것만)
     const apiIds = new Set(apiAsLib.map(w => w.id));
-    const localOnly = worksLocal.filter(w => !apiIds.has(String(w.id)));
+    const localOnly: LibraryWork[] = worksLocal
+      .filter(w => !apiIds.has(String(w.id)))
+      .map(w => ({ ...w, source: "local" as const }));
     return [...apiAsLib, ...localOnly];
   }, [apiWorks, worksLocal]);
 
@@ -220,6 +238,59 @@ function LibraryMain() {
 
       <SectionHead num={1} title="작품" sub={`${works.length}편`} />
 
+      {/* ★ 클라우드 연결 상태 — 작가가 "보이는 작품이 다인가?" 헷갈리지 않게 (2026-05-14) */}
+      {!apiLoading && cloudStatus !== "ok" && (
+        <div
+          role="status"
+          style={{
+            margin: "12px 0",
+            padding: "10px 14px",
+            background: cloudStatus === "unauthorized" ? "rgba(255, 165, 0, 0.12)" : "rgba(255, 90, 90, 0.10)",
+            border: `1px solid ${cloudStatus === "unauthorized" ? "rgba(255, 165, 0, 0.4)" : "rgba(255, 90, 90, 0.4)"}`,
+            borderRadius: 8,
+            fontSize: 12.5,
+            lineHeight: 1.6,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <span>
+            <strong style={{ color: cloudStatus === "unauthorized" ? "#cc7a00" : "#cc3333" }}>
+              {cloudStatus === "unauthorized" ? "⚠ 클라우드 연결 끊김" : "⚠ 클라우드 list 실패"}
+            </strong>
+            <span style={{ marginLeft: 8, color: "var(--ink-3)" }}>— {cloudMsg}</span>
+          </span>
+          {cloudStatus === "unauthorized" && (
+            <a
+              href="/login?redirect=/library"
+              style={{
+                padding: "5px 12px",
+                background: "var(--coral)",
+                color: "#fff",
+                borderRadius: 5,
+                fontSize: 12,
+                fontWeight: 600,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+              }}
+            >
+              다시 로그인 →
+            </a>
+          )}
+        </div>
+      )}
+      {!apiLoading && cloudStatus === "ok" && works.length > 0 && (
+        <div style={{
+          margin: "8px 0 4px", fontSize: 11.5, color: "var(--ink-4)",
+          display: "flex", gap: 12, alignItems: "center",
+        }}>
+          <span>☁ 클라우드 = {works.filter(w => w.source === "cloud").length}편</span>
+          <span>💻 본 PC만 = {works.filter(w => w.source === "local").length}편</span>
+        </div>
+      )}
+
       {filteredWorks.length === 0 ? (
         <div style={{
           padding: "60px 24px", textAlign: "center", color: "var(--ink-3)",
@@ -245,8 +316,24 @@ function LibraryMain() {
             <div key={w.id} className="lib-card" onClick={() => open(String(w.id ?? w.title))}>
               <div className="lib-card-top">
                 <div className="lib-card-icon">{I[w.letter]}</div>
-                <div className="lib-card-stage" data-stage={w.stage === "완성" ? "done" : w.stage === "리뷰 대기" ? "review" : ""}>
-                  {w.stage}
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <span
+                    title={w.source === "cloud" ? "클라우드 = 다른 PC에서도 보임" : "본 PC만 = 클라우드 미저장"}
+                    style={{
+                      fontSize: 11,
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      background: w.source === "cloud" ? "rgba(16, 185, 129, 0.12)" : "rgba(255, 165, 0, 0.12)",
+                      color: w.source === "cloud" ? "#0a8a5e" : "#cc7a00",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {w.source === "cloud" ? "☁" : "💻"}
+                  </span>
+                  <div className="lib-card-stage" data-stage={w.stage === "완성" ? "done" : w.stage === "리뷰 대기" ? "review" : ""}>
+                    {w.stage}
+                  </div>
                 </div>
               </div>
               <div className="lib-card-title">{w.title}</div>
