@@ -25,10 +25,10 @@ export const dynamic = "force-dynamic";
 
 // 현재 라이브 버전 (= 매 릴리스 시 갱신)
 const LATEST = {
-  version: "2.12.3",
-  pub_date: "2026-05-14T01:00:00Z",
+  version: "2.12.4",
+  pub_date: "2026-05-14T02:00:00Z",
   notes:
-    "V2.12.3 — Google OAuth PKCE code verifier 미스매치 사고 정정 (= exchangeCodeForSession을 .exe 안에서 호출하도록 = code verifier가 박힌 같은 localStorage 사용). + V2.12.2 (외부 브라우저 OAuth + deep link) + V2.12.1 (바탕화면 단축키 · 단일 인스턴스 · ClaudeCliGate 깜빡임 수정).",
+    "V2.12.4 — cmd 창 깜빡임 사고 정정 (= subprocess 호출 시 CREATE_NO_WINDOW flag 박음 = where claude · claude --print 등 = Windows에서 검은 창 안 뜸). + V2.12.3 (Google OAuth PKCE fix) + V2.12.2 (외부 브라우저 OAuth + deep link) + V2.12.1 (바탕화면 단축키 · 단일 인스턴스).",
 };
 
 /**

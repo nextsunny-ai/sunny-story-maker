@@ -21,6 +21,10 @@ use tauri::ipc::Channel;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
+// ★ Windows = subprocess 생성 시 = cmd 창 깜빡임 방지 (= CREATE_NO_WINDOW = 0x08000000)
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
     #[error("claude CLI not found in PATH — run `npm install -g @anthropic-ai/claude-code`")]
@@ -139,10 +143,15 @@ fn find_claude_bin() -> Option<PathBuf> {
         "which"
     };
 
-    let out = std::process::Command::new(cmd)
-        .arg("claude")
-        .output()
-        .ok()?;
+    let mut command = std::process::Command::new(cmd);
+    command.arg("claude");
+    // ★ Windows = cmd 창 깜빡임 방지
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    let out = command.output().ok()?;
     if !out.status.success() {
         return None;
     }
@@ -241,7 +250,8 @@ pub async fn stream(
 
     let cli_m = cli_model(model);
 
-    let mut child = Command::new(&claude_bin)
+    let mut cmd_builder = Command::new(&claude_bin);
+    cmd_builder
         .arg("--print")
         .arg("--verbose")
         .arg("--system-prompt-file")
@@ -257,8 +267,16 @@ pub async fn stream(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()?;
+        .kill_on_drop(true);
+
+    // ★ Windows = cmd 창 깜빡임 방지 (= GUI 앱에서 자식 process 생성 시 검은 창 안 뜨게)
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd_builder.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let mut child = cmd_builder.spawn()?;
 
     // stdin = ASCII trigger only (한글 깨짐 우회 — 실제 의뢰는 system-prompt-file에 박힘)
     if let Some(mut stdin) = child.stdin.take() {
