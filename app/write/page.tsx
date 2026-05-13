@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { GENRES } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
@@ -310,6 +310,112 @@ interface LibraryWorkLite {
   next?: string;
 }
 
+// ★ 저장 상태 바 — 우측 상단 영구 표시 + 명시 [저장] 버튼 (2026-05-14 대표님 명시 사고 방지)
+function SaveStatusBar({
+  status, msg, savedAt, savedReason, onManualSave, isStreaming,
+}: {
+  status: "idle" | "saving" | "saved" | "local-only" | "error";
+  msg: string;
+  savedAt: string;
+  savedReason: string;
+  onManualSave: () => void;
+  isStreaming: boolean;
+}) {
+  // 행동별 트리거 한글 라벨
+  const reasonLabel = (r: string) => {
+    if (r === "auto") return "자동";
+    if (r === "para-added") return "단락 추가";
+    if (r === "chat-added") return "채팅";
+    if (r === "note-added") return "노트";
+    if (r === "ai-done") return "AI 응답 완료";
+    if (r === "unload") return "페이지 이동";
+    if (r === "interval-5min") return "5분 정기";
+    if (r === "manual") return "수동 저장";
+    return r;
+  };
+
+  const isError = status === "error" || status === "local-only";
+  const bg = isError
+    ? (status === "error" ? "rgba(255, 90, 90, 0.95)" : "rgba(255, 165, 0, 0.95)")
+    : (status === "saving" ? "rgba(100, 116, 139, 0.92)"
+      : status === "saved" ? "rgba(16, 185, 129, 0.92)"
+      : "rgba(100, 116, 139, 0.75)");
+  const label = isError
+    ? (status === "error" ? "⚠ 클라우드 저장 실패" : "⚠ 본 PC에만 저장됨")
+    : (status === "saving" ? "⏳ 저장 중…"
+      : status === "saved" ? `✓ 저장됨 ${savedAt}${savedReason ? ` (${reasonLabel(savedReason)})` : ""}`
+      : "저장 대기");
+
+  return (
+    <div
+      role="status"
+      style={{
+        position: "fixed",
+        top: 12,
+        right: 12,
+        zIndex: 200,
+        maxWidth: isError ? 380 : 280,
+        padding: isError ? "10px 14px" : "8px 12px",
+        background: bg,
+        color: "#fff",
+        borderRadius: 10,
+        boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+        fontSize: 12.5,
+        lineHeight: 1.5,
+        fontWeight: 500,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "space-between" }}>
+        <span style={{ fontWeight: 700 }}>{label}</span>
+        <button
+          type="button"
+          onClick={onManualSave}
+          disabled={isStreaming}
+          title={isStreaming ? "AI 응답 끝난 후 저장" : "지금 즉시 저장 (= localStorage + 클라우드)"}
+          style={{
+            padding: "3px 10px",
+            fontSize: 11,
+            fontWeight: 700,
+            background: "rgba(255,255,255,0.25)",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.4)",
+            borderRadius: 5,
+            cursor: isStreaming ? "not-allowed" : "pointer",
+            opacity: isStreaming ? 0.5 : 1,
+            whiteSpace: "nowrap",
+          }}
+        >
+          💾 저장
+        </button>
+      </div>
+      {isError && msg && (
+        <div style={{ opacity: 0.95, fontSize: 11.5 }}>{msg}</div>
+      )}
+      {status === "local-only" && (
+        <a
+          href="/login"
+          style={{
+            display: "inline-block",
+            padding: "3px 8px",
+            background: "rgba(255,255,255,0.25)",
+            color: "#fff",
+            borderRadius: 4,
+            fontSize: 11.5,
+            fontWeight: 600,
+            textDecoration: "none",
+            alignSelf: "flex-start",
+          }}
+        >
+          다시 로그인 →
+        </a>
+      )}
+    </div>
+  );
+}
+
 function projectKeyFor(mode: string | null, isDemo: boolean, projectParam: string, ideaParam: string, genreLetter: string): string | null {
   if (isDemo) return null;
   if (mode === "continue" && projectParam) return projectParam;
@@ -454,105 +560,238 @@ function WriteMain() {
   // ★ AI 호출 진행 중 표시 — 스탑 버튼 노출 통제.
   const [aiBusy, setAiBusy] = useState(false);
 
-  // 변경 시 자동 저장 (debounced) + 마지막 작품 키 기록 + 라이브러리 동기화
+  // ★ 자동저장 상태 — 작가에게 시각적 피드백 (옛 silent fail 사고 방지 2026-05-14)
+  //   "saved" = localStorage + 클라우드 둘 다 / "local-only" = 클라우드 401·실패 / "saving" = 진행 중
+  type SaveStatus = "idle" | "saving" | "saved" | "local-only" | "error";
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [saveStatusMsg, setSaveStatusMsg] = useState<string>("");
+  const [savedAt, setSavedAt] = useState<string>("");
+  const [savedReason, setSavedReason] = useState<string>("");
+
+  // ★ 저장 함수 — 행동 단위 명시 저장 (페이지마다·단락 추가·AI 응답 완료·페이지 이동 시 등)
+  //   reason = "auto" (0.4s debounce) / "para-added" / "chat-added" / "note-added"
+  //         / "ai-done" / "unload" / "interval-5min" / "manual" (저장 버튼)
+  //
+  //   localStorage = 항상 저장 (= 본 PC 안전).
+  //   Supabase = 항상 시도 + 결과 가시화 (= 401·네트워크 끊김 시 토스트 알림).
+  const lastCloudPushRef = useRef<string>(""); // 마지막 클라우드 저장 hash (= 중복 push 방지)
+  const lastCloudTimeRef = useRef<number>(0);  // 마지막 클라우드 저장 시각
+
+  const saveSnapshot = useCallback((reason: string, opts?: { keepalive?: boolean; force?: boolean }) => {
+    if (!storageKey || !persistKey || isDemo) return;
+
+    // (1) localStorage 즉시 저장 (= 본 PC 안전)
+    const snapshot: PersistedProject = {
+      work, notes, flow, paras, chat,
+      mediumFields,
+      briefDone,
+      updatedAt: new Date().toISOString(),
+    };
+    saveJSON(storageKey, snapshot);
+    saveJSON(KEY.writeLastProject, {
+      mode, idea: ideaParam, genre: genreParam, project: projectParam,
+      from: searchParams.get("from") || "",
+      fast: searchParams.get("fast") || "",
+      savedAt: new Date().toISOString(),
+    });
+
+    // 라이브러리 동기화
+    const totalChars = paras.reduce((sum, p) => sum + (p.text?.length || 0), 0);
+    const writtenParas = paras.filter(p => p.text && p.text.trim()).length;
+    const isStreaming = paras.some(p => p.status === "streaming");
+    const stage = !briefDone ? "기획"
+      : isStreaming ? "집필 중"
+      : writtenParas === 0 ? "기획"
+      : writtenParas < 3 ? "트리트먼트"
+      : "집필 중";
+    const prog = Math.min(1, totalChars / 5000);
+    const today = new Date();
+    const updatedStr = `${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
+    const newWork: LibraryWorkLite = {
+      id: persistKey,
+      title: work.title || ideaParam.slice(0, 40) || "(제목 없음)",
+      genre: wf.name,
+      letter: genreParam,
+      stage,
+      prog,
+      updated: updatedStr,
+      size: totalChars > 0 ? `${totalChars.toLocaleString()}자` : "—",
+      next: paras.find(p => p.status === "pending")?.label,
+    };
+    const libworks = loadJSON<LibraryWorkLite[]>(KEY.libraryWorks, []);
+    const idx = libworks.findIndex(w => w.id === newWork.id);
+    if (idx >= 0) libworks[idx] = { ...libworks[idx], ...newWork };
+    else libworks.push(newWork);
+    saveJSON(KEY.libraryWorks, libworks);
+
+    setSavedAt(new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }));
+    setSavedReason(reason);
+
+    // (2) Supabase 클라우드 저장 (= 메모리 .md 5개)
+    try {
+      const developRaw = window.localStorage.getItem("storyMaker.developHandoff");
+      const dev = developRaw ? JSON.parse(developRaw) : {};
+      const bodyText = paras
+        .filter(p => p.text && p.text.trim())
+        .map(p => p.text)
+        .join("\n\n");
+      const noteText = notes
+        .filter(n => n.label)
+        .map(n => `- ${n.label}`)
+        .join("\n");
+      const chatText = chat
+        .map(m => `[${m.role === "writer" ? "작가" : "보조작가"} · ${m.t}]\n${m.text}`)
+        .join("\n\n---\n\n");
+      const fields = Object.entries(mediumFields || {})
+        .filter(([, v]) => v != null && v !== "" && (!Array.isArray(v) || v.length > 0))
+        .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+        .join("\n");
+
+      const stamp = new Date().toLocaleString("ko-KR");
+      const memoryFiles: Record<string, string> = {
+        "01_info.md": `# ${work.title || "(가제)"}\n\n` +
+          `- 매체: ${wf.letter}. ${wf.name} (${wf.export_format})\n` +
+          `- 작가 작업: ${stamp}\n` +
+          `- 작품 키: ${persistKey}\n\n` +
+          (fields ? `## 의뢰 정보\n${fields}\n` : ""),
+        "02_brief.md": `# 사전 자료 (제목·로그라인·시놉시스·캐릭터·기승전결)\n\n` +
+          (dev.title ? `## 제목 후보\n${dev.title}\n\n` : "") +
+          (dev.logline ? `## 로그라인\n${dev.logline}\n\n` : "") +
+          (dev.theme ? `## 주제\n${dev.theme}\n\n` : "") +
+          (dev.synopsis ? `## 시놉시스\n${dev.synopsis}\n\n` : "") +
+          (dev.characters ? `## 캐릭터\n${dev.characters}\n\n` : "") +
+          (dev.structure ? `## 기승전결\n${dev.structure}\n\n` : ""),
+        "03_body.md": `# 본문 (${bodyText.length.toLocaleString()}자, ${paras.length}단락)\n\n${bodyText}`,
+        "04_notes.md": `# 작가 디렉션·메모\n\n${noteText || "(없음)"}\n`,
+        "05_chat.md": `# 작가-보조작가 대화 로그\n\n${chatText || "(없음)"}\n`,
+      };
+
+      // ★ 중복 push 방지 = content hash (= 같은 내용 다시 안 보냄, force 시는 무시)
+      const contentHash = `${bodyText.length}|${chatText.length}|${noteText.length}|${work.title}|${Object.keys(memoryFiles).length}`;
+      if (!opts?.force && contentHash === lastCloudPushRef.current) {
+        // 내용 변경 없음 → cloud push skip (= localStorage만 갱신)
+        return;
+      }
+      lastCloudPushRef.current = contentHash;
+      lastCloudTimeRef.current = Date.now();
+
+      setSaveStatus("saving");
+
+      // ★ keepalive = 페이지 이동·unload 시도 = fetch 끝까지 보장 (브라우저 표준)
+      const payload = JSON.stringify({ workId: persistKey, files: memoryFiles });
+      fetch("/api/memory/save", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: payload,
+        keepalive: opts?.keepalive === true,
+      })
+        .then(async (res) => {
+          if (res.ok) {
+            setSaveStatus("saved");
+            setSaveStatusMsg("");
+          } else if (res.status === 401) {
+            setSaveStatus("local-only");
+            setSaveStatusMsg("로그인 세션 끊김 — 본 PC에만 저장됨. 클라우드 저장은 다시 로그인 후.");
+          } else {
+            setSaveStatus("error");
+            const body = await res.text().catch(() => "");
+            setSaveStatusMsg(`클라우드 저장 실패 (${res.status}) — 본 PC에는 저장됨. ${body.slice(0, 100)}`);
+          }
+        })
+        .catch((err) => {
+          setSaveStatus("local-only");
+          setSaveStatusMsg(`네트워크 끊김 — 본 PC에만 저장됨. ${err?.message || ""}`);
+        });
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey, persistKey, isDemo, work, notes, flow, paras, chat, mediumFields, briefDone, wf, mode, ideaParam, genreParam, projectParam, searchParams]);
+
+  // ─── 자동 저장 트리거 1: 0.4초 debounce (= 작가가 입력 멈춤) ───
   useEffect(() => {
-    if (!storageKey) return;
-    if (isDemo) return; // demo는 라이브러리 등록 X
-    if (!persistKey) return;
-    const timer = setTimeout(() => {
-      const snapshot: PersistedProject = {
-        work, notes, flow, paras, chat,
-        mediumFields,
-        briefDone,
-        updatedAt: new Date().toISOString(),
-      };
-      saveJSON(storageKey, snapshot);
-      // 마지막 작품 정보 — 빈 mode 진입 시 복원할 query 저장
-      saveJSON(KEY.writeLastProject, {
-        mode, idea: ideaParam, genre: genreParam, project: projectParam,
-        from: searchParams.get("from") || "",
-        fast: searchParams.get("fast") || "",
-        savedAt: new Date().toISOString(),
-      });
-      // 라이브러리 자동 동기화 — id=persistKey 일관 사용 (mode=new/continue 모두 같은 키로 읽음)
-      const totalChars = paras.reduce((sum, p) => sum + (p.text?.length || 0), 0);
-      const writtenParas = paras.filter(p => p.text && p.text.trim()).length;
-      const isStreaming = paras.some(p => p.status === "streaming");
-      const stage = !briefDone ? "기획"
-        : isStreaming ? "집필 중"
-        : writtenParas === 0 ? "기획"
-        : writtenParas < 3 ? "트리트먼트"
-        : "집필 중";
-      // 진척도: 매체별 표준 분량 5000자 기준 (대략) — 실제 기준은 추후 매체별 조정
-      const prog = Math.min(1, totalChars / 5000);
-      const today = new Date();
-      const updatedStr = `${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
-      const newWork: LibraryWorkLite = {
-        id: persistKey,
-        title: work.title || ideaParam.slice(0, 40) || "(제목 없음)",
-        genre: wf.name,
-        letter: genreParam,
-        stage,
-        prog,
-        updated: updatedStr,
-        size: totalChars > 0 ? `${totalChars.toLocaleString()}자` : "—",
-        next: paras.find(p => p.status === "pending")?.label,
-      };
-      const libworks = loadJSON<LibraryWorkLite[]>(KEY.libraryWorks, []);
-      const idx = libworks.findIndex(w => w.id === newWork.id);
-      if (idx >= 0) libworks[idx] = { ...libworks[idx], ...newWork };
-      else libworks.push(newWork);
-      saveJSON(KEY.libraryWorks, libworks);
-
-      // ★ 메모리 시스템 — 작품별 .md 파일 자동 누적 (백그라운드 Claude들이 매 호출 read).
-      //   사장님 명시: 끄지 않는 동안 = 같은 클로드처럼 일관 + 다음 진입 시도 .md 영구 보관.
-      try {
-        const developRaw = window.localStorage.getItem("storyMaker.developHandoff");
-        const dev = developRaw ? JSON.parse(developRaw) : {};
-        const bodyText = paras
-          .filter(p => p.text && p.text.trim())
-          .map(p => p.text)
-          .join("\n\n");
-        const noteText = notes
-          .filter(n => n.label)
-          .map(n => `- ${n.label}`)
-          .join("\n");
-        const chatText = chat
-          .map(m => `[${m.role === "writer" ? "작가" : "보조작가"} · ${m.t}]\n${m.text}`)
-          .join("\n\n---\n\n");
-        const fields = Object.entries(mediumFields || {})
-          .filter(([, v]) => v != null && v !== "" && (!Array.isArray(v) || v.length > 0))
-          .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
-          .join("\n");
-
-        const stamp = new Date().toLocaleString("ko-KR");
-        const memoryFiles: Record<string, string> = {
-          "01_info.md": `# ${work.title || "(가제)"}\n\n` +
-            `- 매체: ${wf.letter}. ${wf.name} (${wf.export_format})\n` +
-            `- 작가 작업: ${stamp}\n` +
-            `- 작품 키: ${persistKey}\n\n` +
-            (fields ? `## 의뢰 정보\n${fields}\n` : ""),
-          "02_brief.md": `# 사전 자료 (제목·로그라인·시놉시스·캐릭터·기승전결)\n\n` +
-            (dev.title ? `## 제목 후보\n${dev.title}\n\n` : "") +
-            (dev.logline ? `## 로그라인\n${dev.logline}\n\n` : "") +
-            (dev.theme ? `## 주제\n${dev.theme}\n\n` : "") +
-            (dev.synopsis ? `## 시놉시스\n${dev.synopsis}\n\n` : "") +
-            (dev.characters ? `## 캐릭터\n${dev.characters}\n\n` : "") +
-            (dev.structure ? `## 기승전결\n${dev.structure}\n\n` : ""),
-          "03_body.md": `# 본문 (${bodyText.length.toLocaleString()}자, ${paras.length}단락)\n\n${bodyText}`,
-          "04_notes.md": `# 작가 디렉션·메모\n\n${noteText || "(없음)"}\n`,
-          "05_chat.md": `# 작가-보조작가 대화 로그\n\n${chatText || "(없음)"}\n`,
-        };
-        // fire-and-forget — 자동 저장은 = 실패해도 UI 막지 X
-        fetch("/api/memory/save", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ workId: persistKey, files: memoryFiles }),
-        }).catch(() => { /* ignore */ });
-      } catch { /* ignore — 메모리 저장 실패는 localStorage 자동 저장 막지 X */ }
-    }, 400);
+    if (!storageKey || !persistKey || isDemo) return;
+    const timer = setTimeout(() => saveSnapshot("auto"), 400);
     return () => clearTimeout(timer);
-  }, [storageKey, work, notes, flow, paras, chat, mediumFields, briefDone, persistKey, isDemo, wf]);
+  }, [storageKey, persistKey, isDemo, work, notes, flow, paras, chat, mediumFields, briefDone, saveSnapshot]);
+
+  // ─── 자동 저장 트리거 2: 단락 추가 (= paras.length 증가 시 강제 cloud push) ───
+  const lastParasCountRef = useRef(paras.length);
+  useEffect(() => {
+    if (isDemo) return;
+    if (paras.length > lastParasCountRef.current) {
+      lastParasCountRef.current = paras.length;
+      // 0.4초 debounce 안 기다리고 = 단락 1개 추가 = 즉시 cloud push
+      saveSnapshot("para-added", { force: true });
+    } else {
+      lastParasCountRef.current = paras.length;
+    }
+  }, [paras.length, saveSnapshot, isDemo]);
+
+  // ─── 자동 저장 트리거 3: 채팅 추가 (= chat.length 증가) ───
+  const lastChatCountRef = useRef(chat.length);
+  useEffect(() => {
+    if (isDemo) return;
+    if (chat.length > lastChatCountRef.current) {
+      lastChatCountRef.current = chat.length;
+      saveSnapshot("chat-added", { force: true });
+    } else {
+      lastChatCountRef.current = chat.length;
+    }
+  }, [chat.length, saveSnapshot, isDemo]);
+
+  // ─── 자동 저장 트리거 4: 작가 노트 추가·수정 ───
+  const lastNotesCountRef = useRef(notes.length);
+  useEffect(() => {
+    if (isDemo) return;
+    if (notes.length !== lastNotesCountRef.current) {
+      lastNotesCountRef.current = notes.length;
+      saveSnapshot("note-added", { force: true });
+    }
+  }, [notes.length, saveSnapshot, isDemo]);
+
+  // ─── 자동 저장 트리거 5: AI 응답 완료 (= streaming → done 전환) ───
+  const lastStreamingRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (isDemo) return;
+    const isAnyStreaming = paras.some(p => p.status === "streaming");
+    if (lastStreamingRef.current && !isAnyStreaming) {
+      // 옛 = streaming / 현재 = streaming X = AI 응답 끝남 = 즉시 cloud push
+      saveSnapshot("ai-done", { force: true });
+    }
+    lastStreamingRef.current = isAnyStreaming;
+  }, [paras, saveSnapshot, isDemo]);
+
+  // ─── 자동 저장 트리거 6: 페이지 이동·닫기 직전 (beforeunload) ───
+  useEffect(() => {
+    if (isDemo || !storageKey || !persistKey) return;
+    const handler = () => {
+      // keepalive = 브라우저가 페이지 떠나도 fetch 완주 보장 (W3C 표준)
+      saveSnapshot("unload", { keepalive: true, force: true });
+    };
+    window.addEventListener("beforeunload", handler);
+    // visibilitychange = 탭 숨김·앱 백그라운드 (= 모바일·.exe 최소화)
+    const visHandler = () => {
+      if (document.visibilityState === "hidden") {
+        saveSnapshot("unload", { keepalive: true, force: true });
+      }
+    };
+    document.addEventListener("visibilitychange", visHandler);
+    return () => {
+      window.removeEventListener("beforeunload", handler);
+      document.removeEventListener("visibilitychange", visHandler);
+    };
+  }, [isDemo, storageKey, persistKey, saveSnapshot]);
+
+  // ─── 자동 저장 트리거 7: 5분 idle interval (= 작가가 한참 안 만져도 = 정기 push) ───
+  useEffect(() => {
+    if (isDemo || !storageKey || !persistKey) return;
+    const interval = setInterval(() => {
+      // 마지막 cloud push로부터 5분 지났으면 = 강제 push
+      if (Date.now() - lastCloudTimeRef.current > 5 * 60 * 1000) {
+        saveSnapshot("interval-5min", { force: true });
+      }
+    }, 60 * 1000); // 매 1분 체크
+    return () => clearInterval(interval);
+  }, [isDemo, storageKey, persistKey, saveSnapshot]);
 
   // 워크북 패널 토글
   const [bookOpen, setBookOpen] = useState<boolean>(true);
@@ -1235,6 +1474,15 @@ function WriteMain() {
 
   return (
     <main className="main write-live">
+      {/* ★ 자동저장 상태 = 영구 표시 + 명시 [저장] 버튼 (옛 silent fail 사고 방지 2026-05-14) */}
+      <SaveStatusBar
+        status={saveStatus}
+        msg={saveStatusMsg}
+        savedAt={savedAt}
+        savedReason={savedReason}
+        onManualSave={() => saveSnapshot("manual", { force: true })}
+        isStreaming={paras.some(p => p.status === "streaming")}
+      />
       <div
         className={"write-shell" + (bookOpen ? " book-open" : " book-closed")}
         style={bookOpen ? { gridTemplateColumns: `minmax(0, 1fr) 6px ${workbookWidth}px` } : undefined}

@@ -2,63 +2,139 @@
 // SSR-safe, debounced setter, and React hook for state-binding.
 //
 // Key convention: `sunny.{page}.{userId or "anon"}.{field}`
-// Today everything is anon (no auth surface yet).
+//
+// ★ 2026-05-14 — USER 동적화 (옛 anon 고정 사고 정정):
+// 로그인 시 = `setUserNamespace(supabaseUserId)` 호출 → 모든 KEY가 user.id 네임스페이스로
+// 자동 전환. 로그아웃 = `setUserNamespace(null)` → 다시 anon.
+// `as const` 대신 getters 사용 = KEY.xxx 접근 시점에 동적 평가 (= 호출 site 변경 X).
+// 옛 anon.* 키 = `migrateAnonToUser(userId)` 로 1회 마이그레이션 (= 옛 데이터 보존).
 
 import { useEffect, useRef, useState } from "react";
 
 const PREFIX = "sunny";
-const USER = "anon";
+const USER_CACHE_KEY = `${PREFIX}.session.userNamespace`;
 
+// 현재 user 네임스페이스 (= supabase user.id 또는 "anon")
+// 모듈 로드 시 = localStorage에서 캐시 읽음 (= 빠른 hydration).
+let currentUser: string = (() => {
+  if (typeof window !== "undefined") {
+    try {
+      const cached = window.localStorage.getItem(USER_CACHE_KEY);
+      if (cached && cached.length > 0) return cached;
+    } catch { /* SSR or quota error */ }
+  }
+  return "anon";
+})();
+
+/** 현재 user 네임스페이스 setter — 로그인 시 호출 (= AppShell auth bootstrap). */
+export function setUserNamespace(userId: string | null): void {
+  const next = (userId && userId.length > 0) ? userId : "anon";
+  if (next === currentUser) return;
+  currentUser = next;
+  if (typeof window !== "undefined") {
+    try { window.localStorage.setItem(USER_CACHE_KEY, next); } catch { /* ignore */ }
+  }
+}
+
+/** 현재 user 네임스페이스 = 외부 read용. */
+export function getUserNamespace(): string {
+  return currentUser;
+}
+
+/**
+ * 옛 anon.* 키 → user.id.* 키 1회 마이그레이션.
+ * 로그인 시 = 옛 작품·세팅 보존 (= 같은 PC에서 작업하던 데이터 유지).
+ * AppShell auth bootstrap에서 = setUserNamespace 호출 직후 자동 실행.
+ */
+export function migrateAnonToUser(userId: string): { migrated: number; skipped: number } {
+  if (typeof window === "undefined") return { migrated: 0, skipped: 0 };
+  if (!userId || userId === "anon") return { migrated: 0, skipped: 0 };
+
+  const migratedFlag = `${PREFIX}.session.migrated.${userId}`;
+  try {
+    if (window.localStorage.getItem(migratedFlag)) {
+      return { migrated: 0, skipped: 0 }; // 이미 마이그레이션 완료
+    }
+  } catch { return { migrated: 0, skipped: 0 }; }
+
+  let migrated = 0;
+  let skipped = 0;
+  const anonPattern = new RegExp(`^${PREFIX}\\.[^.]+\\.anon\\.`);
+
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k && anonPattern.test(k)) keys.push(k);
+    }
+    for (const oldKey of keys) {
+      const newKey = oldKey.replace(`.anon.`, `.${userId}.`);
+      try {
+        // 새 키에 이미 데이터 있으면 = 덮어쓰지 X (= 작가 결정에 맡김)
+        if (window.localStorage.getItem(newKey)) {
+          skipped++;
+          continue;
+        }
+        const value = window.localStorage.getItem(oldKey);
+        if (value != null) {
+          window.localStorage.setItem(newKey, value);
+          migrated++;
+        }
+      } catch { /* quota or serialize */ }
+    }
+    window.localStorage.setItem(migratedFlag, new Date().toISOString());
+  } catch { /* ignore */ }
+
+  return { migrated, skipped };
+}
+
+/**
+ * KEY = 동적 getter 객체.
+ * `KEY.libraryWorks` 접근 시점에 = 현재 user 네임스페이스로 string 평가.
+ * 호출 site 변경 X (= 옛 코드 그대로 동작).
+ */
 export const KEY = {
   // home
-  homeIdea: `${PREFIX}.home.${USER}.idea`,
+  get homeIdea() { return `${PREFIX}.home.${currentUser}.idea`; },
+  get homeMediumOverride() { return `${PREFIX}.home.${currentUser}.mediumOverride`; },
 
   // library
-  libraryWorks: `${PREFIX}.library.${USER}.works`,
-  libraryPersonas: `${PREFIX}.library.${USER}.personas`,
+  get libraryWorks() { return `${PREFIX}.library.${currentUser}.works`; },
+  get libraryPersonas() { return `${PREFIX}.library.${currentUser}.personas`; },
 
   // admin (writer tab)
-  adminProfile: `${PREFIX}.admin.${USER}.profile`,
-  adminLearning: `${PREFIX}.admin.${USER}.learning`,
-  adminPrimaryMedium: `${PREFIX}.admin.${USER}.primaryMedium`,
-  adminAssistantName: `${PREFIX}.admin.${USER}.assistantName`,
-  adminModelPrefs: `${PREFIX}.admin.${USER}.modelPrefs`,
-
-  // home medium override (instant card-switch on home, doesn't change admin default)
-  homeMediumOverride: `${PREFIX}.home.${USER}.mediumOverride`,
+  get adminProfile() { return `${PREFIX}.admin.${currentUser}.profile`; },
+  get adminLearning() { return `${PREFIX}.admin.${currentUser}.learning`; },
+  get adminPrimaryMedium() { return `${PREFIX}.admin.${currentUser}.primaryMedium`; },
+  get adminAssistantName() { return `${PREFIX}.admin.${currentUser}.assistantName`; },
+  get adminModelPrefs() { return `${PREFIX}.admin.${currentUser}.modelPrefs`; },
 
   // review
-  reviewText: `${PREFIX}.review.${USER}.text`,
-  reviewTitle: `${PREFIX}.review.${USER}.title`,
-  reviewGenre: `${PREFIX}.review.${USER}.genre`,
-  reviewPersonas: `${PREFIX}.review.${USER}.personas`,
-  reviewLastResult: `${PREFIX}.review.${USER}.lastResult`,
+  get reviewText() { return `${PREFIX}.review.${currentUser}.text`; },
+  get reviewTitle() { return `${PREFIX}.review.${currentUser}.title`; },
+  get reviewGenre() { return `${PREFIX}.review.${currentUser}.genre`; },
+  get reviewPersonas() { return `${PREFIX}.review.${currentUser}.personas`; },
+  get reviewLastResult() { return `${PREFIX}.review.${currentUser}.lastResult`; },
 
   // adapt
-  adaptText: `${PREFIX}.adapt.${USER}.text`,
-  adaptTitle: `${PREFIX}.adapt.${USER}.title`,
-  adaptGenre: `${PREFIX}.adapt.${USER}.genre`,
+  get adaptText() { return `${PREFIX}.adapt.${currentUser}.text`; },
+  get adaptTitle() { return `${PREFIX}.adapt.${currentUser}.title`; },
+  get adaptGenre() { return `${PREFIX}.adapt.${currentUser}.genre`; },
 
   // osmu
-  osmuText: `${PREFIX}.osmu.${USER}.text`,
-  osmuTitle: `${PREFIX}.osmu.${USER}.title`,
-  osmuGenre: `${PREFIX}.osmu.${USER}.genre`,
+  get osmuText() { return `${PREFIX}.osmu.${currentUser}.text`; },
+  get osmuTitle() { return `${PREFIX}.osmu.${currentUser}.title`; },
+  get osmuGenre() { return `${PREFIX}.osmu.${currentUser}.genre`; },
 
-  // write — keyed per project (title or slug)
-  writeProject: (id: string) => `${PREFIX}.write.${USER}.project.${id}`,
-  // 마지막으로 작업한 작품 — Write 빈 mode로 진입 시 자동 복원
-  writeLastProject: `${PREFIX}.write.${USER}.lastProject`,
-  // 워크북 너비 (좌우 리사이즈)
-  writeWorkbookWidth: `${PREFIX}.write.${USER}.workbookWidth`,
-  // ★ 작품 1개 = AI conversation 1개 (홈·develop·write·chat·adapt 다 같은 통)
-  //   매 호출 = 옛 user/assistant turn 다 박힘 + 새 user msg 추가
-  //   Anthropic prompt cache 1h TTL = 옛 turn cached = 토큰 1/10
-  //   AI = 작가의 작품 전체 + 모든 작업 흐름 다 인식
-  workConversation: (id: string) => `${PREFIX}.conv.${USER}.work.${id}`,
+  // write
+  writeProject: (id: string) => `${PREFIX}.write.${currentUser}.project.${id}`,
+  get writeLastProject() { return `${PREFIX}.write.${currentUser}.lastProject`; },
+  get writeWorkbookWidth() { return `${PREFIX}.write.${currentUser}.workbookWidth`; },
+  workConversation: (id: string) => `${PREFIX}.conv.${currentUser}.work.${id}`,
 
-  // ★ BYOK = 작가 본인 ANTHROPIC_API_KEY (Settings 페이지 입력 → stream-agent에서 자동 첨부) — 글로벌 룰 16
-  userApiKey: `${PREFIX}.account.${USER}.apiKey`,
-} as const;
+  // BYOK
+  get userApiKey() { return `${PREFIX}.account.${currentUser}.apiKey`; },
+};
 
 export interface ConversationTurn {
   role: "user" | "assistant";
