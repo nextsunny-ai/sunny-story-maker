@@ -189,7 +189,7 @@ export function ItemMiniChat({
       overflow: "hidden",
       display: "flex",
       flexDirection: "column",
-      maxHeight: 320,
+      maxHeight: 420,  // ★ 옛 320 = 5개 후보 + 작가 메시지 다 안 들어가서 답답 인상 → 420으로 늘림 (= 스크롤 작동 + 최근 응답 자동 표시)
     }}>
       {/* 헤더 */}
       <div style={{
