@@ -184,11 +184,45 @@ function buildBasePrompt(b: RequestBody): string {
   }
 }
 
+/**
+ * ★ V2.12.5 정정 — 대화 모드 prefix
+ *
+ * 옛 사고: stage builder (buildTitlePrompt 등) = 무조건 "5개 후보 5개" 형식 강제 →
+ * 작가가 본인 제목 제시·의견 묻기 = 무시 + 또 5개 후보 박음 = "대화가 아님" (사장님 분노).
+ *
+ * 정정: conversationMessages.length > 0 = 옛 turn 박혔으면 = "대화 모드" prefix를 user prompt 맨 앞에 박음.
+ * = AI가 stage builder 형식 강제 무시 + 작가 메시지에 대화로 응답.
+ */
+function buildConversationModePrefix(b: RequestBody): string {
+  const hasHistory = (b.conversationMessages?.length ?? 0) > 0;
+  if (!hasHistory) return "";
+  return `# ★★★ 대화 모드 (= 작가와 대화 중) ★★★
+
+작가가 이미 = 이 단계 (${b.mode})에서 = 옛에 답을 받음. 지금은 **대화 중**.
+
+## 작가 메시지 해석 룰 (★ 절대 준수)
+1. **작가가 본인 제안 제시** (예: "다시 만난 너 어때?", "이 제목 어때?") = 그 제안에 대한 **평가** 박음 (= 좋은 점·약한 점·개선 제안). 5개 후보 자동 박지 X.
+2. **작가가 의견 묻기** (예: "어떻게 생각해?", "괜찮아?") = 의견 박음. 후보 박지 X.
+3. **작가가 명시적으로 "새 후보 더 박아줘" 요청** = 그때만 = 새 후보 박음.
+4. **작가가 디렉션 박음** (예: "더 짧게", "톤 바꿔") = 디렉션 반영해서 = 1~3개 정도 박음 (5개 자동 X).
+5. **작가의 직전 메시지 = 항상 읽고 = 그에 맞게 응답**. stage builder 형식 (= "## 출력 형식 ### 후보 5개" 등) = **무시**해도 OK = 대화 우선.
+
+## 형식
+- 자유 대화 형식 = 평어체 또는 작가 호칭 사용
+- 짧게 (= 2~5문장 권장). 작가가 자세히 요청 시만 길게.
+- 인사·자기소개·"다음 단계 안내" 자동 박지 X = 작가 의도에 맞게.
+
+---
+
+`;
+}
+
 function buildUserPrompt(b: RequestBody): string {
   const base = buildBasePrompt(b);
   const learning = formatWriterLearning(b.writerLearning);
   const memory = formatWorkMemoryFromFiles(b.priorFiles);
-  const parts = [memory, learning, base].filter(Boolean);
+  const conversationPrefix = buildConversationModePrefix(b);
+  const parts = [memory, learning, conversationPrefix, base].filter(Boolean);
   return parts.join("\n\n---\n\n");
 }
 
