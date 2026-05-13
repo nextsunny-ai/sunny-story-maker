@@ -17,6 +17,7 @@ const PUBLIC_PATHS: readonly string[] = [
   "/api/download",
   "/api/health", // status 페이지가 호출
   "/api/updater", // Tauri auto-updater (= 인증 X = 모든 작가 PC 호출)
+  "/api/updater-download", // ★ V2.12 = 자동 업데이터 .exe 다운로드 (= signature 검증으로 위변조 방지)
   "/api/agent/stream", // 베타: mock UI라 일단 자유 접근
 ];
 
