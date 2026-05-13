@@ -29,33 +29,58 @@ export function ClaudeCliGate() {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [openingTerminal, setOpeningTerminal] = useState(false);
 
-  const check = useCallback(async () => {
-    if (!isTauri()) {
-      setStatus("ready");
-      return;
-    }
+  // 단일 호출 = claude_cli_status 한 번 = 결과 또는 null(실패)
+  const probe = useCallback(async (): Promise<CliStatusResponse | null> => {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
-      const res = await invoke<CliStatusResponse>("claude_cli_status");
-      if (res.available) {
-        setStatus("ready");
-        setErrorMsg("");
-      } else if (res.reason === "not-installed") {
-        setStatus("not-installed");
-        setErrorMsg(res.error ?? "");
-      } else {
-        setStatus("not-logged-in");
-        setErrorMsg(res.error ?? "");
-      }
-    } catch (e) {
-      setStatus("not-installed");
-      setErrorMsg(e instanceof Error ? e.message : String(e));
+      return await invoke<CliStatusResponse>("claude_cli_status");
+    } catch {
+      return null;
     }
   }, []);
 
+  const applyResult = useCallback((res: CliStatusResponse | null) => {
+    if (!res) {
+      // invoke 자체 실패 (= 일시적, WebView mount 직후 등) = "설치 안 됨"으로 처리하지만
+      // 첫 검사에서는 재시도가 먼저 (= initialCheck에서 처리)
+      setStatus("not-installed");
+      setErrorMsg("Claude Code CLI 상태 확인에 실패했습니다. 잠시 후 '다시 확인'을 눌러주세요.");
+      return;
+    }
+    if (res.available) {
+      setStatus("ready");
+      setErrorMsg("");
+    } else if (res.reason === "not-installed") {
+      setStatus("not-installed");
+      setErrorMsg(res.error ?? "");
+    } else {
+      setStatus("not-logged-in");
+      setErrorMsg(res.error ?? "");
+    }
+  }, []);
+
+  const check = useCallback(async () => {
+    if (!isTauri()) { setStatus("ready"); return; }
+    applyResult(await probe());
+  }, [probe, applyResult]);
+
+  // ★ 첫 검사 = 깜빡임 방지 = 실패하면 1.5초 후 1번 재시도 후만 모달 표시
   useEffect(() => {
-    void check();
-  }, [check]);
+    let cancelled = false;
+    (async () => {
+      if (!isTauri()) { setStatus("ready"); return; }
+      const first = await probe();
+      if (cancelled) return;
+      if (first && first.available) { applyResult(first); return; }
+      // 첫 검사 = ready 아님 → 1.5초 기다렸다가 1번 더
+      await new Promise((r) => setTimeout(r, 1500));
+      if (cancelled) return;
+      const second = await probe();
+      if (cancelled) return;
+      applyResult(second ?? first);
+    })();
+    return () => { cancelled = true; };
+  }, [probe, applyResult]);
 
   // 미통과 = 5초 polling = OAuth 완료 시 자동 통과
   useEffect(() => {

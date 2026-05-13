@@ -162,6 +162,14 @@ async fn stream_agent(args: StreamArgs, channel: Channel<StreamEvent>) -> Result
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // ★ 단일 인스턴스 = 더블클릭 여러 번 해도 = 기존 창 focus (= 빈 창 누적 방지)
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            use tauri::Manager;
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.set_focus();
+                let _ = w.unminimize();
+            }
+        }))
         .plugin(tauri_plugin_log::Builder::default()
             .level(if cfg!(debug_assertions) {
                 log::LevelFilter::Info

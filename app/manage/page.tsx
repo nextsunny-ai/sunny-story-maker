@@ -50,6 +50,17 @@ export default function ManagePage() {
 
 type LoadState = "loading" | "ready" | "forbidden" | "error";
 
+function isTauriEnv(): boolean {
+  if (typeof window === "undefined") return false;
+  return "__TAURI_INTERNALS__" in window;
+}
+
+interface ClaudeCliInfo {
+  available: boolean;
+  reason: string;
+  error: string | null;
+}
+
 function ManageMain() {
   const [state, setState] = useState<LoadState>("loading");
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -58,6 +69,23 @@ function ManageMain() {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [query, setQuery] = useState<string>("");
   const [deletingId, setDeletingId] = useState<string>("");
+  // ★ Claude CLI 로그인 상태 (= 데스크탑 앱에서만 검사 가능)
+  const [cliInfo, setCliInfo] = useState<ClaudeCliInfo | "web" | "checking">("checking");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!isTauriEnv()) { if (!cancelled) setCliInfo("web"); return; }
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const res = await invoke<ClaudeCliInfo>("claude_cli_status");
+        if (!cancelled) setCliInfo(res);
+      } catch (e) {
+        if (!cancelled) setCliInfo({ available: false, reason: "error", error: e instanceof Error ? e.message : String(e) });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const load = useCallback(async () => {
     setState("loading");
@@ -143,6 +171,9 @@ function ManageMain() {
         title={`<em style="font-style:italic">SUNNY Story Maker</em> 가입자<span class="dot">.</span>`}
         sub="전체 가입자 조회 + 삭제 + 통계 — 대표님 전용"
       />
+
+      {/* ★ Claude CLI 로그인 상태 배너 */}
+      <ClaudeCliBanner info={cliInfo} />
 
       {/* 통계 카드 */}
       {state === "ready" && stats && (
@@ -254,6 +285,35 @@ function ManageMain() {
         </p>
       )}
     </main>
+  );
+}
+
+function ClaudeCliBanner({ info }: { info: ClaudeCliInfo | "web" | "checking" }) {
+  if (info === "checking") return null;
+
+  let bg: string, border: string, color: string, icon: string, title: string, desc: string;
+  if (info === "web") {
+    bg = "rgba(0,0,0,0.03)"; border = "var(--line)"; color = "var(--ink-3)"; icon = "🌐";
+    title = "웹 브라우저에서 보는 중";
+    desc = "Claude CLI 로그인 상태는 = 데스크탑 앱(SUNNY Story Maker.exe)에서 이 페이지를 열면 표시됩니다. 데스크탑 앱 = 작가 본인 PC의 Claude CLI를 통해 작동 (= API 안 씀).";
+  } else if (info.available) {
+    bg = "rgba(120,200,140,0.08)"; border = "rgba(120,200,140,0.3)"; color = "#2d6a3e"; icon = "✅";
+    title = "Claude CLI 로그인됨 — API 안 씀 (작가 본인 구독으로 작동)";
+    desc = "이 PC의 Claude Code CLI가 로그인돼 있어 = 작가 본인의 Claude Pro/Max 구독으로 AI가 작동합니다. Anthropic API key(종량제)를 쓰지 않습니다 = 사장님 비용 0 + 작가 추가 비용 0.";
+  } else {
+    bg = "rgba(255,107,107,0.06)"; border = "rgba(255,107,107,0.25)"; color = "#a33"; icon = "⚠️";
+    title = info.reason === "not-installed" ? "Claude Code CLI 미설치" : "Claude CLI 미로그인";
+    desc = info.error || "AI 작업하려면 = 본인 PC에 Claude Code CLI 설치 + claude /login 필요. (= 작가 첫 실행 시 자동 안내 모달이 뜸)";
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "14px 18px", background: bg, border: `1px solid ${border}`, borderRadius: 12, margin: "16px 0 8px" }}>
+      <div style={{ fontSize: 22, lineHeight: 1, marginTop: 2 }}>{icon}</div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color, marginBottom: 4 }}>{title}</div>
+        <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.6 }}>{desc}</div>
+      </div>
+    </div>
   );
 }
 

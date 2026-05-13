@@ -25,10 +25,10 @@ export const dynamic = "force-dynamic";
 
 // 현재 라이브 버전 (= 매 릴리스 시 갱신)
 const LATEST = {
-  version: "2.12.0",
-  pub_date: "2026-05-13T03:00:00Z",
+  version: "2.12.1",
+  pub_date: "2026-05-13T12:00:00Z",
   notes:
-    "V2.12.0 — Tauri Rust subprocess path 복원 (= OAuth 401 차단 우회). claude CLI subprocess = 작가 본인 Pro/Max 구독으로 작업. ClaudeCliGate 자동 로그인 안내 + /write 옛 의뢰서 폼 차단 + 자동 업데이터 활성화.",
+    "V2.12.1 — 바탕화면 단축키 자동 생성 (NSIS hook) + 단일 인스턴스 (더블클릭 여러 번 = 빈 창 누적 방지) + ClaudeCliGate 첫 검사 깜빡임 수정 + claude CLI 로그인 검증 개선 (expiresAt 만료여도 통과 = 자동 refresh).",
 };
 
 /**

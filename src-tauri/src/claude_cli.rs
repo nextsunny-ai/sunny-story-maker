@@ -38,7 +38,12 @@ pub fn is_installed() -> bool {
     find_claude_bin().is_some()
 }
 
-/// claude /login 완료 여부 (= ~/.claude/.credentials.json + accessToken + 만료 X).
+/// claude /login 완료 여부 (= ~/.claude/.credentials.json + claudeAiOauth.accessToken 존재).
+///
+/// ★ expiresAt 만료 검증은 일부러 안 함:
+///   accessToken이 만료됐어도 = refreshToken이 있으면 = `claude` CLI subprocess가 자동 갱신.
+///   진짜 로그아웃이면 = .credentials.json 파일 자체가 없거나 claudeAiOauth가 없음.
+///   (옛 버그: expiresAt < now면 false 반환 = 멀쩡한 사용자에게 로그인 모달 띄움)
 pub fn is_logged_in() -> bool {
     let mut path = match dirs::home_dir() {
         Some(p) => p,
@@ -53,7 +58,9 @@ pub fn is_logged_in() -> bool {
         Ok(c) => c,
         Err(_) => return false,
     };
-    let v: serde_json::Value = match serde_json::from_str(&content) {
+    // BOM 제거 (= 일부 에디터가 UTF-8 BOM 박을 수 있음)
+    let content = content.trim_start_matches('\u{FEFF}');
+    let v: serde_json::Value = match serde_json::from_str(content) {
         Ok(v) => v,
         Err(_) => return false,
     };
@@ -62,16 +69,7 @@ pub fn is_logged_in() -> bool {
         None => return false,
     };
     let token = oauth.get("accessToken").and_then(|t| t.as_str());
-    if token.map(|t| t.is_empty()).unwrap_or(true) {
-        return false;
-    }
-    if let Some(expires_at) = oauth.get("expiresAt").and_then(|e| e.as_i64()) {
-        let now_ms = chrono::Utc::now().timestamp_millis();
-        if expires_at < now_ms {
-            return false;
-        }
-    }
-    true
+    !token.map(|t| t.is_empty()).unwrap_or(true)
 }
 
 /// claude CLI 사용 가능 여부 (= 설치 + 로그인).
