@@ -13,6 +13,7 @@
     "updater:default",
     "process:default",
     "log:default",
-    "http:default"
+    "http:default",
+    "deep-link:default"
   ]
 }

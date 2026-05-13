@@ -1,10 +1,15 @@
 "use client";
 
-import { Suspense, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ICONS } from "@/lib/icons";
 import { Symbol } from "@/components/Symbol";
 import { createClient } from "@/lib/supabase/client";
+
+function isTauriEnv(): boolean {
+  if (typeof window === "undefined") return false;
+  return "__TAURI_INTERNALS__" in window;
+}
 
 // ★ 2026-05-11 INVITE_CODE 게이트 제거 (Option B = 이메일 인증 자동 가입 + 약관 체크박스). 글로벌 룰 16 BYOK 모델 합의.
 
@@ -122,13 +127,73 @@ function LoginPageInner() {
   async function handleGoogle(): Promise<void> {
     setError(null);
     setInfo(null);
-
-    // ★ 2026-05-11 INVITE_CODE 게이트 제거 (Option B = 이메일 인증 자동 가입 + 약관 체크박스).
-    // Google OAuth = Google 자체 인증 = 신뢰. 약관 동의는 = 가입 후 Settings에서 별도 박을 수도 있음.
-
     setLoading(true);
 
     const supabase = createClient();
+
+    // ★ Tauri 데스크탑 = 외부 브라우저 OAuth + deep link callback
+    //   (= 크롬에 이미 로그인된 구글 세션 사용 = 비번 X = 진짜 1클릭)
+    if (isTauriEnv()) {
+      try {
+        // 1) Supabase OAuth URL만 받음 (= 브라우저 redirect X)
+        const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: `${window.location.origin}/auth/desktop-callback`,
+            skipBrowserRedirect: true,
+            queryParams: { access_type: "offline", prompt: "select_account" },
+          },
+        });
+        if (oauthError || !data.url) {
+          setError(translateAuthError(oauthError?.message || "OAuth URL 생성 실패"));
+          setLoading(false);
+          return;
+        }
+
+        // 2) Tauri shell로 = 시스템 기본 브라우저(크롬)에서 OAuth URL 열기
+        const { open } = await import("@tauri-apps/plugin-shell");
+        await open(data.url);
+
+        // 3) Deep link listener = .exe로 돌아온 story-maker://auth#... 받음
+        const { listen } = await import("@tauri-apps/api/event");
+        setInfo("브라우저에서 Google 로그인 중… 완료되면 자동으로 돌아옵니다.");
+
+        const unlisten = await listen<string>("deep-link-url", async (event) => {
+          const url = event.payload;
+          if (!url || !url.startsWith("story-maker://auth")) return;
+
+          // URL fragment(#)에서 access_token·refresh_token 추출
+          const fragment = url.split("#")[1] || "";
+          const params = new URLSearchParams(fragment);
+          const access_token = params.get("access_token") || "";
+          const refresh_token = params.get("refresh_token") || "";
+          if (!access_token || !refresh_token) {
+            setError("Deep link에서 세션 정보를 못 받았습니다.");
+            setLoading(false);
+            return;
+          }
+
+          // Supabase 세션 박음
+          const { error: setErr } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (setErr) {
+            setError(translateAuthError(setErr.message));
+            setLoading(false);
+            return;
+          }
+
+          unlisten();
+          setInfo("로그인 성공 — 잠시 후 이동합니다.");
+          router.push(redirectTo);
+        });
+        return;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        setLoading(false);
+        return;
+      }
+    }
+
+    // ─── 웹 브라우저 = 옛 path (Supabase 표준 redirect) ───
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {

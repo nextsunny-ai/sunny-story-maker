@@ -163,13 +163,23 @@ async fn stream_agent(args: StreamArgs, channel: Channel<StreamEvent>) -> Result
 pub fn run() {
     tauri::Builder::default()
         // ★ 단일 인스턴스 = 더블클릭 여러 번 해도 = 기존 창 focus (= 빈 창 누적 방지)
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            use tauri::Manager;
+        //   + deep link 호출 시 (= story-maker://...) = 그 URL을 frontend로 emit
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            use tauri::{Emitter, Manager};
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.set_focus();
                 let _ = w.unminimize();
             }
+            // story-maker:// URL이 인자로 박혀있으면 = frontend에 emit (= OAuth callback)
+            for arg in args.iter() {
+                if arg.starts_with("story-maker://") {
+                    let _ = app.emit("deep-link-url", arg.clone());
+                    break;
+                }
+            }
         }))
+        // ★ Deep link 플러그인 = story-maker:// URL 처리 (= OAuth callback)
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_log::Builder::default()
             .level(if cfg!(debug_assertions) {
                 log::LevelFilter::Info
@@ -193,6 +203,18 @@ pub fn run() {
             anthropic_oauth_status, // 옛 호환
             stream_agent,
         ])
+        // ★ Deep link listener = OAuth callback URL 받음 = frontend에 emit
+        .setup(|app| {
+            use tauri::Emitter;
+            use tauri_plugin_deep_link::DeepLinkExt;
+            let handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                for url in event.urls() {
+                    let _ = handle.emit("deep-link-url", url.to_string());
+                }
+            });
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

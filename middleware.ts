@@ -5,6 +5,7 @@ import { updateSession } from "@/lib/supabase/middleware";
 const PUBLIC_PATHS: readonly string[] = [
   "/login",
   "/auth/callback",
+  "/auth/desktop-callback", // ★ V2.12.2 = 데스크탑 OAuth callback (= 비인증 접근 = code exchange + deep link redirect)
   "/download",
   // 정책·약관·릴리스 정보·사용 가이드 (= 가입 전·외부 누구나 OK)
   "/privacy",
