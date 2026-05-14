@@ -25,10 +25,10 @@ export const dynamic = "force-dynamic";
 
 // 현재 라이브 버전 (= 매 릴리스 시 갱신)
 const LATEST = {
-  version: "2.13.0",
-  pub_date: "2026-05-14T05:00:00Z",
+  version: "2.13.1",
+  pub_date: "2026-05-14T11:30:00Z",
   notes:
-    "V2.13.0 — 자동저장 시스템 전면 강화 (대표님 명시 사고 방지): (1) 행동 기반 트리거 7가지 = 단락 추가·채팅·노트·AI 응답 완료·페이지 이동·5분 정기·명시 저장 버튼. (2) 저장 상태 영구 표시 우측 상단 = 본 PC만 / 클라우드 OK / 실패 명확 구분. (3) localStorage 작가별 분리 = USER 동적 (= 옛 anon 고정 사고 정정) + 옛 anon.* 데이터 자동 마이그레이션. (4) beforeunload + visibilitychange = 페이지 떠날 때 keepalive fetch로 클라우드 강제 push.",
+    "V2.13.1 hotfix (= 김감독님 진단 + 정정 path 박아주심): (1) macOS 무한 로그인 사고 정정 = is_logged_in() = 옛 ~/.claude/.credentials.json 파일 체크만 → `claude auth status` subprocess + JSON loggedIn 체크 = Keychain 포함 모든 저장소 검증. (2) macOS PATH 사고 정정 = find_claude_bin() = which 실패 시 ~/.local/bin·/opt/homebrew/bin·/usr/local/bin·/usr/bin fallback (= Anthropic 공식 설치기 ~/.local/bin/claude 박는 path). + V2.13.0 자동저장 7가지 트리거.",
 };
 
 /**

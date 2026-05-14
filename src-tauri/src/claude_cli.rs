@@ -42,13 +42,43 @@ pub fn is_installed() -> bool {
     find_claude_bin().is_some()
 }
 
-/// claude /login 완료 여부 (= ~/.claude/.credentials.json + claudeAiOauth.accessToken 존재).
+/// claude 로그인 완료 여부.
 ///
-/// ★ expiresAt 만료 검증은 일부러 안 함:
-///   accessToken이 만료됐어도 = refreshToken이 있으면 = `claude` CLI subprocess가 자동 갱신.
-///   진짜 로그아웃이면 = .credentials.json 파일 자체가 없거나 claudeAiOauth가 없음.
-///   (옛 버그: expiresAt < now면 false 반환 = 멀쩡한 사용자에게 로그인 모달 띄움)
+/// ★ 2026-05-14 V2.13.1 정정 (= 김감독 진단 + 보고):
+///   옛 = `~/.claude/.credentials.json` 파일만 체크 = macOS 무한 로그인 사고.
+///   원인: macOS Claude Code CLI = `.credentials.json` 안 만들고 = **macOS Keychain**
+///   ("Claude Code-credentials" 항목)에 토큰 저장.
+///   정정: `claude auth status` subprocess 호출 = JSON `loggedIn: true` 체크.
+///   → Keychain·파일·다른 저장소 어디든 = CLI 자신이 답하므로 = OS 차이 무관.
 pub fn is_logged_in() -> bool {
+    // 1차: `claude auth status` subprocess (= Keychain 포함 모든 path 검증)
+    if let Some(bin) = find_claude_bin() {
+        let mut command = std::process::Command::new(&bin);
+        command.args(["auth", "status"]);
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+        if let Ok(out) = command.output() {
+            if out.status.success() {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                // JSON 출력 = {"loggedIn":true,...} 형식
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&stdout) {
+                    if v.get("loggedIn").and_then(|b| b.as_bool()).unwrap_or(false) {
+                        return true;
+                    }
+                }
+                // text fallback (= 옛 CLI 버전 호환)
+                let lower = stdout.to_lowercase();
+                if lower.contains("logged in") && !lower.contains("not logged in") {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // 2차 fallback: 파일 체크 (= 옛 Windows path 호환 + CLI 호출 실패 시)
     let mut path = match dirs::home_dir() {
         Some(p) => p,
         None => return false,
@@ -62,7 +92,6 @@ pub fn is_logged_in() -> bool {
         Ok(c) => c,
         Err(_) => return false,
     };
-    // BOM 제거 (= 일부 에디터가 UTF-8 BOM 박을 수 있음)
     let content = content.trim_start_matches('\u{FEFF}');
     let v: serde_json::Value = match serde_json::from_str(content) {
         Ok(v) => v,
@@ -134,8 +163,12 @@ pub fn open_login_terminal() -> Result<(), String> {
 }
 
 /// claude CLI binary 경로 검색.
-/// Windows: where claude → .cmd 디렉토리 → node_modules/.../claude.exe
-/// Unix: which claude
+///
+/// ★ 2026-05-14 V2.13.1 정정 (= 김감독 진단):
+///   옛 = `which claude`만 = macOS GUI 앱 = login shell PATH 안 읽음 = 탐지 실패.
+///   원인: Anthropic 공식 설치기 (`curl -fsSL https://claude.ai/install.sh | bash`)
+///   = `~/.local/bin/claude`에 설치 = GUI 앱 PATH에 없음.
+///   정정: which 실패 시 = macOS·Linux 표준 path 3개 fallback.
 fn find_claude_bin() -> Option<PathBuf> {
     let cmd = if cfg!(target_os = "windows") {
         "where"
@@ -151,26 +184,30 @@ fn find_claude_bin() -> Option<PathBuf> {
         use std::os::windows::process::CommandExt;
         command.creation_flags(CREATE_NO_WINDOW);
     }
-    let out = command.output().ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let lines: Vec<&str> = stdout.lines().filter(|l| !l.is_empty()).collect();
+    let out = command.output().ok();
+
+    let lines: Vec<String> = match &out {
+        Some(o) if o.status.success() => {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            stdout.lines().filter(|l| !l.is_empty()).map(String::from).collect()
+        }
+        _ => Vec::new(),
+    };
 
     if cfg!(target_os = "windows") {
         // .cmd 가 있는 디렉토리의 node_modules/@anthropic-ai/claude-code/bin/claude.exe 검색
         for line in &lines {
             if line.ends_with(".cmd") {
-                let dir = std::path::Path::new(line).parent()?;
-                let exe = dir
-                    .join("node_modules")
-                    .join("@anthropic-ai")
-                    .join("claude-code")
-                    .join("bin")
-                    .join("claude.exe");
-                if exe.exists() {
-                    return Some(exe);
+                if let Some(dir) = std::path::Path::new(line).parent() {
+                    let exe = dir
+                        .join("node_modules")
+                        .join("@anthropic-ai")
+                        .join("claude-code")
+                        .join("bin")
+                        .join("claude.exe");
+                    if exe.exists() {
+                        return Some(exe);
+                    }
                 }
             }
             if line.ends_with(".exe") && std::path::Path::new(line).exists() {
@@ -178,10 +215,41 @@ fn find_claude_bin() -> Option<PathBuf> {
             }
         }
         // .cmd fallback (cmd.exe 통해서 = 한글 깨질 위험 있지만 = 마지막 옵션)
-        lines.first().map(PathBuf::from)
-    } else {
-        lines.first().map(PathBuf::from)
+        return lines.first().cloned().map(PathBuf::from);
     }
+
+    // Unix (macOS·Linux): which 결과가 있으면 그것 우선
+    if let Some(first) = lines.first() {
+        let p = PathBuf::from(first);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    // ★ which 실패·결과 없음 = macOS·Linux 표준 path fallback (= 김감독 진단)
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Some(home) = dirs::home_dir() {
+        // Anthropic 공식 설치기 default = ~/.local/bin/claude
+        candidates.push(home.join(".local").join("bin").join("claude"));
+        // npm global (= nvm 등) = ~/.npm-global/bin/claude
+        candidates.push(home.join(".npm-global").join("bin").join("claude"));
+        // Homebrew node prefix (= 사용자별 다름)
+        candidates.push(home.join(".local").join("share").join("claude").join("bin").join("claude"));
+    }
+    // macOS Homebrew (Apple Silicon)
+    candidates.push(PathBuf::from("/opt/homebrew/bin/claude"));
+    // Intel Mac·Linux 일반
+    candidates.push(PathBuf::from("/usr/local/bin/claude"));
+    // Linux 시스템
+    candidates.push(PathBuf::from("/usr/bin/claude"));
+
+    for p in candidates {
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    None
 }
 
 /// model 이름을 claude CLI 단축형으로 변환.
