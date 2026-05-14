@@ -122,6 +122,8 @@ export function ItemMiniChat({
           fast: true,
           workId,
           prior,
+          // ★ V2.13.2 — 작가 채팅창 호출 = 항상 대화 모드 (= stage builder 5개 후보 형식 무시 + 작가 메시지 우선)
+          isChatMode: true,
         },
         userPromptSummary: `[${cardLabel} 다듬기] ${text}`.slice(0, 200),
         onDelta: (chunk) => {

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "SUNNY Story Maker",
-  "version": "2.13.1",
+  "version": "2.13.2",
   "identifier": "com.sunnytoon.story-maker",
   "build": {
     "frontendDist": "https://story.sunnytoon.com",

@@ -76,6 +76,10 @@ interface RequestBody {
   workId?: string;
   conversationMessages?: ConversationMessage[];
   writerProfile?: Record<string, unknown> | null;
+  // ★ V2.13.2 정정 — 작가가 카드별 채팅창에서 박은 호출 = isChatMode = true (= 항상 대화 모드 prefix 박음)
+  // 사고: 옥 hasHistory 체크만 = 작가가 첫 메시지 박을 때 = false = stage builder 형식 강제 = 5개 후보
+  // 정정: ItemMiniChat = isChatMode: true 명시 = 첫 호출부터 = AI는 stage builder 형식 무시 + 작가 메시지 우선 응답
+  isChatMode?: boolean;
 }
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -238,7 +242,10 @@ ${priorPart}
  */
 function buildConversationModePrefix(b: RequestBody): string {
   const hasHistory = (b.conversationMessages?.length ?? 0) > 0;
-  if (!hasHistory) return "";
+  const isChat = b.isChatMode === true;
+  // ★ V2.13.2 정정 — isChatMode 명시 또는 = 옛 turn 박혀있으면 = 대화 모드
+  // 옥 = hasHistory만 = 작가가 첫 메시지 박을 때 = false = stage builder 형식 강제 = 5개 후보 사고
+  if (!hasHistory && !isChat) return "";
   return `# ★★★ 대화 모드 (= 작가와 대화 중) ★★★
 
 작가가 이미 = 이 단계 (${b.mode})에서 = 옛에 답을 받음. 지금은 **대화 중**.

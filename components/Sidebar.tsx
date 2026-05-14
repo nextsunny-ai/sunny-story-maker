@@ -122,6 +122,9 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
         <div className="sb-foot">
           {userEmail && <div className="sb-user">{userEmail}</div>}
           <button className="sb-logout" onClick={onLogout}>{I.logout}<span>로그아웃</span></button>
+          <div className="sb-version" style={{ fontSize: 10, color: "var(--ink-5)", marginTop: 6, letterSpacing: "0.04em", opacity: 0.7 }} title="현재 설치된 버전">
+            v2.13.2
+          </div>
         </div>
       </aside>
     );

@@ -25,10 +25,10 @@ export const dynamic = "force-dynamic";
 
 // 현재 라이브 버전 (= 매 릴리스 시 갱신)
 const LATEST = {
-  version: "2.13.1",
-  pub_date: "2026-05-14T11:30:00Z",
+  version: "2.13.2",
+  pub_date: "2026-05-14T12:30:00Z",
   notes:
-    "V2.13.1 hotfix (= 김감독님 진단 + 정정 path 박아주심): (1) macOS 무한 로그인 사고 정정 = is_logged_in() = 옛 ~/.claude/.credentials.json 파일 체크만 → `claude auth status` subprocess + JSON loggedIn 체크 = Keychain 포함 모든 저장소 검증. (2) macOS PATH 사고 정정 = find_claude_bin() = which 실패 시 ~/.local/bin·/opt/homebrew/bin·/usr/local/bin·/usr/bin fallback (= Anthropic 공식 설치기 ~/.local/bin/claude 박는 path). + V2.13.0 자동저장 7가지 트리거.",
+    "V2.13.2 hotfix 종합 (= 김감독님 진단 + 정정 path 박아주심): (1) macOS 무한 로그인 사고 정정 = is_logged_in() = `claude auth status` subprocess + JSON loggedIn 체크 = Keychain 포함 모든 저장소 검증. (2) macOS PATH 사고 정정 = find_claude_bin() = which 실패 시 ~/.local/bin·/opt/homebrew/bin·/usr/local/bin·/usr/bin fallback. (3) /develop 채팅 = 작가 메시지 안 읽음 사고 = ItemMiniChat = isChatMode: true 박음 = 첫 호출부터 = AI = stage builder 5개 후보 형식 무시 + 작가 메시지 우선 응답. (4) 사이드바 푸터 = 버전 번호 'v2.13.2' 표시 = 작가 = 자기 설치 버전 = 항상 확인. + V2.13.0 자동저장 7가지 트리거.",
 };
 
 /**
