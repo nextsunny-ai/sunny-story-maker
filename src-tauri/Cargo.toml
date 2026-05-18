@@ -1,6 +1,6 @@
 [package]
 name = "sunny-story-maker"
-version = "2.13.2"
+version = "2.13.3"
 description = "12개 매체 한국 작가팀 워크플로우"
 authors = ["Sunny Soft <support@sunnytoon.com>"]
 license = ""
