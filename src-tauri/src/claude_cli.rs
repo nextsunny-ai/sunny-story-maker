@@ -195,7 +195,7 @@ fn find_claude_bin() -> Option<PathBuf> {
     };
 
     if cfg!(target_os = "windows") {
-        // .cmd 가 있는 디렉토리의 node_modules/@anthropic-ai/claude-code/bin/claude.exe 검색
+        // 1) where 결과 = .cmd 디렉토리의 node_modules claude.exe 우선 (= 한글 인코딩 안전)
         for line in &lines {
             if line.ends_with(".cmd") {
                 if let Some(dir) = std::path::Path::new(line).parent() {
@@ -214,8 +214,35 @@ fn find_claude_bin() -> Option<PathBuf> {
                 return Some(PathBuf::from(line));
             }
         }
-        // .cmd fallback (cmd.exe 통해서 = 한글 깨질 위험 있지만 = 마지막 옵션)
-        return lines.first().cloned().map(PathBuf::from);
+        // 2) where 가 .cmd 만 줬으면 그 .cmd 반환 (= stream()에서 cmd /c 경유로 실행)
+        if let Some(first) = lines.first() {
+            return Some(PathBuf::from(first));
+        }
+        // 3) ★ V2.13.3 — where 실패·빈 결과 = 표준 설치 위치 직접 검색 (AI 프로노트 claude_bin 이식).
+        //    사고: 설치 직후 = 프로세스 PATH 아직 옛 값 → where 못 찾음 = '미설치' 오인.
+        let names = ["claude.cmd", "claude.exe", "claude"];
+        let mut dirs: Vec<PathBuf> = Vec::new();
+        if let Some(home) = dirs::home_dir() {
+            dirs.push(home.join(".local").join("bin")); // 네이티브 설치 (Anthropic 공식)
+            dirs.push(home.join(".npm-global"));
+            dirs.push(home.join("AppData").join("Roaming").join("npm"));
+        }
+        if let Ok(appdata) = env::var("APPDATA") {
+            dirs.push(PathBuf::from(appdata).join("npm"));
+        }
+        if let Ok(local) = env::var("LOCALAPPDATA") {
+            dirs.push(PathBuf::from(local).join("npm"));
+        }
+        dirs.push(PathBuf::from("C:\\Program Files\\nodejs"));
+        for d in dirs {
+            for n in &names {
+                let p = d.join(n);
+                if p.is_file() {
+                    return Some(p);
+                }
+            }
+        }
+        return None;
     }
 
     // Unix (macOS·Linux): which 결과가 있으면 그것 우선
@@ -318,7 +345,23 @@ pub async fn stream(
 
     let cli_m = cli_model(model);
 
-    let mut cmd_builder = Command::new(&claude_bin);
+    // ★ V2.13.3 — Windows .cmd 는 cmd /c 경유 (= .cmd 직접 spawn = batch 인자 오류 회피, AI 프로노트 패턴).
+    //   .exe·Unix 바이너리는 직접 실행.
+    let is_cmd = cfg!(target_os = "windows")
+        && claude_bin
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("cmd"))
+            .unwrap_or(false);
+
+    let mut cmd_builder = if is_cmd {
+        let mut c = Command::new("cmd");
+        c.arg("/c").arg(&claude_bin);
+        c
+    } else {
+        Command::new(&claude_bin)
+    };
+
     cmd_builder
         .arg("--print")
         .arg("--verbose")
@@ -329,20 +372,25 @@ pub async fn stream(
         .arg("--include-partial-messages")
         .arg("--model")
         .arg(cli_m)
+        // ★ V2.13.3 — 부모 Claude Code 세션 env 격리 (CLAUDE_*/ANTHROPIC_*) = 컨텍스트·키 흡수 방지.
+        .env_clear()
+        .envs(std::env::vars().filter(|(k, _)| {
+            !k.starts_with("CLAUDE") && !k.starts_with("ANTHROPIC")
+        }))
         .env("LANG", "ko_KR.UTF-8")
         .env("LC_ALL", "ko_KR.UTF-8")
         .env("PYTHONIOENCODING", "utf-8")
+        // ★ V2.13.3 — cwd = 임시 디렉터리 = 프로젝트 CLAUDE.md 미로드 = 깨끗한 호출.
+        .current_dir(env::temp_dir())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
 
-    // ★ Windows = cmd 창 깜빡임 방지 (= GUI 앱에서 자식 process 생성 시 검은 창 안 뜨게)
+    // ★ Windows = cmd 창 깜빡임 방지 (= GUI 앱에서 자식 process 생성 시 검은 창 안 뜨게).
+    //   tokio::process::Command 는 creation_flags 를 자체 제공 (std CommandExt import 불필요).
     #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd_builder.creation_flags(CREATE_NO_WINDOW);
-    }
+    cmd_builder.creation_flags(CREATE_NO_WINDOW);
 
     let mut child = cmd_builder.spawn()?;
 
@@ -359,13 +407,32 @@ pub async fn stream(
     })?;
     let stderr = child.stderr.take();
 
-    // stdout = line by line (stream-json)
+    // stdout = line by line (stream-json).
+    // ★ V2.13.3 — idle timeout = claude 가 hang 하면 무한 대기 → 앱 멈춤. 180초 무응답 = 중단·kill.
     let mut reader = BufReader::new(stdout).lines();
-    while let Some(line) = reader.next_line().await? {
-        if line.trim().is_empty() {
-            continue;
+    loop {
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(180),
+            reader.next_line(),
+        )
+        .await
+        {
+            Ok(Ok(Some(line))) => {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                parse_stream_event(&line, channel);
+            }
+            Ok(Ok(None)) => break, // EOF = 정상 종료
+            Ok(Err(e)) => return Err(e.into()),
+            Err(_) => {
+                let _ = child.start_kill();
+                let _ = channel.send(StreamEvent::Error {
+                    message: "Claude 응답이 180초간 없어 중단했습니다. 다시 시도해주세요.".into(),
+                });
+                return Err(CliError::Subprocess(-1, "idle timeout (180s)".into()));
+            }
         }
-        parse_stream_event(&line, channel);
     }
 
     // stderr 수집 (= exit code != 0 일 때 error 메시지로 박음)
