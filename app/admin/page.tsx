@@ -778,11 +778,11 @@ function SystemTab() {
           <div style={{ fontSize: 19, fontWeight: 700, color: "var(--ink-1)", letterSpacing: "-0.01em" }}>
             <code style={{ fontSize: 16, color: "var(--coral)", fontFamily: "inherit" }}>story.sunnytoon.com</code><br/>
             <span style={{ fontSize: 14, color: "var(--ink-3)", fontWeight: 500 }}>
-              + 본인 Anthropic API 키
+              회원가입 · 데스크탑 버전 다운로드
             </span>
           </div>
           <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.6 }}>
-            설치 X · 어디서든 브라우저로 접속. 본인 Anthropic API 키를 어드민에 한 번 입력 = 사용한 만큼만 결제. Claude 구독 없어도 OK.
+            웹사이트는 회원가입과 데스크탑 버전 다운로드 창구입니다. 실제 글쓰기 작업은 데스크탑 앱(방식 A)에서 — Claude 구독으로 추가 비용 없이 사용합니다.
           </div>
 
           <div style={{
@@ -791,31 +791,25 @@ function SystemTab() {
             fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.75,
           }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--ink-4)", marginBottom: 6, letterSpacing: "0.08em" }}>
-              아주 쉬운 5단계
+              아주 쉬운 3단계
             </div>
             <ol style={{ paddingLeft: 18, margin: 0, display: "grid", gap: 4 }}>
-              <li><strong>Anthropic 콘솔 가입</strong><br/>
-                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ console.anthropic.com</span>
-              </li>
-              <li><strong>API 키 발급</strong><br/>
-                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ Settings → API Keys → Create Key</span>
-              </li>
-              <li><strong>결제 카드 등록</strong><br/>
-                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ Plans &amp; Billing (사용한 만큼만 차감)</span>
-              </li>
               <li><strong>웹 접속 + 가입</strong><br/>
                 <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ story.sunnytoon.com 가서 회원가입 (초대 코드 필요)</span>
               </li>
-              <li><strong>어드민에 API 키 붙여넣기</strong><br/>
-                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ 시스템 탭 → API 키 칸에 sk-ant-... 붙여넣기 + 저장</span>
+              <li><strong>데스크탑 버전 다운로드</strong><br/>
+                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ 로그인 후 「다운로드」 페이지</span>
+              </li>
+              <li><strong>방식 A 4단계로 설치</strong><br/>
+                <span style={{ fontSize: 11, color: "var(--ink-4)" }}>→ Claude 구독 + CLI 로그인 한 번 = 끝</span>
               </li>
             </ol>
           </div>
 
           <div className="adm-plan-side" style={{ marginTop: 0 }}>
-            <div className="kv"><div className="kv-k">월 비용</div><div className="kv-v">사용량 (대략 $5~30/월)</div></div>
-            <div className="kv"><div className="kv-k">사용량 제한</div><div className="kv-v">결제 한도까지 무제한</div></div>
-            <div className="kv"><div className="kv-k">데이터</div><div className="kv-v">서버 + 어디서든 동기화</div></div>
+            <div className="kv"><div className="kv-k">월 비용</div><div className="kv-v">0원 (Claude 구독에 포함)</div></div>
+            <div className="kv"><div className="kv-k">설치</div><div className="kv-v">데스크탑 앱 1회</div></div>
+            <div className="kv"><div className="kv-k">데이터</div><div className="kv-v">본인 PC + 서버 동기화</div></div>
           </div>
 
           <a

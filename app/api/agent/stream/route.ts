@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { spawn } from "node:child_process";
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -82,7 +81,6 @@ interface RequestBody {
   //   매 호출 = 옛 user/assistant turn들 누적 박힘 + 새 user msg 추가
   //   prompt cache 1h TTL = 옛 turn들도 cached = 입력 토큰 1/10
   conversationMessages?: ConversationMessage[];
-  userApiKey?: string;             // ★ BYOK = 작가 본인 ANTHROPIC_API_KEY (Settings 페이지에서 입력). 대표님 비용 0 보장. (글로벌 룰 16)
 }
 
 interface WriterLearningEntry {
@@ -527,14 +525,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const userApiKey = body.userApiKey?.trim();
-
-  // BYOK 검증: OAuth (LOCAL/Tauri) 또는 작가 본인 키 (웹) 둘 중 하나 필요
-  if (!useClaudeCode && !userApiKey) {
+  // Story Maker는 데스크탑(claude CLI 구독)에서만 claude를 호출. 웹은 데스크탑 안내.
+  // 옛 웹 BYOK(작가 본인 API 키) 방식 = 제거됨 (대표님 결정 2026-05-18, 글로벌 룰 16).
+  if (!useClaudeCode) {
     return new Response(
       JSON.stringify({
-        error: "API 키가 필요합니다. 두 가지 방법 중 선택하세요:\n\n(1) [추천] 데스크탑 버전 다운로드 — Claude Pro 구독 ($20/월)만 있으면 추가 비용 0원으로 무제한 사용 가능합니다. story.sunnytoon.com/download 에서 받으세요.\n\n(2) 웹에서 계속 사용 — Settings 페이지에서 본인 ANTHROPIC_API_KEY를 등록하세요. 키 발급: https://console.anthropic.com/settings/keys (사용한 만큼 본인 카드로 결제됩니다)",
-        code: "USER_API_KEY_REQUIRED",
+        error: "Story Maker는 데스크탑 버전에서 사용합니다. Claude Pro 구독($20/월)만 있으면 추가 비용 없이 무제한으로 쓸 수 있습니다. story.sunnytoon.com/download 에서 데스크탑 버전을 받으세요.",
+        code: "DESKTOP_REQUIRED",
       }),
       { status: 401, headers: { "content-type": "application/json" } }
     );
@@ -630,71 +627,4 @@ export async function POST(req: NextRequest) {
       },
     });
   }
-
-  // ★ 작가 본인 API 키로 호출 (BYOK) — 대표님 키 X (글로벌 룰 16)
-  const client = new Anthropic({ apiKey: userApiKey! });
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      const enc = new TextEncoder();
-      const send = (event: string, data: unknown) => {
-        controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-      };
-
-      try {
-        // ★ apiMessages = 옛 conversation + 새 user msg (= 작품 전체 인식)
-        // 마지막 직전 turn = cache_control (= prefix cached)
-        const sdkMessages = apiMessages.map((m, i) => {
-          if (i === apiMessages.length - 2) {
-            return {
-              role: m.role,
-              content: [{ type: "text" as const, text: m.content, cache_control: { type: "ephemeral" as const, ttl: "1h" as const } }],
-            };
-          }
-          return { role: m.role, content: m.content };
-        });
-        const response = await client.messages.stream({
-          model,
-          max_tokens: 8192,
-          system: [
-            {
-              type: "text",
-              text: getSystemPrompt(),
-              cache_control: { type: "ephemeral", ttl: "1h" },
-            },
-          ],
-          messages: sdkMessages as Parameters<typeof client.messages.stream>[0]["messages"],
-        });
-
-        for await (const event of response) {
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-            send("delta", { text: event.delta.text });
-          } else if (event.type === "message_stop") {
-            send("done", {});
-          }
-        }
-
-        const finalMessage = await response.finalMessage();
-        send("usage", {
-          input_tokens: finalMessage.usage.input_tokens,
-          output_tokens: finalMessage.usage.output_tokens,
-          cache_read_input_tokens: finalMessage.usage.cache_read_input_tokens ?? 0,
-          cache_creation_input_tokens: finalMessage.usage.cache_creation_input_tokens ?? 0,
-        });
-      } catch (e) {
-        const message = e instanceof Error ? e.message : "Anthropic API 호출 실패";
-        send("error", { message });
-      } finally {
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "content-type": "text/event-stream; charset=utf-8",
-      "cache-control": "no-cache, no-transform",
-      "x-accel-buffering": "no",
-    },
-  });
 }

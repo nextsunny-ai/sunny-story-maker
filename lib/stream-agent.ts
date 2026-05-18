@@ -3,7 +3,6 @@
 //
 // ★ 작가 누적 학습(admin "내 학습 노하우") 자동 첨부.
 // ★ workId 박혀있으면 = workConversation 자동 누적 (한 클로드 conversation 모델).
-// ★ BYOK 자동 첨부 (Settings에서 박은 작가 본인 ANTHROPIC_API_KEY) — 글로벌 룰 16
 // ★ Tauri 데스크탑 = isTauri 분기 → /api/build-prompt → invoke("stream_agent", ...)
 //   = `claude` CLI subprocess 호출 (= 작가 본인 Pro/Max 구독, 비용 0)
 //
@@ -50,18 +49,16 @@ function isTauri(): boolean {
 }
 
 /**
- * ★ body 자동 첨부 헬퍼 (= learning + profile + conversation + BYOK userApiKey).
+ * ★ body 자동 첨부 헬퍼 (= learning + profile + conversation).
  */
 export function enrichBody(body: Record<string, unknown>): Record<string, unknown> {
   const learning = loadJSON<LearningEntry[]>(KEY.adminLearning, []);
   const profile = loadJSON<WriterProfile | null>(KEY.adminProfile, null);
-  const userApiKey = loadJSON<string>(KEY.userApiKey, "");
   const hasProfile = profile && (profile.name || profile.penName || profile.works);
 
   const enriched: Record<string, unknown> = { ...body };
   if (learning.length > 0) enriched.writerLearning = learning;
   if (hasProfile) enriched.writerProfile = profile;
-  if (userApiKey) enriched.userApiKey = userApiKey;
 
   // ★ 한 클로드 conversation 모델 — body.workId 있으면 옛 turn 누적
   const workId = typeof body.workId === "string" ? body.workId : "";
