@@ -232,6 +232,48 @@ ${priorPart}
 }
 
 /**
+ * ★ V2.13.3 — 카드별 채팅(ItemMiniChat) 전용 프롬프트.
+ *
+ * 옛 사고 (대표님 지적 2026-05-18): isChatMode 채팅인데도 buildUserPrompt가
+ * 대화 prefix("5개 후보 금지") 뒤에 stage-builder base("제목 후보 5개를 내라")를
+ * 그대로 붙여 = 모순된 지시 = 모델(haiku)이 뒤쪽 base를 따라 또 5개 박음.
+ * 작가가 제목을 직접 지정해도 무시 + 새 후보 5개 = "소통 안 하고 혼자 함".
+ *
+ * 정정: 카드 채팅 = stage-builder base를 아예 쓰지 X = 이 대화 전용 프롬프트로 대체.
+ *       매체·아이디어·현재 카드 본문 컨텍스트는 유지하되 "후보 5개" 형식은 배제.
+ */
+function buildCardChatPrompt(b: RequestBody): string {
+  const genre = findGenre(b.genreLetter);
+  const cardLabel = CATEGORY_LABEL[b.mode] ?? b.mode;
+  const priorPart = b.prior
+    ? "\n\n## 작가가 이번 요청에 박은 컨텍스트\n" +
+      Object.entries(b.prior)
+        .map(([k, v]) => `### ${k}\n${(v || "").slice(0, 2500)}`)
+        .join("\n\n")
+    : "";
+  const ideaPart = b.idea ? `\n\n## 작품 아이디어\n${b.idea.slice(0, 1500)}` : "";
+
+  return `# 작업: 작가와 「${cardLabel}」 같이 다듬기 (대화)
+
+## 매체
+**${genre.name} (${genre.sub})** — 작가가 「${cardLabel}」 카드를 다듬는 중. 채팅으로 디렉션을 보냄.
+
+## 작가 의도 (★ 절대 준수)
+1. 작가의 직전 메시지를 그대로 읽고 = 그에 맞춰 응답한다.
+2. 작가가 **본인 안을 직접 제시·지정** (예: "제목은 OOO로 할게", "이걸로 가자") = 그 안을 받아들이고 = 짧은 평가·확정만. **새 후보를 다시 내지 X.**
+3. 작가가 **디렉션** (예: "더 짧게", "톤 바꿔") = 디렉션 반영해 = 1~3개만 제안. 5개 자동 X.
+4. 작가가 **명시적으로 "후보 더 줘"** 요청 = 그때만 여러 개 제안.
+5. "후보 5개"를 자동으로 박는 stage 형식 = 절대 쓰지 X = 대화 우선.
+
+## 응답 형식
+- 짧게 (2~5문장 권장). 평어체 또는 작가 호칭.
+- 인사·자기소개·"다음 단계 안내" 자동 박지 X = 작가 메시지에 곧바로 답.${ideaPart}${priorPart}
+
+## 출력
+작가 직전 메시지에 맞는 대화 응답.`;
+}
+
+/**
  * ★ V2.12.5 정정 — 대화 모드 prefix
  *
  * 옛 사고: stage builder (buildTitlePrompt 등) = 무조건 "5개 후보 5개" 형식 강제 →
@@ -268,10 +310,16 @@ function buildConversationModePrefix(b: RequestBody): string {
 }
 
 function buildUserPrompt(b: RequestBody): string {
-  const base = buildBasePrompt(b);
   const learning = formatWriterLearning(b.writerLearning);
   const memory = formatWorkMemoryFromFiles(b.priorFiles);
   const conversationPrefix = buildConversationModePrefix(b);
+
+  // ★ V2.13.3 — 카드 채팅(isChatMode)이면 stage-builder base 대신 대화 전용 프롬프트.
+  //   = prefix("5개 후보 금지")와 stage-builder("5개 후보 강제")의 모순 제거 (대표님 지적 2026-05-18).
+  //   mode가 "chat"이면 이미 buildChatPrompt를 타므로 그대로 둠.
+  const isCardChat = b.isChatMode === true && b.mode !== "chat";
+  const base = isCardChat ? buildCardChatPrompt(b) : buildBasePrompt(b);
+
   const parts = [memory, learning, conversationPrefix, base].filter(Boolean);
   return parts.join("\n\n---\n\n");
 }
