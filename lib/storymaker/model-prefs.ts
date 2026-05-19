@@ -1,31 +1,42 @@
-// 작업별 모델 선호 — admin에서 작가가 선택. 각 페이지에서 로드 후 fast 결정.
-// 기본: 집필/각색 = Opus (퀄리티) / 리뷰·OSMU·채팅 = Haiku (빠름·토큰 절약)
+// 작업별 모델 선호 — admin에서 작가가 선택. 각 페이지가 호출 시 model 결정.
+//
+// ★ 대표님 확정 (2026-05-19):
+//   - develop(사전 자료) = Sonnet — 작품 뼈대라 똑똑해야. Haiku는 깊이 부족.
+//   - write(본문)·adapt(각색) = Opus — 작가 작품의 핵심 = 최고 품질.
+//   - chat(보조작가) = Haiku — 잡담·자료조사 = 빠름 우선.
+//   작가는 admin에서 작업별로 직접 바꿀 수 있음.
 
 import { KEY, loadJSON } from "@/lib/persist";
 
-export type ModelChoice = "haiku" | "opus";
-export type TaskKind = "write" | "adapt" | "review" | "osmu" | "chat";
+export type ModelChoice = "haiku" | "sonnet" | "opus";
+export type TaskKind = "develop" | "write" | "adapt" | "review" | "osmu" | "chat";
 
 export interface ModelPrefs {
-  write: ModelChoice;   // 집필 (logline/treatment/synopsis/script)
+  develop: ModelChoice; // 사전 자료 6단계 (제목·로그라인·캐릭터·주제·시놉시스·기승전결)
+  write: ModelChoice;   // 본문 집필
   adapt: ModelChoice;   // 각색 (revise/adapt-cross)
   review: ModelChoice;  // 다중 타겟 리뷰
   osmu: ModelChoice;    // 12매체 매트릭스
   chat: ModelChoice;    // 보조작가 채팅
 }
 
-// 사장님 명시 (2026-05-03): 글쓰기 메인 작업 = Opus. 보조작가만 Haiku (자료조사·잡담 = 빠름).
+// ★★★ 테스트용 임시 (2026-05-20 대표님 명시): 전부 Haiku.
+//   이유 — 테스트 중 토큰 구독 한도(5시간/7일)에 안 막히게. 테스트 끝나면 원복.
+//   ▶ 원복값: develop=haiku / write=opus / adapt=opus / review=haiku / osmu=haiku / chat=haiku
+//     (write·adapt만 Opus = 본문·각색은 작가 작품의 핵심 = 최고 품질)
 export const DEFAULT_MODEL_PREFS: ModelPrefs = {
-  write: "opus",   // 본문·트리트먼트·시놉·캐릭터·기승전결 — 퀄리티 우선
-  adapt: "opus",   // 본문 변환·각색 — 깊이 필요
-  review: "opus",  // 다중 타겟 리뷰 — 작가 quality 중요
-  osmu: "opus",    // 12매체 매트릭스 — 매체별 정확도
-  chat: "haiku",   // 보조작가 — 자료조사·이름추천·잡담 = 빠름 우선
+  develop: "haiku",
+  write: "haiku",    // 테스트용 임시 — 원복 시 opus
+  adapt: "haiku",    // 테스트용 임시 — 원복 시 opus
+  review: "haiku",
+  osmu: "haiku",
+  chat: "haiku",
 };
 
 export const MODEL_LABELS: Record<ModelChoice, string> = {
   haiku: "Haiku (빠름 · 토큰 절약)",
-  opus: "Opus (깊이 · 퀄리티 우선)",
+  sonnet: "Sonnet (균형 · 글쓰기 우수)",
+  opus: "Opus (깊이 · 최고 품질)",
 };
 
 export function loadModelPrefs(): ModelPrefs {
@@ -33,8 +44,15 @@ export function loadModelPrefs(): ModelPrefs {
   return { ...DEFAULT_MODEL_PREFS, ...(saved ?? {}) };
 }
 
-/** 페이지에서 호출: 작업 종류 → fast(true=Haiku) 또는 false(Opus) */
+/** 페이지에서 호출: 작업 종류 → 모델 선택 (haiku/sonnet/opus). */
+export function getModelChoice(kind: TaskKind): ModelChoice {
+  return loadModelPrefs()[kind];
+}
+
+/**
+ * 옛 호환 — fast(true=Haiku). sonnet·opus는 false.
+ * ★ 신규 코드는 getModelChoice()로 model 필드를 보낼 것. fast는 점진 폐기.
+ */
 export function isFastModel(kind: TaskKind): boolean {
-  const prefs = loadModelPrefs();
-  return prefs[kind] === "haiku";
+  return getModelChoice(kind) === "haiku";
 }

@@ -107,6 +107,16 @@ async function buildPromptForTauri(body: Record<string, unknown>): Promise<Build
  * 4. stdout = stream_event content_block_delta → channel.send(Delta { text })
  * 5. 이 함수 = channel.onmessage 받음 → SSE event 형식으로 ReadableStream에 push
  */
+// claude CLI가 구독 한도(429)로 막혔는지 stderr 메시지로 판별 — 보수적 매칭.
+function isClaudeLimitError(m: string): boolean {
+  const s = m.toLowerCase();
+  return s.includes("429")
+    || s.includes("usage limit")
+    || s.includes("rate limit")
+    || (s.includes("limit") && s.includes("reset"))
+    || m.includes("한도");
+}
+
 async function streamViaTauri(body: Record<string, unknown>): Promise<Response> {
   const promptData = await buildPromptForTauri(body);
 
@@ -119,7 +129,6 @@ async function streamViaTauri(body: Record<string, unknown>): Promise<Response> 
     | { event: "error"; message: string }
     | { event: "done" };
 
-  const channel = new Channel<RustEvent>();
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -130,49 +139,75 @@ async function streamViaTauri(body: Record<string, unknown>): Promise<Response> 
         closed = true;
         try { controller.close(); } catch { /* noop */ }
       };
-
-      channel.onmessage = (msg) => {
-        if (closed) return;
-        const eventType = msg.event;
-        let dataPayload: Record<string, unknown> = {};
-        if (eventType === "delta") {
-          dataPayload = { text: (msg as { text: string }).text };
-        } else if (eventType === "usage") {
-          const u = msg as { input_tokens: number; output_tokens: number };
-          dataPayload = {
-            input_tokens: u.input_tokens,
-            output_tokens: u.output_tokens,
-            via: "tauri-claude-cli",
-          };
-        } else if (eventType === "error") {
-          dataPayload = { message: (msg as { message: string }).message };
-        } else {
-          dataPayload = {};
-        }
+      const emit = (eventType: string, dataPayload: Record<string, unknown>) => {
         const sseLine = `event: ${eventType}\ndata: ${JSON.stringify(dataPayload)}\n\n`;
-        try {
-          controller.enqueue(encoder.encode(sseLine));
-        } catch { /* stream closed */ }
-        if (eventType === "done") {
-          close();
-        }
+        try { controller.enqueue(encoder.encode(sseLine)); } catch { /* stream closed */ }
       };
 
-      try {
-        await invoke("stream_agent", {
-          args: {
-            model: promptData.model,
-            systemPrompt: promptData.systemPrompt,
-            userMessage: promptData.userMessage,
-          },
-          channel,
-        });
-      } catch (e) {
-        const errMsg = e instanceof Error ? e.message : String(e);
-        const sseLine = `event: error\ndata: ${JSON.stringify({ message: errMsg })}\n\n`;
-        try { controller.enqueue(encoder.encode(sseLine)); } catch { /* noop */ }
+      // 한 모델로 invoke 시도. opus·sonnet이 구독 한도(429)로 막히고 본문이 아직 안 나왔으면
+      // = haiku로 1회 자동 재시도해 작가가 안 막히게 한다.
+      const attempt = async (useModel: string, isFallback: boolean): Promise<void> => {
+        const channel = new Channel<RustEvent>();
+        let sawDelta = false;
+        let limitErr = "";
+
+        channel.onmessage = (msg) => {
+          if (closed) return;
+          const eventType = msg.event;
+          if (eventType === "delta") {
+            sawDelta = true;
+            emit("delta", { text: (msg as { text: string }).text });
+          } else if (eventType === "usage") {
+            const u = msg as { input_tokens: number; output_tokens: number };
+            emit("usage", {
+              input_tokens: u.input_tokens,
+              output_tokens: u.output_tokens,
+              via: "tauri-claude-cli",
+            });
+          } else if (eventType === "error") {
+            const m = (msg as { message: string }).message || "";
+            // ★ 본문이 아직 안 나왔고 + 한도 에러 + 아직 haiku 아니면 = 흘리지 말고 fallback 대상으로
+            if (!isFallback && !sawDelta && isClaudeLimitError(m)) {
+              limitErr = m;
+              return;
+            }
+            emit("error", { message: m });
+          } else if (eventType === "done") {
+            emit("done", {});
+            close();
+          }
+        };
+
+        try {
+          await invoke("stream_agent", {
+            args: { model: useModel, systemPrompt: promptData.systemPrompt, userMessage: promptData.userMessage },
+            channel,
+          });
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : String(e);
+          if (!isFallback && !sawDelta && isClaudeLimitError(errMsg)) {
+            limitErr = limitErr || errMsg;
+          } else if (!limitErr) {
+            emit("error", { message: errMsg });
+            close();
+            return;
+          }
+        }
+
+        if (closed) return;
+        // ★ 한도 감지 + 아직 haiku 안 씀 = haiku로 1회 자동 재시도
+        if (limitErr && !isFallback) {
+          emit("notice", { message: "Claude 구독 한도에 도달해 Haiku 모델로 자동 전환했습니다. 계속 작업할 수 있습니다 (품질이 약간 달라질 수 있습니다)." });
+          return attempt("haiku", true);
+        }
+        // haiku로도 한도면 = 진짜 에러
+        if (limitErr) {
+          emit("error", { message: "Claude 구독 사용 한도에 도달했습니다. Haiku 모델도 한도가 찼습니다 — 잠시 후(5시간 또는 7일 단위) 자동으로 리셋됩니다." });
+        }
         close();
-      }
+      };
+
+      await attempt(promptData.model, false);
     },
   });
 
@@ -191,22 +226,78 @@ async function streamViaTauri(body: Record<string, unknown>): Promise<Response> 
  * - Tauri 모드 = build-prompt + invoke (= 작가 Pro 구독 = 비용 0)
  * - 웹 모드 = Vercel API fetch (= Settings에 박은 작가 BYOK 키 사용)
  */
+// 작가에게 안내 토스트 — haiku 자동 전환 같은 비치명적 알림용. 별도 컴포넌트 없이 DOM에 직접.
+function showNoticeToast(message: string): void {
+  if (typeof document === "undefined" || !message) return;
+  const el = document.createElement("div");
+  el.textContent = message;
+  el.style.cssText = "position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:99999;"
+    + "max-width:540px;padding:12px 18px;background:#fff;color:#2a2f3a;"
+    + "border:1px solid #ffb4a2;border-left:4px solid #ff6b53;border-radius:10px;"
+    + "font-size:13px;line-height:1.55;box-shadow:0 10px 30px rgba(0,0,0,.14);";
+  document.body.appendChild(el);
+  setTimeout(() => {
+    el.style.transition = "opacity .4s";
+    el.style.opacity = "0";
+    setTimeout(() => el.remove(), 400);
+  }, 7000);
+}
+
+// SSE 스트림을 통과시키며 notice 이벤트만 가로채 토스트로 표시한다.
+// 페이지의 파싱 코드는 delta/done/error만 알면 되므로 notice는 여기서 소비하고 제거.
+function interceptNotice(src: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buf = "";
+  return src.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      buf += decoder.decode(chunk, { stream: true });
+      const events = buf.split("\n\n");
+      buf = events.pop() || "";
+      for (const evt of events) {
+        const lines = evt.split("\n");
+        const eventType = lines.find(l => l.startsWith("event:"))?.slice(6).trim();
+        if (eventType === "notice") {
+          const dataLine = lines.find(l => l.startsWith("data:"))?.slice(5).trim();
+          try {
+            const d = JSON.parse(dataLine || "{}");
+            showNoticeToast(typeof d.message === "string" ? d.message : "");
+          } catch { /* ignore */ }
+          continue; // notice는 페이지로 흘리지 않음
+        }
+        controller.enqueue(encoder.encode(evt + "\n\n"));
+      }
+    },
+    flush(controller) {
+      if (buf) controller.enqueue(encoder.encode(buf));
+    },
+  }));
+}
+
 export async function streamFetch(
   body: Record<string, unknown>,
   init?: { signal?: AbortSignal }
 ): Promise<Response> {
   const enriched = enrichBody(body);
 
-  if (isTauri()) {
-    return streamViaTauri(enriched);
-  }
+  const res = isTauri()
+    ? await streamViaTauri(enriched)
+    : await fetch("/api/agent/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(enriched),
+        signal: init?.signal,
+      });
 
-  return fetch("/api/agent/stream", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(enriched),
-    signal: init?.signal,
-  });
+  // ★ notice 이벤트(haiku 자동 전환 등)를 가로채 작가에게 토스트로 표시 — 페이지 파싱 코드는 그대로.
+  if (res.ok && res.body) {
+    return new Response(interceptNotice(res.body), {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+    });
+  }
+  return res;
 }
 
 export async function streamAgent(opts: StreamAgentOptions): Promise<string> {

@@ -306,8 +306,19 @@ ${genrePart}
 }
 
 
+// 긴 원본을 각색용으로 압축 — 앞·뒤를 둘 다 살려 시작·결말 구조를 보존한다.
+// (영화 시나리오 한 편 = 보통 2~4만 자. 앞부분만 자르면 결말을 못 봐 각색이 부실해짐.)
+function fitSourceText(text: string, limit = 24000): string {
+  if (text.length <= limit) return text;
+  const headLen = Math.floor(limit * 0.62);
+  const tailLen = limit - headLen;
+  return text.slice(0, headLen)
+    + `\n\n…(중략 — 원문 ${text.length.toLocaleString()}자 중 가운데 일부 생략, 앞·뒤는 그대로)…\n\n`
+    + text.slice(text.length - tailLen);
+}
+
 export function buildAdaptPrompt(text: string, sourceGenre: Genre, targetGenre: Genre): string {
-  const truncated = text.length > 6000 ? text.slice(0, 6000) + "...(이하 생략)" : text;
+  const truncated = fitSourceText(text);
   return `# 작업 요청: 각색 모드
 
 ## 원본
@@ -342,7 +353,7 @@ ${truncated}
 
 
 export function buildRevisePrompt(text: string, direction: string, genre: Genre, targetSection = "전체", versionNumber = 2): string {
-  const truncated = text.length > 7000 ? text.slice(0, 7000) + "...(이하 생략)" : text;
+  const truncated = fitSourceText(text);
   return `# 작업 요청: 같은 매체 내 각색 — v${versionNumber}
 
 ## 장르
@@ -474,7 +485,7 @@ PASS / CONSIDER / RECOMMEND 중 하나. 등급 + 한 줄 근거.
 
 export function buildTargetedReviewPrompt(text: string, targets: TargetPersona[], genre?: Genre): string {
   const genrePart = genre ? `\n## 매체/장르\n${genre.name} (${genre.sub})\n` : "";
-  const truncated = text.length > 7000 ? text.slice(0, 7000) + "...(이하 생략)" : text;
+  const truncated = fitSourceText(text);
 
   const targetsBlocks = targets.map((t, i) => `### 리뷰어 ${i + 1}: ${t.name}
 - 연령: ${t.age || ""}

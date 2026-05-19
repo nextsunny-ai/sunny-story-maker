@@ -12,6 +12,7 @@ import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
 import { appendTurns } from "@/lib/storymaker/work-id";
 import { downloadDocx, downloadTxt } from "@/lib/storymaker/export";
 import { streamFetch } from "@/lib/stream-agent";
+import { getModelChoice } from "@/lib/storymaker/model-prefs";
 import { getWorkflow, QUICK_ACTIONS } from "@/lib/workflows";
 import {
   MediumFieldRenderer,
@@ -94,20 +95,23 @@ function buildFlowFromWorkflow(letter: string, activeStepName?: string): FlowIte
 }
 
 // ───── mode=new: 빈 캔버스 + 첫 단락만 streaming ─────
-function buildNewWorkContext(idea: string, genreLetter: string, activeStepName?: string): Ctx {
+function buildNewWorkContext(idea: string, genreLetter: string, activeStepName?: string, blank?: boolean): Ctx {
   const wf = getWorkflow(genreLetter);
-  const titlePreview = idea
+  // ★ 빈 작업실(blank) = 작가 직접 쓰기 종이. AI 자동 생성 X — 빈 단락 1개로 시작, 작가가 바로 타이핑.
+  //   AI가 시작하는 건 idea가 진짜 있고 blank가 아닐 때만 (develop 경유·홈 아이디어 등).
+  const aiStart = !!idea && !blank;
+  const titlePreview = aiStart
     ? idea.split(/[.,\s]/).filter(Boolean).slice(0, 4).join(" ").slice(0, 24)
     : "새 작품";
 
   return {
     work: { title: titlePreview, chapter: "초안", elapsed: "방금 시작", medium: `${wf.letter}. ${wf.name} · ${wf.sub}` },
-    notes: idea
+    notes: aiStart
       ? [{ id: "n_idea", label: `핵심: ${idea.length > 30 ? idea.slice(0, 28) + "…" : idea}` },
          { id: "n_genre", label: `매체: ${wf.name}` }]
       : [{ id: "n_genre", label: `매체: ${wf.name}` }],
     flow: buildFlowFromWorkflow(genreLetter, activeStepName),
-    paras: idea
+    paras: aiStart
       ? [
           { id: "p1", n: 1, label: activeStepName || wf.steps[0] || "오프닝", text: "", status: "streaming",
             streamTarget: `[${wf.name}] AI 작가가 "${idea}" 컨셉으로 ${activeStepName || wf.steps[0] || "첫 단계"} 작업 중입니다. 잠시만 기다려 주세요…` },
@@ -117,11 +121,13 @@ function buildNewWorkContext(idea: string, genreLetter: string, activeStepName?:
       : [
           { id: "p1", n: 1, label: "첫 단락", text: "", status: "pending" },
         ],
-    chat: idea
+    chat: aiStart
       ? [{ id: "m_init", role: "ai",
            text: `좋습니다. "${idea}" 컨셉으로 ${wf.name} 작품 시작할게요. 막히면 우측에서 바로 끼어들어 주세요.`, t: "방금" }]
       : [{ id: "m_init", role: "ai",
-           text: `${wf.name} 작품 준비 완료. 우측에 한 줄 아이디어 적어주시면 첫 단락부터 시작합니다.`, t: "방금" }],
+           text: blank
+             ? `빈 작업실이 열렸습니다. 왼쪽 첫 단락을 클릭해 직접 쓰시거나, 쓰던 원고가 있으면 파일로 가져올 수 있어요. 제가 써드리길 원하시면 여기 채팅에 "시작해줘"라고 적어주세요.`
+             : `${wf.name} 작품 준비 완료. 우측에 한 줄 아이디어 적어주시면 첫 단락부터 시작합니다.`, t: "방금" }],
   };
 }
 
@@ -181,7 +187,7 @@ function NoProjectGate() {
   const router = useRouter();
   // 마지막 작품 정보 (있을 때만 "이어가기" 버튼 노출 — 또는 자동 redirect)
   const [lastProject, setLastProject] = useState<{
-    mode?: string; idea?: string; genre?: string; project?: string; from?: string; fast?: string; savedAt?: string;
+    mode?: string; idea?: string; genre?: string; project?: string; from?: string; fast?: string; blank?: string; savedAt?: string;
   } | null>(null);
   const [checked, setChecked] = useState(false);
 
@@ -195,17 +201,28 @@ function NoProjectGate() {
       const params = new URLSearchParams();
       if (last.mode) params.set("mode", last.mode);
       if (last.idea) params.set("idea", last.idea);
-      if (last.genre) params.set("genre", last.genre);
+      // ★ V2.13.5 — 빈 작업실이면 = 방금 홈에서 고른 매체(homeMediumOverride) 우선.
+      //   진짜 작품(blank 아님)은 매체가 고정이라 그대로 복원 = 옛 작업 보존.
+      let restoreGenre = last.genre || "";
+      if (last.blank === "1") {
+        const homeOverride = loadJSON<string | null>(KEY.homeMediumOverride, null);
+        if (homeOverride) restoreGenre = homeOverride;
+      }
+      if (restoreGenre) params.set("genre", restoreGenre);
       if (last.project) params.set("project", last.project);
       if (last.from) params.set("from", last.from);
       if (last.fast) params.set("fast", last.fast);
+      if (last.blank === "1") params.set("blank", "1");
       router.replace(`/write?${params.toString()}`);
       return;
     }
     // 옛 작품 없으면 = 빈 작업실 자동
     const blankIdea = `새 작품 ${new Date().toLocaleDateString("ko-KR")}`;
+    // ★ V2.13.4 — 작가가 홈에서 고른 매체(homeMediumOverride) 우선. 옛엔 adminPrimaryMedium만 봐서
+    //   영화·웹툰을 골라도 Write가 무조건 "A. TV드라마"로 고정되던 사고 (대표님 지적 2026-05-20).
+    const homeOverride = loadJSON<string | null>(KEY.homeMediumOverride, null);
     const adminMedium = loadJSON<string | null>(KEY.adminPrimaryMedium, null);
-    const defaultGenre = adminMedium || "A";
+    const defaultGenre = homeOverride || adminMedium || "A";
     const params = new URLSearchParams({
       mode: "new",
       idea: blankIdea,
@@ -443,6 +460,7 @@ function WriteMain() {
   const isDemo = searchParams.get("demo") === "1";
   const isDirectMode = searchParams.get("fast") === "1"; // AI로 바로 집필 = 곧장 본문(script)
   const isPlanMode = searchParams.get("plan") === "1";   // ★ V3 정정 (2026-05-13): /develop으로 redirect (= 옛 V2.2 잔존 path 차단)
+  const isBlankMode = searchParams.get("blank") === "1"; // ★ 빈 작업실 = 작가 직접 쓰기 종이 (AI 자동 생성 X)
 
   // ★ V3 정정 (대표님 명시 2026-05-13 재확정): 옛 V2.2 "TV 드라마 작업 의뢰서" 화면 = 통째 차단.
   //   원칙: /write = 본문·채팅 작업창만. 의뢰서 폼은 = /develop Phase 1로 통합.
@@ -529,7 +547,7 @@ function WriteMain() {
       }
     }
     if (mode === "new") {
-      return buildNewWorkContext(ideaParam, genreParam, actionParam || undefined);
+      return buildNewWorkContext(ideaParam, genreParam, actionParam || undefined, isBlankMode);
     }
     if (mode === "continue") {
       return buildContinueContext(projectParam || ideaParam || "이어쓰기");
@@ -592,6 +610,7 @@ function WriteMain() {
       mode, idea: ideaParam, genre: genreParam, project: projectParam,
       from: searchParams.get("from") || "",
       fast: searchParams.get("fast") || "",
+      blank: searchParams.get("blank") || "",
       savedAt: new Date().toISOString(),
     });
 
@@ -842,6 +861,7 @@ function WriteMain() {
     if (mode !== "new" || !ideaParam.trim()) return;
     if (wasRestored) return;
     if (!briefDone) return; // ★ 의뢰 분석 끝나야 호출
+    if (isBlankMode) return; // ★ 빈 작업실 = 작가 직접 쓰기. AI 자동 호출 X (작가가 채팅으로 부름)
 
     const controller = new AbortController();
     aiAbortRef.current = controller; // ★ 외부 스탑 버튼이 abort할 수 있도록 ref에 박음
@@ -894,7 +914,7 @@ function WriteMain() {
             idea: ideaParam,
             genreLetter: genreParam,
             mediumFields,
-            fast: true,
+            model: getModelChoice("write"), // ★ V2.13.4 — 본문 = Opus 기본 (옛 fast:true=Haiku 버그 정정)
             ...(persistKey ? { workId: persistKey } : {}),
             ...(initConv ? { conversationMessages: initConv.messages } : {}),
             ...(developPrior ? { prior: developPrior } : {}),
@@ -1082,7 +1102,7 @@ function WriteMain() {
       setAiBusy(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDemo, mode, ideaParam, genreParam, wasRestored, briefDone, actionParam]);
+  }, [isDemo, mode, ideaParam, genreParam, wasRestored, briefDone, actionParam, isBlankMode]);
 
   const onRewrite = (id: string) => {
     setParas(prev => prev.map(p => {
@@ -1091,9 +1111,12 @@ function WriteMain() {
     }));
   };
 
-  // 작가 직접 수정 — 단락 텍스트 그대로 저장
+  // 작가 직접 수정 — 단락 텍스트 그대로 저장.
+  // ★ 빈 단락(pending)에 작가가 글을 쓰면 = 작가 글로 확정(done). 작가 직접 쓰기 경로의 핵심.
   const onEditPara = (id: string, newText: string) => {
-    setParas(prev => prev.map(p => p.id === id ? { ...p, text: newText } : p));
+    setParas(prev => prev.map(p => p.id === id
+      ? { ...p, text: newText, status: (newText.trim() && p.status === "pending") ? ("done" as const) : p.status }
+      : p));
   };
 
   // ★ 전체 수정 — 본문 통째로 받아서 빈 줄 기준 단락 자동 분리
@@ -1132,7 +1155,8 @@ function WriteMain() {
     else downloadTxt(body, filename);
   };
 
-  // 더 쓰기 — 이 단락 다음에 새 단락 추가 + AI 호출
+  // 더 쓰기 — 이 단락 다음에 빈 단락 추가. 작가가 직접 쓰거나(✍️ 직접 쓰기),
+  // 우측 채팅에서 "이어서 써줘"로 AI에게 맡길 수 있음 (pending = 작가·AI 둘 다 가능).
   const onContinuePara = (id: string) => {
     setParas(prev => {
       const idx = prev.findIndex(p => p.id === id);
@@ -1143,7 +1167,7 @@ function WriteMain() {
         n: prev.length + 1,
         label: "이어쓰기",
         text: "",
-        status: "streaming",
+        status: "pending",
       };
       return [...prev.slice(0, idx + 1), newPara, ...prev.slice(idx + 1)];
     });
@@ -1226,17 +1250,9 @@ function WriteMain() {
         if (raw) developPrior = JSON.parse(raw);
       } catch { /* ignore */ }
     }
-    // ★ 작가-AI 옛 대화 누적 (사장님 명시: "한 클로드"가 작품을 기억하게).
-    //   chat 마지막 N개 = prior. 토큰 절약 위해 = 각 메시지 500자 truncate.
-    const recentChat = chat
-      .slice(-12) // 최근 12개 (작가 6 + AI 6 정도)
-      .filter(m => m.text && m.text.trim())
-      .map(m => {
-        const who = m.role === "writer" ? "작가" : "보조작가";
-        const txt = m.text.length > 500 ? m.text.slice(0, 500) + "...(이하 생략)" : m.text;
-        return `[${who}] ${txt}`;
-      })
-      .join("\n\n");
+    // ★ V2.13.4 — 옛 대화 전달 = conversationMessages 한 경로로 통일.
+    //   옛 recentChat(prior) 방식 제거: build-prompt의 formatConversationHistory가
+    //   conversationMessages를 prompt에 박으므로 = recentChat과 중복(같은 대화 2번)이 됐음.
     // ★ 한 클로드 conversation 모델 — 옛 turn 누적 (prompt cache 1h TTL)
     const sendConv = persistKey
       ? loadJSON<WorkConversation>(KEY.workConversation(persistKey), { workId: persistKey, messages: [], updatedAt: 0 })
@@ -1249,14 +1265,14 @@ function WriteMain() {
           idea: ideaParam,
           genreLetter: genreParam,
           mediumFields,
-          fast: true,
+          // ★ V2.13.4 — 본문 작성(script)=Opus, 대화(chat)=Haiku
+          model: getModelChoice(mode === "chat" ? "chat" : "write"),
           ...(persistKey ? { workId: persistKey } : {}),
           ...(sendConv ? { conversationMessages: sendConv.messages } : {}),
           prior: {
             ...developPrior, // 시놉시스·캐릭터·트리트먼트·기승전결 등 (있을 때만)
             "지금까지 본문": currentScript || "(없음)",
             ...(writerNotes ? { "작가 디렉션·메모 (작가노트 — 모든 응답에 반영)": writerNotes } : {}),
-            ...(recentChat ? { "작가-보조작가 옛 대화 (최근 12개 — 옛 디렉션도 다 인지하고 작업)": recentChat } : {}),
             "작가 디렉션 (이번 요청)": text,
           },
       }, { signal: ac.signal });
@@ -1506,6 +1522,7 @@ function WriteMain() {
           onEdit={onEditPara}
           onEditAll={onEditAllParas}
           onContinue={onContinuePara}
+          onImport={onEditAllParas}
           onDownload={onDownloadScript}
           aiBusy={aiBusy}
           bookOpen={bookOpen}

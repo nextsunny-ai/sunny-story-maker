@@ -73,7 +73,8 @@ interface RequestBody {
   sourceIp?: string;               // osmu 원천 IP
   profile?: Record<string, unknown> | null;
   lessons?: string;
-  fast?: boolean;                  // true → Haiku, false → Opus
+  fast?: boolean;                  // 옛 호환 — true → Haiku
+  model?: string;                  // ★ V2.13.4 — "haiku"|"sonnet"|"opus" (있으면 우선)
   mediumFields?: Record<string, string | string[] | number>; // 매체별 의뢰서 입력 (V1 workflows.ts fields)
   writerLearning?: WriterLearningEntry[];  // ★ admin "내 학습 노하우" 누적 — 매 호출에 prompt에 박힘
   workId?: string;  // ★ 작품 메모리 키 — 있으면 _works/[workId]/*.md 자동 read 후 prior 박음
@@ -272,6 +273,9 @@ function getClaudeOAuthToken(): string | null {
   }
 }
 
+// haiku 모델 ID — opus·sonnet이 구독 한도(429)로 막힐 때 자동 fallback 대상.
+const HAIKU_MODEL_ID = "claude-haiku-4-5-20251001";
+
 function streamViaOAuth(systemPrompt: string, messages: ConversationMessage[], model: string, token: string): ReadableStream {
   return new ReadableStream({
     async start(controller) {
@@ -280,24 +284,26 @@ function streamViaOAuth(systemPrompt: string, messages: ConversationMessage[], m
         controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
 
-      try {
-        // ★ messages 마지막 turn에 cache_control 박음 — 작품 전체 conversation = 다음 호출에서 cached
-        //   (Anthropic prompt cache: 마지막 cache_control 지점까지 prefix가 cached)
-        const apiMessages = messages.map((m, i) => {
-          if (i === messages.length - 1 && m.role === "user") {
-            // 마지막 user msg에는 박지 X — 매번 새로 들어오니 = cache miss. 직전 assistant까지 cached.
-            return { role: m.role, content: m.content };
-          }
-          // 마지막 직전 turn = cache_control (= 그 이전까지 다 cached prefix)
-          if (i === messages.length - 2) {
-            return {
-              role: m.role,
-              content: [{ type: "text", text: m.content, cache_control: { type: "ephemeral", ttl: "1h" } }],
-            };
-          }
+      // ★ messages 마지막 turn에 cache_control 박음 — 작품 전체 conversation = 다음 호출에서 cached
+      //   (Anthropic prompt cache: 마지막 cache_control 지점까지 prefix가 cached)
+      const apiMessages = messages.map((m, i) => {
+        if (i === messages.length - 1 && m.role === "user") {
+          // 마지막 user msg에는 박지 X — 매번 새로 들어오니 = cache miss. 직전 assistant까지 cached.
           return { role: m.role, content: m.content };
-        });
+        }
+        // 마지막 직전 turn = cache_control (= 그 이전까지 다 cached prefix)
+        if (i === messages.length - 2) {
+          return {
+            role: m.role,
+            content: [{ type: "text", text: m.content, cache_control: { type: "ephemeral", ttl: "1h" } }],
+          };
+        }
+        return { role: m.role, content: m.content };
+      });
 
+      // ★ 한 모델로 호출 시도. opus·sonnet이 429(구독 한도)면 = haiku로 1회 자동 재시도해
+      //   작가가 한도가 차도 안 막히고 계속 작업하게 한다 (품질만 약간 낮아짐).
+      const attempt = async (useModel: string): Promise<void> => {
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -308,11 +314,9 @@ function streamViaOAuth(systemPrompt: string, messages: ConversationMessage[], m
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            model,
+            model: useModel,
             max_tokens: 8000,
             // ★ system prompt = 1h TTL cache (= 작가가 1시간 안 다음 호출 = 70KB 스킬 cache hit = 토큰 1/10)
-            //   매 호출마다 70KB 박음 X — Anthropic 서버에서 cached prefix 재사용
-            //   "한 클로드가 작품 전체 인식한 상태로 이어 작업" 모델
             system: [
               {
                 type: "text",
@@ -327,9 +331,14 @@ function streamViaOAuth(systemPrompt: string, messages: ConversationMessage[], m
 
         if (!res.ok || !res.body) {
           const errText = await res.text().catch(() => "");
-          // 429 rate limit — 사장님 친화 메시지
+          // 429 = Claude 구독 한도 — 5시간/7일 단위. 한도 50%+ 차면 opus·sonnet 막히고 haiku만 fallback.
           if (res.status === 429) {
-            send("error", { message: "분당 토큰 한도(Anthropic Max 구독)를 초과했습니다. 1~2분 기다린 후 다시 시도해주세요. 또는 본문 길이를 줄이거나 Haiku 모드(빠른 응답)로 시도해보세요." });
+            // ★ haiku 자동 fallback — opus·sonnet 한도가 차도 작가가 안 막히게.
+            if (!useModel.includes("haiku")) {
+              send("notice", { message: "Claude 구독 한도(5시간·7일 단위)에 도달해 Haiku 모델로 자동 전환했습니다. 계속 작업할 수 있습니다 (품질이 약간 달라질 수 있습니다)." });
+              return attempt(HAIKU_MODEL_ID);
+            }
+            send("error", { message: "Claude 구독 사용 한도에 도달했습니다. Haiku 모델도 한도가 찼습니다 — 잠시 후(5시간 또는 7일 단위) 자동으로 리셋됩니다." });
           } else if (res.status === 401 || res.status === 403) {
             send("error", { message: "Anthropic OAuth 토큰이 만료됐거나 권한이 없습니다. claude 명령으로 다시 로그인해주세요 (claude /login)." });
           } else if (res.status >= 500) {
@@ -377,6 +386,10 @@ function streamViaOAuth(systemPrompt: string, messages: ConversationMessage[], m
 
         send("done", {});
         controller.close();
+      };
+
+      try {
+        await attempt(model);
       } catch (e) {
         send("error", { message: `OAuth 호출 실패: ${e instanceof Error ? e.message : String(e)}` });
         controller.close();
@@ -582,25 +595,15 @@ export async function POST(req: NextRequest) {
     { role: "user", content: finalUserMessage },
   ];
 
-  // ★ Vercel 환경 변수 = newline 박힐 수 있음 → trim() 강제. 또 = 옛 invalid model id (claude-opus-4-7) → valid latest로 매핑.
-  let model = (body.fast
-    ? (process.env.ANTHROPIC_MODEL_FAST || "haiku")
-    : (process.env.ANTHROPIC_MODEL || "opus")).trim();
+  // ★ V2.13.4 — body.model(haiku/sonnet/opus) 우선. 없으면 옛 fast로 fallback.
+  let model = (body.model || (body.fast ? "haiku" : "opus")).trim();
 
-  // CLI 단축어 + 옛 invalid id 둘 다 = Anthropic API valid full ID로 매핑
-  // ★ Anthropic 검증된 valid model id (2025년 출시):
-  //   Opus 4.1 (2025-08) = claude-opus-4-1-20250805 ✓
-  //   Sonnet 4 (2025-05) = claude-sonnet-4-20250514 ✓
-  //   Haiku 4.5 (2025-10) = claude-haiku-4-5-20251001 ✓ (Vercel 검증)
+  // 모델 단축어 → 최신 full ID 매핑.
+  // ★ V2.13.4 — 옛 코드는 Opus 4.1·Sonnet 4(1년 묵음)로 다운그레이드했음 → 최신으로 정정.
   const MODEL_MAP: Record<string, string> = {
     haiku: "claude-haiku-4-5-20251001",
-    sonnet: "claude-sonnet-4-20250514",
-    opus: "claude-opus-4-1-20250805",
-    // 옛 invalid id 호환
-    "claude-opus-4-7": "claude-opus-4-1-20250805",
-    "claude-opus-4-5-20250929": "claude-opus-4-1-20250805",
-    "claude-sonnet-4-6": "claude-sonnet-4-20250514",
-    "claude-sonnet-4-5-20250929": "claude-sonnet-4-20250514",
+    sonnet: "claude-sonnet-4-6",
+    opus: "claude-opus-4-7",
   };
   if (MODEL_MAP[model]) model = MODEL_MAP[model];
 

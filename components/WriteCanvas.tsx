@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
+import { KEY, loadJSON } from "@/lib/persist";
+import { GENRES } from "@/lib/genres";
 import { Markdown } from "@/components/Markdown";
 import { LibraryPicker } from "@/components/LibraryPicker";
 
@@ -32,6 +34,7 @@ interface WriteCanvasProps {
   onEdit?: (id: string, newText: string) => void;       // 작가 직접 수정 저장 (단락별)
   onEditAll?: (fullText: string) => void;                // ★ 본문 전체를 한 번에 수정
   onContinue?: (id: string) => void;                     // 이 단락 다음에 이어쓰기
+  onImport?: (text: string) => void;                     // ★ V2.13.4 — 쓰던 원고(파일·붙여넣기)를 본문으로 가져옴
   onDownload?: (format: "docx" | "txt") => void;        // 본문 다운로드 (워드/텍스트)
   bookOpen: boolean;
   onBookToggle: () => void;
@@ -40,7 +43,7 @@ interface WriteCanvasProps {
 }
 
 export function WriteCanvas({
-  work, paras, paused, onPauseToggle, onRewrite, onEdit, onEditAll, onContinue, onDownload, bookOpen, onBookToggle, notesCount, aiBusy,
+  work, paras, paused, onPauseToggle, onRewrite, onEdit, onEditAll, onContinue, onImport, onDownload, bookOpen, onBookToggle, notesCount, aiBusy,
 }: WriteCanvasProps) {
   const I = ICONS;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -52,13 +55,26 @@ export function WriteCanvas({
   // 새 빈 작품 시작 (현재 작업실에서 = 새 작품으로 전환)
   const startNewBlank = () => {
     const blankIdea = `새 작품 ${new Date().toLocaleDateString("ko-KR")}`;
+    // ★ 매체 = 홈에서 고른 매체(homeMediumOverride) 우선. 옛엔 "A" 하드코딩 = 웹툰 작가도 TV드라마로 시작되던 버그.
+    const homeOverride = loadJSON<string | null>(KEY.homeMediumOverride, null);
+    const adminMedium = loadJSON<string | null>(KEY.adminPrimaryMedium, null);
     const params = new URLSearchParams({
       mode: "new",
       idea: blankIdea,
-      genre: "A",
+      genre: homeOverride || adminMedium || "A",
       fast: "1",
       blank: "1",
     });
+    router.push(`/write?${params.toString()}`);
+    router.refresh();
+  };
+
+  // 빈 작업실에서 매체(장르) 직접 변경 — 본문이 비었을 때만 노출. 고른 매체로 새 빈 작업실.
+  const switchMedium = (letter: string) => {
+    if (!letter) return;
+    const blankIdea = `새 작품 ${new Date().toLocaleDateString("ko-KR")}`;
+    try { window.localStorage.setItem(KEY.homeMediumOverride, JSON.stringify(letter)); } catch { /* ignore */ }
+    const params = new URLSearchParams({ mode: "new", idea: blankIdea, genre: letter, fast: "1", blank: "1" });
     router.push(`/write?${params.toString()}`);
     router.refresh();
   };
@@ -108,7 +124,24 @@ export function WriteCanvas({
             <span className="wcanvas-head-chapter">{work.chapter}</span>
           </div>
           <div className="wcanvas-head-meta">
-            <span>{work.medium}</span>
+            {paras.every(p => !p.text || !p.text.trim()) ? (
+              <select
+                value={(work.medium || "").trim().charAt(0)}
+                onChange={(e) => switchMedium(e.target.value)}
+                title="빈 작업실 — 매체를 바꿀 수 있습니다"
+                style={{
+                  fontSize: 12, fontFamily: "inherit", color: "var(--ink-2)",
+                  background: "var(--card-soft)", border: "1px solid var(--line)",
+                  borderRadius: 6, padding: "2px 6px", cursor: "pointer",
+                }}
+              >
+                {GENRES.map(g => (
+                  <option key={g.letter} value={g.letter}>{g.letter}. {g.name}</option>
+                ))}
+              </select>
+            ) : (
+              <span>{work.medium}</span>
+            )}
             <span className="wcanvas-head-dot">·</span>
             <span>{work.elapsed}</span>
             <span className="wcanvas-head-dot">·</span>
@@ -197,6 +230,16 @@ export function WriteCanvas({
               >
                 <span className="wcanvas-book-toggle-icon">{I.download}</span>
                 <span>TXT</span>
+              </button>
+              {/* ★ V2.13.4 — 프린트 (작가들이 프린트해 많이 읽음). @media print가 본문만 출력. */}
+              <button
+                type="button"
+                className="wcanvas-book-toggle"
+                onClick={() => window.print()}
+                title="본문 프린트 / PDF로 저장"
+              >
+                <span className="wcanvas-book-toggle-icon">🖨</span>
+                <span>프린트</span>
               </button>
             </>
           )}
@@ -314,6 +357,10 @@ export function WriteCanvas({
             </div>
           ) : (
             <>
+              {/* ★ V2.13.4 — 빈 작업실 = 쓰던 원고 가져오기 (작가는 백지 X, 이미 쓰던 글 많음) */}
+              {onImport && paras.every(p => !p.text || !p.text.trim()) && (
+                <ImportPanel onImport={onImport} />
+              )}
               {paras.map((p, i) => (
                 <Paragraph
                   key={p.id}
@@ -351,6 +398,107 @@ export function WriteCanvas({
         }}
       />
     </section>
+  );
+}
+
+// ★ V2.13.4 — 빈 작업실에서 쓰던 원고를 가져오는 패널 (파일 업로드 / 붙여넣기).
+//   작가는 백지에서 시작하지 X — 이미 쓰던 원고를 Write로 바로 가져와 이어쓰기.
+function ImportPanel({ onImport }: { onImport: (text: string) => void }) {
+  const [text, setText] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (file: File) => {
+    setUploading(true);
+    setErr("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        setErr(json.error || "업로드 실패");
+        return;
+      }
+      setText(prev => (prev ? prev + "\n\n" : "") + (json.text || ""));
+    } catch {
+      setErr("파일을 읽지 못했습니다. 본문을 붙여넣기로 시도해주세요.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      margin: "24px 0", padding: "20px 22px",
+      border: "1px dashed var(--coral)", borderRadius: 14,
+      background: "var(--card-soft)",
+      display: "flex", flexDirection: "column", gap: 12,
+    }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink-1)" }}>
+        쓰던 원고가 있으세요?
+      </div>
+      <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.5 }}>
+        이미 쓴 원고를 가져와 이어쓸 수 있습니다. 파일을 올리거나 본문을 붙여넣으세요.
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".docx,.doc,.pdf,.txt"
+        style={{ display: "none" }}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+      />
+      <div>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          style={{
+            padding: "8px 14px", fontSize: 12.5, fontWeight: 600,
+            background: "transparent", color: "var(--coral-deep)",
+            border: "1px solid var(--coral)", borderRadius: 8,
+            cursor: uploading ? "wait" : "pointer",
+          }}
+        >
+          {uploading ? "읽는 중…" : "📄 파일 가져오기 (Word·PDF·TXT)"}
+        </button>
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="또는 원고를 여기에 붙여넣으세요…"
+        style={{
+          width: "100%", minHeight: 140, padding: "12px 14px",
+          fontSize: 13, lineHeight: 1.7, fontFamily: "var(--font-display)",
+          border: "1px solid var(--line)", borderRadius: 10,
+          resize: "vertical", whiteSpace: "pre-wrap",
+        }}
+      />
+      {err && (
+        <div style={{ fontSize: 12, color: "var(--coral-deep)" }}>⚠ {err}</div>
+      )}
+      <div style={{ fontSize: 11.5, color: "var(--ink-4)" }}>
+        {text.trim()
+          ? `${text.trim().length.toLocaleString()}자 — 단락은 빈 줄로 자동 분리됩니다.`
+          : "원고 없이 그냥 처음부터 써도 됩니다."}
+      </div>
+      <button
+        type="button"
+        disabled={!text.trim()}
+        onClick={() => onImport(text.trim())}
+        style={{
+          alignSelf: "flex-start",
+          padding: "9px 18px", fontSize: 13, fontWeight: 700,
+          background: text.trim() ? "var(--coral)" : "var(--card-soft)",
+          color: text.trim() ? "#fff" : "var(--ink-4)",
+          border: `1px solid ${text.trim() ? "var(--coral)" : "var(--line)"}`,
+          borderRadius: 10, cursor: text.trim() ? "pointer" : "not-allowed",
+        }}
+      >
+        이 원고로 집필 시작 →
+      </button>
+    </div>
   );
 }
 
@@ -405,17 +553,13 @@ function Paragraph({ p, paused, onRewrite, onEdit, onContinue }: {
       </div>
 
       <div className="wpara-body">
-        {isPending ? (
-          <div className="wpara-pending">
-            <span className="wpara-pending-dot"></span>
-            <span>대기 중</span>
-          </div>
-        ) : editing ? (
+        {editing ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               autoFocus
+              placeholder="여기에 직접 쓰세요…"
               style={{
                 width: "100%",
                 minHeight: 200,
@@ -432,7 +576,7 @@ function Paragraph({ p, paused, onRewrite, onEdit, onContinue }: {
               }}
             />
             <div style={{ display: "flex", gap: 6 }}>
-              <button type="button" className="wpara-action" onClick={saveEdit} title="수정 저장">
+              <button type="button" className="wpara-action" onClick={saveEdit} title="저장">
                 <span className="wpara-action-icon">✓</span>
                 <span>저장</span>
               </button>
@@ -441,6 +585,24 @@ function Paragraph({ p, paused, onRewrite, onEdit, onContinue }: {
                 <span>취소</span>
               </button>
             </div>
+          </div>
+        ) : isPending ? (
+          // ★ 빈 단락 = 작가가 직접 쓸 수 있음 (옛엔 "대기 중"만 = AI만 채울 수 있었음)
+          <div className="wpara-pending">
+            <span className="wpara-pending-dot"></span>
+            <span>{onEdit ? "여기부터 직접 쓰거나, 우측 채팅에서 AI에게 맡기세요" : "대기 중"}</span>
+            {onEdit && (
+              <button
+                type="button"
+                className="wpara-action"
+                onClick={startEdit}
+                title="이 단락을 작가가 직접 씁니다"
+                style={{ marginLeft: 10 }}
+              >
+                <span className="wpara-action-icon">✍️</span>
+                <span>직접 쓰기</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="wpara-text">
