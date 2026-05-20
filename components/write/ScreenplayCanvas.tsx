@@ -86,20 +86,43 @@ function EditableSpan({
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [focused, setFocused] = useState(false);
+  // ★ V3.1 B3 — IME 한국어 입력 호환 (= 조합 중 Enter·Esc 무시)
+  const isComposingRef = useRef(false);
 
   const handleBlur = () => {
     setFocused(false);
     const text = ref.current?.innerText || "";
     if (text !== value) onChange(text);
   };
+
   const handleKey = (e: KeyboardEvent<HTMLSpanElement>) => {
-    if (!multiline && e.key === "Enter") {
+    // ★ V3.1 B3 — IME 조합 중 = OS에 위임 (= 한국어 마지막 글자 누락 사고 방지)
+    if (isComposingRef.current || e.nativeEvent.isComposing) return;
+
+    if (!multiline && e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      ref.current?.blur();
+      ref.current?.blur(); // = onChange + 편집 종료
+      return;
     }
     if (e.key === "Escape") {
-      if (ref.current) ref.current.innerText = value;
+      e.preventDefault();
+      if (ref.current) ref.current.innerText = value; // 옛 값 복원
       ref.current?.blur();
+      return;
+    }
+    // ★ V3.1 B3 — Tab = 다음 EditableSpan으로 (= 표 흐름)
+    if (e.key === "Tab") {
+      e.preventDefault();
+      // blur 후 = focus management는 브라우저 기본 Tab order
+      ref.current?.blur();
+      // 다음 contentEditable 찾기
+      const all = Array.from(document.querySelectorAll('[contenteditable="true"]')) as HTMLElement[];
+      const idx = all.indexOf(ref.current as HTMLElement);
+      const next = e.shiftKey ? all[idx - 1] : all[idx + 1];
+      if (next) {
+        setTimeout(() => next.focus(), 0);
+      }
+      return;
     }
   };
 
@@ -112,6 +135,8 @@ function EditableSpan({
       onFocus={() => setFocused(true)}
       onBlur={handleBlur}
       onKeyDown={handleKey}
+      onCompositionStart={() => { isComposingRef.current = true; }}
+      onCompositionEnd={() => { isComposingRef.current = false; }}
       style={{
         outline: focused ? "1px solid var(--coral)" : "none",
         outlineOffset: 2,

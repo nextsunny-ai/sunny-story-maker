@@ -18,6 +18,14 @@ export interface MediumCanvasRouterProps {
   onBlockRewrite?: (blockId: string) => void;
   onBlockContinue?: (afterBlockId: string) => void;
   onAddHeader?: (level: "episode" | "chapter", title: string, number?: string) => void;
+  /** ★ V3.1 B6 — 블록 삭제 (Zone·GameLine·컷 등 매체별 블록) */
+  onBlockDelete?: (blockId: string) => void;
+  /** ★ V3.1 B6 — 블록 순서 이동 (위/아래 1칸) */
+  onBlockMove?: (blockId: string, direction: "up" | "down") => void;
+  /** ★ V3.1 B5 — CUESHEET 컬럼 추가 (작가가 자유 컬럼 박기) */
+  onColumnAdd?: (label: string) => void;
+  /** ★ V3.1 B5 — CUESHEET 컬럼 삭제 */
+  onColumnRemove?: (key: string) => void;
 }
 
 export function MediumCanvasRouter(props: MediumCanvasRouterProps) {

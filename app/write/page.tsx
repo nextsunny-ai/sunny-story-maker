@@ -767,7 +767,13 @@ function WriteMain() {
           setSaveStatus("local-only");
           setSaveStatusMsg(`네트워크 끊김 — 본 PC에만 저장됨. ${err?.message || ""}`);
         });
-    } catch { /* ignore */ }
+    } catch (e) {
+      // ★ V3.1 D3 (2026-05-20) — 옛 silent fail 사고 정정.
+      //   localStorage 저장 자체 실패 = 작가 본 PC 데이터 손실 위험 = 명시.
+      setSaveStatus("error");
+      setSaveStatusMsg(`로컬 저장 실패 — ${e instanceof Error ? e.message : "용량 부족 가능"}. 브라우저 저장 공간 확인.`);
+      import("@/lib/log").then(({ logError }) => logError(e, "write/saveSnapshot:localStorage"));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey, persistKey, isDemo, work, notes, flow, paras, chat, mediumFields, briefDone, wf, mode, ideaParam, genreParam, projectParam, searchParams]);
 
@@ -1230,8 +1236,25 @@ function WriteMain() {
     const saved = loadJSON<PersistedProject | null>(storageKey, null);
     return saved?.headerBlocks ?? [];
   });
+  // ★ V3.1 B5 — CUESHEET 사용자 정의 컬럼 (작가가 추가)
+  const [customColumns, setCustomColumns] = useState<Array<{ key: string; label: string }>>([]);
+  const [removedColumns, setRemovedColumns] = useState<string[]>([]);
+  const onColumnAdd = (label: string) => {
+    const key = `c_${Date.now()}_${label.slice(0, 6).replace(/\s+/g, "_")}`;
+    setCustomColumns(prev => [...prev, { key, label }]);
+  };
+  const onColumnRemove = (key: string) => {
+    setRemovedColumns(prev => [...prev, key]);
+    setCustomColumns(prev => prev.filter(c => c.key !== key));
+  };
+
   const doc = useMemo<WriteDocV3>(() => {
     const base = migrateParasToDoc(paras as Array<{id:string;text:string;status:"done"|"streaming"|"pending";label?:string;notes?:string}>, genreParam);
+    // ★ V3.1 B5 — cueColumns merge: 기본 + 추가 - 삭제
+    if (base.cueColumns) {
+      const merged = [...base.cueColumns, ...customColumns].filter(c => !removedColumns.includes(c.key));
+      base.cueColumns = merged;
+    }
     if (headerBlocks.length === 0) return base;
     // ★ V3.1 B2 — afterBlockId 박혀있으면 = 그 위치에 / 없으면 = 최상단
     const topHeaders = headerBlocks.filter(h => !(h as { afterBlockId?: string }).afterBlockId);
@@ -1244,7 +1267,7 @@ function WriteMain() {
       blocks.push(...after);
     }
     return { ...base, blocks };
-  }, [paras, genreParam, headerBlocks]);
+  }, [paras, genreParam, headerBlocks, customColumns, removedColumns]);
 
   const onBlockEdit = (blockId: string, patch: Partial<BlockV3>) => {
     // HeaderBlock 수정 = headerBlocks state 직접
@@ -1324,6 +1347,31 @@ function WriteMain() {
 
   const onRemoveHeader = (headerId: string) => {
     setHeaderBlocks(prev => prev.filter(h => h.id !== headerId));
+  };
+
+  // ★ V3.1 B6 — 블록 삭제·이동 (Zone·GameLine·기타). 헤더 블록도 함께 지원.
+  const onBlockDelete = (blockId: string) => {
+    // 헤더 블록이면 = setHeaderBlocks에서
+    if (headerBlocks.some(h => h.id === blockId)) {
+      onRemoveHeader(blockId);
+      return;
+    }
+    // 일반 본문 블록 = paras에서 (= V3 단계에서 blocks↔paras mirror)
+    setParas(prev => prev.filter(p => p.id !== blockId));
+  };
+  const onBlockMove = (blockId: string, direction: "up" | "down") => {
+    // 일반 본문 블록 paras 순서 변경
+    setParas(prev => {
+      const idx = prev.findIndex(p => p.id === blockId);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= next.length) return prev;
+      const [moved] = next.splice(idx, 1);
+      next.splice(targetIdx, 0, moved);
+      // n 번호 재정렬
+      return next.map((p, i) => ({ ...p, n: i + 1 }));
+    });
   };
 
   // 더 쓰기 — 이 단락 다음에 빈 단락 추가. 작가가 직접 쓰거나(✍️ 직접 쓰기),
@@ -1742,6 +1790,10 @@ function WriteMain() {
           onBlockRewrite={onBlockRewrite}
           onBlockContinue={onBlockContinue}
           onAddHeader={onAddHeader}
+          onBlockDelete={onBlockDelete}
+          onBlockMove={onBlockMove}
+          onColumnAdd={onColumnAdd}
+          onColumnRemove={onColumnRemove}
           paused={paused}
           onPauseToggle={() => {
             // 🛑 중지 — AI streaming 즉시 abort + 현재 streaming 단락을 done으로
@@ -1793,6 +1845,11 @@ function WriteMain() {
               onClose={() => setBookOpen(false)}
               onApplyToScript={onApplyChatToScript}
               onPatchBlock={onPatchBlock}
+              onFlowStepActivate={(stepTitle) => {
+                // ★ V3.1 C4 — workflow step 클릭 = 작가 채팅에 자동 박힘 + AI 호출 트리거
+                setInput(`「${stepTitle}」 단계로 진행해줘.`);
+                // 작가가 확인 후 [전송] 누름. 자동 전송 X = 명시·확인 path.
+              }}
               mediumLabel={(() => {
                 // ★ 작가가 /develop에서 선택한 옵션 = 매체 표시에 연동
                 //   예: "B. 영화 · 단편 (~30분)" / "A. TV 드라마 · 16부작" / "C. 숏드라마 · 80화"

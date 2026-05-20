@@ -44,6 +44,12 @@ interface WriteCanvasProps {
   onBlockRewrite?: (blockId: string) => void;
   onBlockContinue?: (afterBlockId: string) => void;
   onAddHeader?: (level: "episode" | "chapter", title: string, number?: string) => void;
+  // ★ V3.1 B6 — 블록 삭제·이동 (Zone·GameLine·일반 본문 블록)
+  onBlockDelete?: (blockId: string) => void;
+  onBlockMove?: (blockId: string, direction: "up" | "down") => void;
+  // ★ V3.1 B5 — CUESHEET 컬럼 추가·삭제
+  onColumnAdd?: (label: string) => void;
+  onColumnRemove?: (key: string) => void;
   bookOpen: boolean;
   onBookToggle: () => void;
   notesCount: number;
@@ -52,7 +58,7 @@ interface WriteCanvasProps {
 
 export function WriteCanvas({
   work, paras, doc, paused, onPauseToggle, onRewrite, onEdit, onEditAll, onContinue, onImport, onDownload,
-  onBlockEdit, onBlockRewrite, onBlockContinue, onAddHeader,
+  onBlockEdit, onBlockRewrite, onBlockContinue, onAddHeader, onBlockDelete, onBlockMove, onColumnAdd, onColumnRemove,
   bookOpen, onBookToggle, notesCount, aiBusy,
 }: WriteCanvasProps) {
   const I = ICONS;
@@ -437,6 +443,10 @@ export function WriteCanvas({
                   onBlockRewrite={onBlockRewrite}
                   onBlockContinue={onBlockContinue}
                   onAddHeader={onAddHeader}
+                  onBlockDelete={onBlockDelete}
+                  onBlockMove={onBlockMove}
+                  onColumnAdd={onColumnAdd}
+                  onColumnRemove={onColumnRemove}
                 />
               ) : (
                 paras.map((p, i) => (

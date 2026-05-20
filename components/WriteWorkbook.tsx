@@ -21,12 +21,14 @@ interface WriteWorkbookProps {
   mediumLabel?: string; // ★ 사장님 명시: 작품 정보에 매체 표시
   onApplyToScript?: (text: string) => void; // ★ V2.14 — AI 채팅 메시지를 본문 끝에 단락으로 추가
   onPatchBlock?: (action: "수정" | "추가" | "삭제", n: number, content?: string) => void; // ★ V3.0 단계 5 — 블록 patch
+  /** ★ V3.1 C4 — workflow step 클릭 시 = 작가가 그 단계 작업 시작 (chat에 자동 박힘) */
+  onFlowStepActivate?: (stepTitle: string) => void;
 }
 
 export function WriteWorkbook({
   notes, flow, chat, input,
   onInputChange, onSend, onAddNote, onRemoveNote, onClose, mediumLabel,
-  onApplyToScript, onPatchBlock,
+  onApplyToScript, onPatchBlock, onFlowStepActivate,
 }: WriteWorkbookProps) {
   const I = ICONS;
   const [newNote, setNewNote] = useState("");
@@ -559,7 +561,18 @@ export function WriteWorkbook({
         {flowOpen && (
           <ol className="wbook-flow">
             {flow.map(f => (
-              <li key={f.id} className={"wbook-flow-item is-" + f.state}>
+              <li
+                key={f.id}
+                className={"wbook-flow-item is-" + f.state}
+                onClick={() => {
+                  // ★ V3.1 C4 — pending 단계 클릭 = 그 단계 작업 시작
+                  if (f.state === "pending" && onFlowStepActivate) {
+                    onFlowStepActivate(f.title);
+                  }
+                }}
+                style={{ cursor: f.state === "pending" && onFlowStepActivate ? "pointer" : "default" }}
+                title={f.state === "pending" && onFlowStepActivate ? `이 단계로 진행 — "${f.title}" 작업 시작` : ""}
+              >
                 <span className="wbook-flow-mark">
                   {f.state === "done" && "✓"}
                   {f.state === "active" && <span className="wbook-flow-spinner"></span>}
@@ -572,6 +585,11 @@ export function WriteWorkbook({
                   )}
                   {f.state === "done" && (
                     <div className="wbook-flow-hint is-muted">{f.hint}</div>
+                  )}
+                  {f.state === "pending" && onFlowStepActivate && (
+                    <div className="wbook-flow-hint" style={{ color: "var(--coral)", fontSize: 10.5, marginTop: 2 }}>
+                      클릭 = 이 단계로 →
+                    </div>
                   )}
                 </div>
               </li>

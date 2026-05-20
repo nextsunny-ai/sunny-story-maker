@@ -164,8 +164,18 @@ export function saveJSON(key: string, value: unknown): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // quota / serialize errors silently ignored — UI shouldn't crash on persistence
+  } catch (e) {
+    // ★ V3.1 D3 (2026-05-20) — silent fail X = 진단용 console + logError 박힘.
+    //   사용자 화면은 안 깨지지만 (= UI crash X) = 디버깅 가능해야 함.
+    if (typeof console !== "undefined") {
+      console.warn(`[persist] saveJSON failed for key "${key}":`, e);
+    }
+    // /api/log로 박힘 (= 사장님 /admin/dashboard에서 확인)
+    if (typeof window !== "undefined") {
+      import("@/lib/log").then(({ logWarn }) => {
+        logWarn(`localStorage saveJSON failed: ${e instanceof Error ? e.message : String(e)} (key=${key})`, "persist:saveJSON");
+      }).catch(() => { /* import 실패 = silent */ });
+    }
   }
 }
 

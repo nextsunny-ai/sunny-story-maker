@@ -8,7 +8,8 @@ import { Markdown } from "@/components/Markdown";
 import type { Block, CutBlock } from "@/lib/storymaker/write-doc";
 import type { MediumCanvasRouterProps } from "./MediumCanvasRouter";
 
-export function PanelCanvas({ doc, paused, onBlockEdit, onBlockContinue }: MediumCanvasRouterProps) {
+export function PanelCanvas({ doc, paused, onBlockEdit, onBlockContinue, onBlockDelete, onBlockMove }: MediumCanvasRouterProps) {
+  const cutBlocks = doc.blocks.filter(b => b.kind === "cut");
   return (
     <div className="panel-canvas">
       {doc.blocks.length === 0 && (
@@ -16,23 +17,41 @@ export function PanelCanvas({ doc, paused, onBlockEdit, onBlockContinue }: Mediu
           빈 작업실입니다. 채팅에서 "1화 시작해줘" 같이 요청하시거나 원고를 가져오세요.
         </div>
       )}
-      {doc.blocks.map((b) => (
-        <BlockRouter key={b.id} block={b} paused={paused} onEdit={onBlockEdit} onContinue={onBlockContinue} />
-      ))}
+      {doc.blocks.map((b, i) => {
+        const isCut = b.kind === "cut";
+        const cutIdx = isCut ? cutBlocks.findIndex(c => c.id === b.id) : -1;
+        return (
+          <BlockRouter
+            key={b.id}
+            block={b}
+            paused={paused}
+            onEdit={onBlockEdit}
+            onContinue={onBlockContinue}
+            onDelete={onBlockDelete}
+            onMove={onBlockMove}
+            isFirstCut={cutIdx === 0}
+            isLastCut={isCut && cutIdx === cutBlocks.length - 1}
+          />
+        );
+      })}
     </div>
   );
 }
 
 function BlockRouter({
-  block, paused, onEdit, onContinue,
+  block, paused, onEdit, onContinue, onDelete, onMove, isFirstCut, isLastCut,
 }: {
   block: Block;
   paused: boolean;
   onEdit?: (id: string, patch: Partial<Block>) => void;
   onContinue?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onMove?: (id: string, direction: "up" | "down") => void;
+  isFirstCut?: boolean;
+  isLastCut?: boolean;
 }) {
   if (block.kind === "cut") {
-    return <CutRenderer block={block} paused={paused} onEdit={onEdit} onContinue={onContinue} />;
+    return <CutRenderer block={block} paused={paused} onEdit={onEdit} onContinue={onContinue} onDelete={onDelete} onMove={onMove} isFirst={isFirstCut} isLast={isLastCut} />;
   }
   // fallback — 다른 kind는 텍스트만
   const text = "text" in block ? (block as { text?: string }).text || "" : "";
@@ -86,12 +105,16 @@ function EditableLine({
 }
 
 function CutRenderer({
-  block, onEdit, onContinue,
+  block, onEdit, onContinue, onDelete, onMove, isFirst, isLast,
 }: {
   block: CutBlock;
   paused: boolean;
   onEdit?: (id: string, patch: Partial<Block>) => void;
   onContinue?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onMove?: (id: string, direction: "up" | "down") => void;
+  isFirst?: boolean;
+  isLast?: boolean;
 }) {
   const patch = (p: Partial<CutBlock>) => onEdit?.(block.id, p as Partial<Block>);
   const [showOptional, setShowOptional] = useState(!!(block.dialogue || block.sfx || block.narration));
@@ -109,7 +132,24 @@ function CutRenderer({
         <span style={{ fontSize: 12, fontWeight: 700, color: "var(--coral)", letterSpacing: "0.05em" }}>
           [컷 <EditableLine value={String(block.cutNo)} onChange={(v) => patch({ cutNo: parseInt(v, 10) || block.cutNo })} style={{ minWidth: 20 }} />]
         </span>
-        <span style={{ fontSize: 11, color: "var(--ink-4)" }}>그림 묘사 + (대사·SFX·N 옵션)</span>
+        <span style={{ fontSize: 11, color: "var(--ink-4)", flex: 1 }}>그림 묘사 + (대사·SFX·N 옵션)</span>
+        {/* ★ V3.1 B4 — 컷 순서 변경·삭제 (드래그는 V3.2) */}
+        <div style={{ display: "flex", gap: 4 }}>
+          {onMove && !isFirst && (
+            <button type="button" onClick={() => onMove(block.id, "up")} title="위 컷과 순서 변경"
+              style={{ fontSize: 11, padding: "2px 7px", background: "transparent", color: "var(--ink-4)", border: "1px solid var(--line)", borderRadius: 4, cursor: "pointer" }}>↑</button>
+          )}
+          {onMove && !isLast && (
+            <button type="button" onClick={() => onMove(block.id, "down")} title="아래 컷과 순서 변경"
+              style={{ fontSize: 11, padding: "2px 7px", background: "transparent", color: "var(--ink-4)", border: "1px solid var(--line)", borderRadius: 4, cursor: "pointer" }}>↓</button>
+          )}
+          {onDelete && (
+            <button type="button" onClick={() => {
+              if (confirm(`컷 ${block.cutNo} 삭제할까요?`)) onDelete(block.id);
+            }} title="이 컷 삭제"
+              style={{ fontSize: 11, padding: "2px 7px", background: "transparent", color: "var(--coral-deep, #c84738)", border: "1px solid var(--coral)", borderRadius: 4, cursor: "pointer" }}>×</button>
+          )}
+        </div>
       </div>
 
       {/* 그림 묘사 (필수) */}

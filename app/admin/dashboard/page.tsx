@@ -168,7 +168,7 @@ function DashboardMain() {
         {data.subscriptions.length === 0 ? <Empty>구독 없음</Empty> : (
           <Table>
             <thead>
-              <tr><Th>작가 ID</Th><Th>플랜</Th><Th>상태</Th><Th>시작</Th><Th>만료</Th></tr>
+              <tr><Th>작가 ID</Th><Th>플랜</Th><Th>상태</Th><Th>시작</Th><Th>만료</Th><Th>변경</Th></tr>
             </thead>
             <tbody>
               {data.subscriptions.map(s => (
@@ -178,6 +178,7 @@ function DashboardMain() {
                   <Td>{s.status}</Td>
                   <Td>{fmtTime(s.started_at)}</Td>
                   <Td>{s.expires_at ? fmtTime(s.expires_at) : "—"}</Td>
+                  <Td><PlanChangeMenu userId={s.user_id} current={s.plan} onChanged={load} /></Td>
                 </tr>
               ))}
             </tbody>
@@ -235,4 +236,42 @@ function Pill({ children, color }: { children: React.ReactNode; color: "ink" | "
 
 function Empty({ children }: { children: React.ReactNode }) {
   return <div style={{ padding: 32, textAlign: "center", color: "var(--ink-5)", fontSize: 13 }}>{children}</div>;
+}
+
+// ★ V3.1 F2 — 작가 plan 변경 인라인 메뉴
+function PlanChangeMenu({ userId, current, onChanged }: { userId: string; current: string; onChanged: () => void }) {
+  const plans = ["trial_30days", "free", "pro", "studio", "lifetime", "banned"];
+  return (
+    <select
+      defaultValue={current}
+      onChange={async (e) => {
+        const next = e.target.value;
+        if (next === current) return;
+        if (!confirm(`작가 ${userId.slice(0, 8)}… 의 plan을 "${current}" → "${next}"로 변경할까요?`)) {
+          e.target.value = current;
+          return;
+        }
+        try {
+          const res = await fetch("/api/admin/subscription", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ userId, plan: next }),
+          });
+          if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            alert(`변경 실패: ${j.error || res.status}`);
+            e.target.value = current;
+            return;
+          }
+          onChanged();
+        } catch (err) {
+          alert(`변경 실패: ${err instanceof Error ? err.message : String(err)}`);
+          e.target.value = current;
+        }
+      }}
+      style={{ fontSize: 11, padding: "3px 6px", border: "1px solid var(--line)", borderRadius: 4, background: "var(--card)", color: "var(--ink-2)" }}
+    >
+      {plans.map(p => <option key={p} value={p}>{p}</option>)}
+    </select>
+  );
 }

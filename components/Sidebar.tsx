@@ -6,6 +6,7 @@ import { ICONS } from "@/lib/icons";
 import { GENRES } from "@/lib/genres";
 import { Symbol } from "./Symbol";
 import { LocaleToggle } from "./LocaleToggle";
+import { ThemeToggle } from "./ThemeToggle";
 
 const PATH_TO_NAV: Record<string, string> = {
   "/": "home",
@@ -184,8 +185,9 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
       <div className="sb-foot">
         {userEmail && <div className="sb-user">{userEmail}</div>}
         <button className="sb-logout" onClick={onLogout}>{I.logout}<span>로그아웃</span></button>
-        <div style={{ marginTop: 8, display: "flex", justifyContent: "center" }}>
+        <div style={{ marginTop: 8, display: "flex", justifyContent: "center", gap: 6 }}>
           <LocaleToggle compact />
+          <ThemeToggle compact />
         </div>
       </div>
     </aside>

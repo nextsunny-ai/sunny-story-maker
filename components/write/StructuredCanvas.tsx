@@ -25,6 +25,7 @@ function EditField({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
+  const isComposingRef = useRef(false); // ★ V3.1 B3 — IME 한국어 조합
   return (
     <div
       ref={ref}
@@ -37,9 +38,12 @@ function EditField({
         const t = ref.current?.innerText || "";
         if (t !== value) onChange(t);
       }}
+      onCompositionStart={() => { isComposingRef.current = true; }}
+      onCompositionEnd={() => { isComposingRef.current = false; }}
       onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
-        if (!multiline && e.key === "Enter") { e.preventDefault(); ref.current?.blur(); }
-        if (e.key === "Escape") { if (ref.current) ref.current.innerText = value; ref.current?.blur(); }
+        if (isComposingRef.current || e.nativeEvent.isComposing) return; // ★ B3 = 조합 중 무시
+        if (!multiline && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ref.current?.blur(); }
+        if (e.key === "Escape") { e.preventDefault(); if (ref.current) ref.current.innerText = value; ref.current?.blur(); }
       }}
       style={{
         minHeight: 22, lineHeight: 1.5,
@@ -57,7 +61,7 @@ function EditField({
 }
 
 // ─── K 전시 — Zone 카드 ───
-function ExhibitionCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanvasRouterProps) {
+function ExhibitionCanvas({ doc, onBlockEdit, onBlockContinue, onBlockDelete, onBlockMove }: MediumCanvasRouterProps) {
   const zones = doc.blocks.filter((b) => b.kind === "zone") as ZoneBlock[];
   const others = doc.blocks.filter((b) => b.kind !== "zone");
 
@@ -80,8 +84,12 @@ function ExhibitionCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanvasRou
               key={z.id}
               zone={z}
               showAdd={idx === zones.length - 1}
+              isFirst={idx === 0}
+              isLast={idx === zones.length - 1}
               onEdit={onBlockEdit}
               onContinue={onBlockContinue}
+              onDelete={onBlockDelete}
+              onMove={onBlockMove}
             />
           ))}
         </div>
@@ -91,12 +99,16 @@ function ExhibitionCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanvasRou
 }
 
 function ZoneCard({
-  zone, showAdd, onEdit, onContinue,
+  zone, showAdd, isFirst, isLast, onEdit, onContinue, onDelete, onMove,
 }: {
   zone: ZoneBlock;
   showAdd: boolean;
+  isFirst?: boolean;
+  isLast?: boolean;
   onEdit?: (id: string, patch: Partial<Block>) => void;
   onContinue?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onMove?: (id: string, direction: "up" | "down") => void;
 }) {
   const patch = (p: Partial<ZoneBlock>) => onEdit?.(zone.id, p as Partial<Block>);
   return (
@@ -111,9 +123,26 @@ function ZoneCard({
         <span style={{ fontSize: 13, fontWeight: 700, color: "var(--coral)" }}>
           [존 <EditField value={String(zone.zoneNo)} onChange={(v) => patch({ zoneNo: parseInt(v, 10) || zone.zoneNo })} style={{ display: "inline-block", minWidth: 30 }} />]
         </span>
-        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-1)" }}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-1)", flex: 1 }}>
           <EditField value={zone.zoneName} placeholder="존 이름 (예: 입구 홀)" onChange={(v) => patch({ zoneName: v })} style={{ display: "inline-block", minWidth: 200 }} />
         </span>
+        {/* ★ V3.1 B6 — Zone 액션 버튼 (↑·↓·×) */}
+        <div style={{ display: "flex", gap: 4 }}>
+          {onMove && !isFirst && (
+            <button type="button" onClick={() => onMove(zone.id, "up")} title="위로 이동"
+              style={{ fontSize: 11, padding: "2px 7px", background: "transparent", color: "var(--ink-4)", border: "1px solid var(--line)", borderRadius: 4, cursor: "pointer" }}>↑</button>
+          )}
+          {onMove && !isLast && (
+            <button type="button" onClick={() => onMove(zone.id, "down")} title="아래로 이동"
+              style={{ fontSize: 11, padding: "2px 7px", background: "transparent", color: "var(--ink-4)", border: "1px solid var(--line)", borderRadius: 4, cursor: "pointer" }}>↓</button>
+          )}
+          {onDelete && (
+            <button type="button" onClick={() => {
+              if (confirm(`Zone "${zone.zoneName || zone.zoneNo}" 삭제할까요?`)) onDelete(zone.id);
+            }} title="존 삭제"
+              style={{ fontSize: 11, padding: "2px 7px", background: "transparent", color: "var(--coral-deep, #c84738)", border: "1px solid var(--coral)", borderRadius: 4, cursor: "pointer" }}>×</button>
+          )}
+        </div>
       </div>
       <FieldRow label="면적" value={zone.area || ""} placeholder="㎡ 또는 ─" onChange={(v) => patch({ area: v || undefined })} />
       <FieldRow label="동선" value={zone.flow || ""} placeholder="입구 → 좌측 → 중앙" onChange={(v) => patch({ flow: v || undefined })} />
@@ -151,7 +180,7 @@ function FieldRow({
 }
 
 // ─── L 게임 — 대사 데이터 표 ───
-function GameCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanvasRouterProps) {
+function GameCanvas({ doc, onBlockEdit, onBlockContinue, onBlockDelete }: MediumCanvasRouterProps) {
   const lines = doc.blocks.filter((b) => b.kind === "game-line") as GameLineBlock[];
   const others = doc.blocks.filter((b) => b.kind !== "game-line");
 
@@ -181,6 +210,7 @@ function GameCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanvasRouterPro
               <Th>조건</Th>
               <Th>다음 ID</Th>
               <Th>호감도</Th>
+              <Th>×</Th>
             </tr>
           </thead>
           <tbody>
@@ -191,6 +221,7 @@ function GameCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanvasRouterPro
                 showAdd={idx === lines.length - 1}
                 onEdit={onBlockEdit}
                 onContinue={onBlockContinue}
+                onDelete={onBlockDelete}
               />
             ))}
           </tbody>
@@ -209,12 +240,13 @@ function Th({ children }: { children: React.ReactNode }) {
 }
 
 function GameLineRow({
-  line, showAdd, onEdit, onContinue,
+  line, showAdd, onEdit, onContinue, onDelete,
 }: {
   line: GameLineBlock;
   showAdd: boolean;
   onEdit?: (id: string, patch: Partial<Block>) => void;
   onContinue?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }) {
   const patch = (p: Partial<GameLineBlock>) => onEdit?.(line.id, p as Partial<Block>);
   return (
@@ -234,16 +266,25 @@ function GameLineRow({
       <td style={{ padding: "6px 8px", verticalAlign: "top", borderRight: "1px solid var(--line)", width: 90, fontFamily: "var(--font-mono, monospace)", fontSize: 11 }}>
         <EditField value={line.nextId || ""} placeholder="─" onChange={(v) => patch({ nextId: v || undefined })} />
       </td>
-      <td style={{ padding: "6px 8px", verticalAlign: "top", width: 70, fontSize: 11.5, color: "var(--ink-3)" }}>
+      <td style={{ padding: "6px 8px", verticalAlign: "top", borderRight: "1px solid var(--line)", width: 70, fontSize: 11.5, color: "var(--ink-3)" }}>
         <EditField value={line.affinity || ""} placeholder="±0" onChange={(v) => patch({ affinity: v || undefined })} />
       </td>
-      {showAdd && onContinue && (
-        <td style={{ padding: 4, width: 50, verticalAlign: "middle", textAlign: "center", background: "var(--card-soft)" }}>
-          <button type="button" onClick={() => onContinue(line.id)}
-            style={{ fontSize: 11, padding: "3px 6px", background: "transparent", color: "var(--coral)", border: "1px solid var(--coral)", borderRadius: 4, cursor: "pointer" }}
-          >+ 행</button>
-        </td>
-      )}
+      {/* ★ V3.1 B6 — 행 삭제 + (마지막 행에만) 행 추가 */}
+      <td style={{ padding: 4, width: 60, verticalAlign: "middle", textAlign: "center" }}>
+        <div style={{ display: "flex", gap: 3, justifyContent: "center", flexWrap: "wrap" }}>
+          {onDelete && (
+            <button type="button" onClick={() => {
+              if (confirm(`대사 ID "${line.lineId}" 삭제할까요?`)) onDelete(line.id);
+            }} title="이 행 삭제"
+              style={{ fontSize: 10, padding: "2px 5px", background: "transparent", color: "var(--coral-deep, #c84738)", border: "1px solid var(--coral)", borderRadius: 3, cursor: "pointer" }}>×</button>
+          )}
+          {showAdd && onContinue && (
+            <button type="button" onClick={() => onContinue(line.id)} title="다음 행 추가"
+              style={{ fontSize: 10, padding: "2px 5px", background: "transparent", color: "var(--coral)", border: "1px solid var(--coral)", borderRadius: 3, cursor: "pointer" }}
+            >+</button>
+          )}
+        </div>
+      </td>
     </tr>
   );
 }

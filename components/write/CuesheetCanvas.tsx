@@ -9,7 +9,7 @@ import type { Block, CueRowBlock } from "@/lib/storymaker/write-doc";
 import { CUE_COLUMNS } from "@/lib/storymaker/write-doc";
 import type { MediumCanvasRouterProps } from "./MediumCanvasRouter";
 
-export function CuesheetCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanvasRouterProps) {
+export function CuesheetCanvas({ doc, onBlockEdit, onBlockContinue, onColumnAdd, onColumnRemove }: MediumCanvasRouterProps) {
   const columns = doc.cueColumns || CUE_COLUMNS[doc.letter] || CUE_COLUMNS.M;
   const rows = doc.blocks.filter((b) => b.kind === "cue-row") as CueRowBlock[];
   const otherBlocks = doc.blocks.filter((b) => b.kind !== "cue-row");
@@ -21,6 +21,22 @@ export function CuesheetCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanv
           {"text" in b ? (b as { text: string }).text : ""}
         </div>
       ))}
+
+      {/* ★ V3.1 B5 — 컬럼 추가 버튼 */}
+      {onColumnAdd && (
+        <div style={{ marginBottom: 10, textAlign: "right" }}>
+          <button
+            type="button"
+            onClick={() => {
+              const label = prompt("새 컬럼 이름 (예: 소품·인서트·예상 시간)");
+              if (label?.trim()) onColumnAdd(label.trim());
+            }}
+            style={{ fontSize: 11.5, padding: "4px 10px", background: "transparent", color: "var(--coral)", border: "1px dashed var(--coral)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}
+          >
+            + 컬럼 추가
+          </button>
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div style={{ padding: 24, color: "var(--ink-4)", fontSize: 13, textAlign: "center", border: "1px dashed var(--line)", borderRadius: 10 }}>
@@ -38,8 +54,18 @@ export function CuesheetCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanv
                 시간
               </th>
               {columns.map((c) => (
-                <th key={c.key} style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid var(--coral)", borderLeft: "1px solid var(--line)", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", color: "var(--coral-deep)" }}>
+                <th key={c.key} style={{ padding: "8px 10px", textAlign: "left", borderBottom: "2px solid var(--coral)", borderLeft: "1px solid var(--line)", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", color: "var(--coral-deep)", position: "relative" }}>
                   {c.label}
+                  {onColumnRemove && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`컬럼 "${c.label}" 삭제할까요? (모든 행의 이 데이터가 사라집니다)`)) onColumnRemove(c.key);
+                      }}
+                      title="컬럼 삭제"
+                      style={{ marginLeft: 6, fontSize: 9, padding: "1px 4px", background: "transparent", color: "var(--ink-5)", border: "1px solid var(--line)", borderRadius: 3, cursor: "pointer", verticalAlign: "middle" }}
+                    >×</button>
+                  )}
                 </th>
               ))}
             </tr>
@@ -70,6 +96,7 @@ function CellEditable({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
+  const isComposingRef = useRef(false); // ★ V3.1 B3 — IME 한국어 조합
   return (
     <div
       ref={ref}
@@ -82,8 +109,11 @@ function CellEditable({
         const t = ref.current?.innerText || "";
         if (t !== value) onChange(t);
       }}
+      onCompositionStart={() => { isComposingRef.current = true; }}
+      onCompositionEnd={() => { isComposingRef.current = false; }}
       onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
-        if (e.key === "Escape") { if (ref.current) ref.current.innerText = value; ref.current?.blur(); }
+        if (isComposingRef.current || e.nativeEvent.isComposing) return; // ★ B3 = 조합 중 무시
+        if (e.key === "Escape") { e.preventDefault(); if (ref.current) ref.current.innerText = value; ref.current?.blur(); }
       }}
       style={{
         minHeight: 24, lineHeight: 1.5,
