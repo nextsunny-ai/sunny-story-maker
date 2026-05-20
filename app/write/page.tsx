@@ -1202,6 +1202,29 @@ function WriteMain() {
   const onBlockRewrite = (blockId: string) => onRewrite(blockId);
   const onBlockContinue = (afterBlockId: string) => onContinuePara(afterBlockId);
 
+  // ★ V3.0 단계 5 — 채팅 마커 [[수정/추가/삭제:N:내용]] 본문 patch
+  const onPatchBlock = (action: "수정" | "추가" | "삭제", n: number, content?: string) => {
+    const idx = n - 1; // 1-indexed → 0-indexed
+    if (action === "수정") {
+      if (content === undefined) return;
+      setParas(prev => prev.map((p, i) => i === idx ? { ...p, text: content, status: "done" as const } : p));
+    } else if (action === "추가") {
+      if (content === undefined) return;
+      setParas(prev => {
+        const newPara: Para = {
+          id: "p_patch_" + Date.now(),
+          n: prev.length + 1,
+          label: "AI 추가",
+          text: content,
+          status: "done",
+        };
+        return [...prev.slice(0, idx + 1), newPara, ...prev.slice(idx + 1)];
+      });
+    } else if (action === "삭제") {
+      setParas(prev => prev.filter((_, i) => i !== idx));
+    }
+  };
+
   const onAddHeader = (level: "episode" | "chapter", title: string, number?: string) => {
     const newHeader: HeaderBlockV3 = {
       id: `h_${Date.now()}`,
@@ -1620,6 +1643,7 @@ function WriteMain() {
               onRemoveNote={removeNote}
               onClose={() => setBookOpen(false)}
               onApplyToScript={onApplyChatToScript}
+              onPatchBlock={onPatchBlock}
               mediumLabel={(() => {
                 // ★ 작가가 /develop에서 선택한 옵션 = 매체 표시에 연동
                 //   예: "B. 영화 · 단편 (~30분)" / "A. TV 드라마 · 16부작" / "C. 숏드라마 · 80화"

@@ -20,12 +20,13 @@ interface WriteWorkbookProps {
   onClose: () => void;
   mediumLabel?: string; // ★ 사장님 명시: 작품 정보에 매체 표시
   onApplyToScript?: (text: string) => void; // ★ V2.14 — AI 채팅 메시지를 본문 끝에 단락으로 추가
+  onPatchBlock?: (action: "수정" | "추가" | "삭제", n: number, content?: string) => void; // ★ V3.0 단계 5 — 블록 patch
 }
 
 export function WriteWorkbook({
   notes, flow, chat, input,
   onInputChange, onSend, onAddNote, onRemoveNote, onClose, mediumLabel,
-  onApplyToScript,
+  onApplyToScript, onPatchBlock,
 }: WriteWorkbookProps) {
   const I = ICONS;
   const [newNote, setNewNote] = useState("");
@@ -311,10 +312,62 @@ export function WriteWorkbook({
                 {(() => {
                   if (m.role !== "ai") return m.text;
                   if (!m.text) return "";
+
+                  // ★ V3.0 단계 5 — [[수정/추가/삭제:N:내용]] 마커 파싱 (본문 patch)
+                  const PATCH_RE = /\[\[(수정|추가|삭제):(\d+)(?::([\s\S]*?))?\]\]/g;
+                  const patches: Array<{ action: "수정" | "추가" | "삭제"; n: number; content?: string }> = [];
+                  let textWithoutMarkers = m.text;
+                  let pm: RegExpExecArray | null;
+                  while ((pm = PATCH_RE.exec(m.text)) !== null) {
+                    patches.push({
+                      action: pm[1] as "수정" | "추가" | "삭제",
+                      n: parseInt(pm[2], 10),
+                      content: pm[3] !== undefined ? pm[3].trim() : undefined,
+                    });
+                  }
+                  if (patches.length > 0) {
+                    textWithoutMarkers = m.text.replace(PATCH_RE, "").trim();
+                  }
+
                   // ===CHOICES=== 마커 분리 — chip 버튼 (사장님 명시: 작가 채팅 적게 치고 빠른 결정)
-                  const idx = m.text.indexOf("===CHOICES===");
-                  if (idx === -1) return <Markdown text={m.text} compact />;
-                  const bodyText = m.text.slice(0, idx).trim();
+                  const idx = textWithoutMarkers.indexOf("===CHOICES===");
+                  if (idx === -1) {
+                    return (
+                      <>
+                        <Markdown text={textWithoutMarkers} compact />
+                        {patches.length > 0 && onPatchBlock && (
+                          <div style={{
+                            marginTop: 8, paddingTop: 8,
+                            borderTop: "1px dashed var(--coral)",
+                            display: "flex", flexDirection: "column", gap: 4,
+                          }}>
+                            <div style={{ fontSize: 10.5, color: "var(--coral-deep)", fontWeight: 700, letterSpacing: "0.05em" }}>
+                              본문 PATCH 제안
+                            </div>
+                            {patches.map((p, pi) => (
+                              <button
+                                key={pi}
+                                type="button"
+                                onClick={() => onPatchBlock(p.action, p.n, p.content)}
+                                title={`${p.n}번째 블록 ${p.action}`}
+                                style={{
+                                  fontSize: 11.5, padding: "4px 10px",
+                                  background: "transparent", color: "var(--coral-deep)",
+                                  border: "1px solid var(--coral)", borderRadius: 6,
+                                  cursor: "pointer", textAlign: "left",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                📥 {p.n}번째 {p.action}
+                                {p.content && <span style={{ fontWeight: 400, marginLeft: 6, color: "var(--ink-3)" }}>: {p.content.slice(0, 40)}{p.content.length > 40 ? "…" : ""}</span>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    );
+                  }
+                  const bodyText = textWithoutMarkers.slice(0, idx).trim();
                   const choicesText = m.text.slice(idx + "===CHOICES===".length).trim();
                   const choices = choicesText
                     .split("\n")
