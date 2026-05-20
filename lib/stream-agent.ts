@@ -41,6 +41,64 @@ export interface StreamAgentOptions {
 }
 
 /**
+ * ★ V3.1 #15 — HTTP/네트워크 에러를 작가 친화적 한국어 메시지로 변환.
+ * - offline / DNS / 타임아웃 / 401·403·429·5xx별로 구분
+ * - "TypeError: Failed to fetch" 같은 영어 raw 메시지 노출 X
+ */
+export function humanizeStreamError(input: unknown, ctx?: { status?: number }): string {
+  // (1) 네트워크 단절 — navigator.onLine
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    return "📡 인터넷이 끊어진 것 같습니다. Wi-Fi/네트워크를 확인하고 다시 시도해주세요.";
+  }
+  const raw = input instanceof Error ? input.message : (typeof input === "string" ? input : String(input ?? ""));
+  const lower = raw.toLowerCase();
+  // (2) HTTP status 매핑
+  const status = ctx?.status;
+  if (status === 401 || status === 403) {
+    return "🔑 인증이 만료됐습니다. 다시 로그인하시거나 설정에서 API 키를 확인해주세요.";
+  }
+  if (status === 429) {
+    return "⏳ Claude 사용량 한도에 일시 도달했습니다. 잠시 후 자동으로 다시 시도하거나 5~10분 후 다시 작업해주세요.";
+  }
+  if (status === 503 || status === 502 || status === 504) {
+    return "🛠 서버가 잠시 응답하지 못합니다. 1~2분 후 다시 시도해주세요. (계속 안되면 status.anthropic.com 확인)";
+  }
+  if (status && status >= 500) {
+    return `⚠️ 서버 일시 오류 (HTTP ${status}). 잠시 후 다시 시도해주세요.`;
+  }
+  if (status === 400) {
+    return "⚠️ 요청 형식이 잘못됐습니다. 본문이 너무 길거나 모델 설정 문제일 수 있습니다.";
+  }
+  if (status === 404) {
+    return "🔍 API 경로를 찾지 못했습니다. 새 버전으로 업데이트가 필요할 수 있습니다.";
+  }
+  // (3) raw 메시지 키워드 매핑
+  if (lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("err_internet_disconnected")) {
+    return "📡 서버 연결에 실패했습니다. 인터넷/네트워크를 확인해주세요.";
+  }
+  if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("etimedout")) {
+    return "⏱️ 응답이 너무 늦어 타임아웃됐습니다. 본문이 길면 잠시 후 다시 시도해주세요.";
+  }
+  if (lower.includes("abort")) {
+    // abort는 보통 호출 측에서 무시 — 친절 안내만
+    return "🛑 작업이 중단됐습니다.";
+  }
+  if (lower.includes("응답 본문이 비어") || lower.includes("empty body") || lower.includes("no response")) {
+    return "📭 AI 응답이 비어있습니다. 잠시 후 다시 시도하거나 다른 모델로 바꿔 시도해주세요.";
+  }
+  if (lower.includes("usage limit") || lower.includes("rate limit") || lower.includes("한도")) {
+    return "⏳ Claude 사용량 한도에 도달했습니다. 5시간~7일 단위로 자동 리셋됩니다.";
+  }
+  if (lower.includes("claude") && lower.includes("not found")) {
+    return "🔧 Claude CLI가 설치되지 않았거나 PATH에 없습니다. 도움말의 설치 안내를 확인해주세요.";
+  }
+  // (4) 마지막 fallback — raw 메시지 그대로 + 안내
+  const trimmed = raw.slice(0, 200);
+  if (!trimmed.trim()) return "⚠️ 알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
+  return `⚠️ ${trimmed}`;
+}
+
+/**
  * Tauri 데스크탑 환경 여부 (= window.__TAURI_INTERNALS__ 존재).
  */
 function isTauri(): boolean {
@@ -322,25 +380,28 @@ export async function streamAgent(opts: StreamAgentOptions): Promise<string> {
           signal,
         });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "네트워크 오류";
+    // signal.aborted = 사용자가 의도적으로 중단 = error 표시 X
+    if (signal?.aborted) throw err;
+    const msg = humanizeStreamError(err);
     onError?.(msg);
     throw err;
   }
 
   if (!res.ok) {
-    let errMsg = `HTTP ${res.status}`;
+    let rawErr = "";
     try {
       const j = await res.json();
-      if (j?.error) errMsg = j.error;
+      if (j?.error) rawErr = String(j.error);
     } catch {
       // ignore
     }
+    const errMsg = humanizeStreamError(rawErr || `HTTP ${res.status}`, { status: res.status });
     onError?.(errMsg);
     throw new Error(errMsg);
   }
 
   if (!res.body) {
-    const msg = "응답 본문이 비어있습니다.";
+    const msg = humanizeStreamError("응답 본문이 비어있습니다.");
     onError?.(msg);
     throw new Error(msg);
   }
@@ -386,9 +447,15 @@ export async function streamAgent(opts: StreamAgentOptions): Promise<string> {
     }
   } catch (err) {
     if (signal?.aborted) return full;
-    const msg = err instanceof Error ? err.message : "스트림 읽기 오류";
+    const msg = humanizeStreamError(err);
     onError?.(msg);
     throw err;
+  }
+
+  // ★ V3.1 #15 — 응답이 깡통 (= 한 글자도 못 받음) = 친절 안내
+  if (!full.trim() && !signal?.aborted) {
+    const msg = humanizeStreamError("응답 본문이 비어있습니다.");
+    onError?.(msg);
   }
 
   // ★ workId 박혀있고 응답이 비어있지 않으면 = workConversation에 user/assistant turn 누적
