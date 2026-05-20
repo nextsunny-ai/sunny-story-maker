@@ -7,6 +7,7 @@
 import type { WriteDoc, Block } from "@/lib/storymaker/write-doc";
 import { ProseCanvas } from "./ProseCanvas";
 import { ScreenplayCanvas } from "./ScreenplayCanvas";
+import { PanelCanvas } from "./PanelCanvas";
 
 export interface MediumCanvasRouterProps {
   doc: WriteDoc;
@@ -28,6 +29,10 @@ export function MediumCanvasRouter(props: MediumCanvasRouterProps) {
     case "SCREENPLAY":
     case "STAGE":
       return <ScreenplayCanvas {...props} />;
+
+    // 단계 3 (V3.0) — PANEL 웹툰 = PanelCanvas (컷 카드)
+    case "PANEL":
+      return <PanelCanvas {...props} />;
 
     // 단계 3 (PANEL)
     case "PANEL":

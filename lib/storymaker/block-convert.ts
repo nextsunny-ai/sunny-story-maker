@@ -143,10 +143,88 @@ export function plainTextToBlocks(group: MediumGroup, text: string, _letter?: st
   if (group === "SCREENPLAY" || group === "STAGE") {
     return parseScreenplay(text, group === "STAGE");
   }
+  if (group === "PANEL") {
+    return parsePanelCuts(text);
+  }
   if (group === "PROSE") {
     return splitProseBlocks(text);
   }
   return splitProseBlocks(text);
+}
+
+// ─── PANEL 파서 (V3.0 단계 3 — 웹툰 [컷N]) ───
+function parsePanelCuts(text: string): Block[] {
+  const blocks: Block[] = [];
+  let blockSeq = 0;
+  const nextId = () => `b_${Date.now()}_${blockSeq++}`;
+
+  // [컷N] ... [컷N+1] ... 단위로 분리. 시작점이 [컷N] 아니면 prose 폴백.
+  const RE_CUT = /\[\s*컷\s*(\d+)\s*\]/g;
+  const cutMatches: Array<{ no: number; start: number; headEnd: number }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = RE_CUT.exec(text)) !== null) {
+    cutMatches.push({ no: parseInt(m[1], 10), start: m.index, headEnd: m.index + m[0].length });
+  }
+
+  if (cutMatches.length === 0) {
+    // 컷 마커 없음 = 폴백 (텍스트 손실 0)
+    return splitProseBlocks(text);
+  }
+
+  // 첫 컷 이전 텍스트 = 폴백 prose
+  if (cutMatches[0].start > 0) {
+    const head = text.slice(0, cutMatches[0].start).trim();
+    if (head) {
+      head.split(/\n\s*\n+/).map(t => t.trim()).filter(Boolean).forEach((t) => {
+        blocks.push({ id: nextId(), kind: "prose", text: t, status: "done" });
+      });
+    }
+  }
+
+  for (let i = 0; i < cutMatches.length; i++) {
+    const cur = cutMatches[i];
+    const next = cutMatches[i + 1];
+    const body = text.slice(cur.headEnd, next ? next.start : text.length).trim();
+
+    // 첫 줄 = 그림 묘사. 그 다음 라벨이 있는 줄 = 대사·SFX·N
+    const lines = body.split("\n").map(l => l.trim());
+    let visual = "";
+    let dialogue: string | undefined;
+    let sfx: string | undefined;
+    let narration: string | undefined;
+
+    const visualLines: string[] = [];
+    let stillVisual = true;
+    for (const line of lines) {
+      if (!line) {
+        if (visualLines.length > 0) stillVisual = false;
+        continue;
+      }
+      const dm = line.match(/^(대사|D|Dialogue)\s*[:：]\s*(.+)$/i);
+      const sm = line.match(/^(SFX|효과음|음향)\s*[:：]\s*(.+)$/i);
+      const nm = line.match(/^(N|나레이션|Narration)\s*[:：]\s*(.+)$/i);
+      if (dm) { dialogue = (dialogue ? dialogue + "\n" : "") + dm[2]; stillVisual = false; continue; }
+      if (sm) { sfx = (sfx ? sfx + " " : "") + sm[2]; stillVisual = false; continue; }
+      if (nm) { narration = (narration ? narration + "\n" : "") + nm[2]; stillVisual = false; continue; }
+      if (stillVisual) visualLines.push(line);
+      else {
+        // 라벨 없는 추가 줄 = 직전 항목에 이어붙이거나 visual에
+        if (dialogue !== undefined) dialogue += "\n" + line;
+        else if (narration !== undefined) narration += "\n" + line;
+        else visualLines.push(line);
+      }
+    }
+    visual = visualLines.join(" ").trim() || "(그림 묘사 없음)";
+
+    blocks.push({
+      id: nextId(), kind: "cut",
+      cutNo: cur.no,
+      visual, dialogue, sfx, narration,
+      status: "done",
+    });
+  }
+
+  return blocks;
 }
 
 // ─── SCREENPLAY + STAGE 파서 (V3.0 단계 2) ───

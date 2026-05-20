@@ -1,0 +1,150 @@
+"use client";
+
+// V3.0 PANEL 그룹 본문 캔버스 (F 웹툰).
+// 컷 카드 시퀀스. 각 카드 = 그림 묘사 + (선택) 대사·SFX·나레이션.
+
+import { useRef, useState, type KeyboardEvent } from "react";
+import { Markdown } from "@/components/Markdown";
+import type { Block, CutBlock } from "@/lib/storymaker/write-doc";
+import type { MediumCanvasRouterProps } from "./MediumCanvasRouter";
+
+export function PanelCanvas({ doc, paused, onBlockEdit, onBlockContinue }: MediumCanvasRouterProps) {
+  return (
+    <>
+      {doc.blocks.length === 0 && (
+        <div style={{ padding: 24, color: "var(--ink-4)", fontSize: 13, textAlign: "center" }}>
+          빈 작업실입니다. 채팅에서 "1화 시작해줘" 같이 요청하시거나 원고를 가져오세요.
+        </div>
+      )}
+      {doc.blocks.map((b) => (
+        <BlockRouter key={b.id} block={b} paused={paused} onEdit={onBlockEdit} onContinue={onBlockContinue} />
+      ))}
+    </>
+  );
+}
+
+function BlockRouter({
+  block, paused, onEdit, onContinue,
+}: {
+  block: Block;
+  paused: boolean;
+  onEdit?: (id: string, patch: Partial<Block>) => void;
+  onContinue?: (id: string) => void;
+}) {
+  if (block.kind === "cut") {
+    return <CutRenderer block={block} paused={paused} onEdit={onEdit} onContinue={onContinue} />;
+  }
+  // fallback — 다른 kind는 텍스트만
+  const text = "text" in block ? (block as { text?: string }).text || "" : "";
+  return (
+    <div style={{ marginBottom: 8, padding: 8, color: "var(--ink-3)", fontSize: 13 }}>
+      <Markdown text={text} />
+    </div>
+  );
+}
+
+// ─── ContentEditable 공통 (PanelCanvas 전용 간단판) ───
+function EditableLine({
+  value, placeholder, onChange, style, multiline,
+}: {
+  value: string;
+  placeholder?: string;
+  onChange: (v: string) => void;
+  style?: React.CSSProperties;
+  multiline?: boolean;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [focused, setFocused] = useState(false);
+  return (
+    <span
+      ref={ref}
+      role="textbox"
+      contentEditable
+      suppressContentEditableWarning
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        const t = ref.current?.innerText || "";
+        if (t !== value) onChange(t);
+      }}
+      onKeyDown={(e: KeyboardEvent<HTMLSpanElement>) => {
+        if (!multiline && e.key === "Enter") { e.preventDefault(); ref.current?.blur(); }
+        if (e.key === "Escape") { if (ref.current) ref.current.innerText = value; ref.current?.blur(); }
+      }}
+      style={{
+        outline: focused ? "1px solid var(--coral)" : "none",
+        outlineOffset: 2, borderRadius: 2,
+        padding: focused ? "0 2px" : 0,
+        whiteSpace: multiline ? "pre-wrap" : "nowrap",
+        display: "inline-block", minWidth: 40,
+        ...style,
+      }}
+    >
+      {value || <span style={{ color: "var(--ink-5)" }}>{placeholder || ""}</span>}
+    </span>
+  );
+}
+
+function CutRenderer({
+  block, onEdit, onContinue,
+}: {
+  block: CutBlock;
+  paused: boolean;
+  onEdit?: (id: string, patch: Partial<Block>) => void;
+  onContinue?: (id: string) => void;
+}) {
+  const patch = (p: Partial<CutBlock>) => onEdit?.(block.id, p as Partial<Block>);
+  const [showOptional, setShowOptional] = useState(!!(block.dialogue || block.sfx || block.narration));
+
+  return (
+    <div style={{
+      marginBottom: 16,
+      padding: "14px 16px",
+      background: "var(--card-soft)",
+      border: "1px solid var(--line)",
+      borderLeft: "3px solid var(--coral)",
+      borderRadius: 10,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--coral)", letterSpacing: "0.05em" }}>
+          [컷 <EditableLine value={String(block.cutNo)} onChange={(v) => patch({ cutNo: parseInt(v, 10) || block.cutNo })} style={{ minWidth: 20 }} />]
+        </span>
+        <span style={{ fontSize: 11, color: "var(--ink-4)" }}>그림 묘사 + (대사·SFX·N 옵션)</span>
+      </div>
+
+      {/* 그림 묘사 (필수) */}
+      <div style={{ marginBottom: 8, fontSize: 14, lineHeight: 1.6, color: "var(--ink-1)" }}>
+        <EditableLine value={block.visual} placeholder="컷 그림 묘사 (인물·앵글·배경·표정)" onChange={(v) => patch({ visual: v })} multiline />
+      </div>
+
+      {showOptional ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--line)" }}>
+          <div>
+            <span style={{ color: "var(--ink-4)", marginRight: 6 }}>대사:</span>
+            <EditableLine value={block.dialogue || ""} placeholder="(없으면 공백)" onChange={(v) => patch({ dialogue: v || undefined })} multiline />
+          </div>
+          <div>
+            <span style={{ color: "var(--ink-4)", marginRight: 6 }}>SFX:</span>
+            <EditableLine value={block.sfx || ""} placeholder="쾅·휘이익·…" onChange={(v) => patch({ sfx: v || undefined })} />
+          </div>
+          <div>
+            <span style={{ color: "var(--ink-4)", marginRight: 6 }}>N:</span>
+            <EditableLine value={block.narration || ""} placeholder="나레이션" onChange={(v) => patch({ narration: v || undefined })} multiline />
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setShowOptional(true)}
+          style={{ marginTop: 6, fontSize: 11, padding: "2px 8px", background: "transparent", color: "var(--ink-4)", border: "1px dashed var(--line)", borderRadius: 4, cursor: "pointer" }}
+        >+ 대사·SFX·N 추가</button>
+      )}
+
+      {onContinue && (
+        <div style={{ marginTop: 10, textAlign: "right" }}>
+          <button type="button" onClick={() => onContinue(block.id)}
+            style={{ fontSize: 11, padding: "3px 10px", background: "transparent", color: "var(--coral-deep)", border: "1px solid var(--coral)", borderRadius: 4, cursor: "pointer" }}
+          >+ 다음 컷</button>
+        </div>
+      )}
+    </div>
+  );
+}
