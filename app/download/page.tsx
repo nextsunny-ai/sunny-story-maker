@@ -261,16 +261,16 @@ export default function DownloadPage() {
           </div>
 
           <div style={{ marginTop: 22, paddingTop: 20, borderTop: "1px solid var(--line)", fontSize: 11, color: "var(--ink-5)", lineHeight: 1.7 }}>
-            ※ Windows .exe = V2.13.3 (4.5 MB · NSIS 자동 설치 · 자동 업데이터).<br />
-            ※ macOS .dmg = V2.13.3 (Apple Silicon aarch64 · 7.7 MB · 자동 업데이터).<br />
-            ※ 웹 콘텐츠 = V2.14 (작가 직접 쓰기 + 각색 원문 보강 + 한도 시 자동 모델 전환).<br />
+            ※ Windows .exe = V3.0.0 (NSIS 자동 설치 · 자동 업데이터).<br />
+            ※ macOS .dmg = V3.0.0 (Apple Silicon aarch64 · 자동 업데이터).<br />
+            ※ V3.0 신기능 = 16매체별 양식 틀 + 대사 인라인 수정 + 채팅 정밀 patch.<br />
             ※ iOS·Android = 다음 단계.
           </div>
         </section>
       </div>
 
       <footer style={{ padding: "20px 32px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--ink-5)" }}>
-        <span>SUNNY Story Maker · v2.13.3 셸 + V2.14 콘텐츠 · 2026-05-20</span>
+        <span>SUNNY Story Maker · V3.0.0 · 2026-05-20</span>
         <div style={{ display: "flex", gap: 16 }}>
           <a href="/guide" style={{ color: "var(--ink-4)", textDecoration: "none" }}>가이드</a>
           <a href="/changelog" style={{ color: "var(--ink-4)", textDecoration: "none" }}>변경 이력</a>
