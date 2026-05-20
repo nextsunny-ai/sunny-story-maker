@@ -360,7 +360,9 @@ function getConversionRule(s: Genre, t: Genre): string {
 }
 
 export function buildAdaptPrompt(text: string, sourceGenre: Genre, targetGenre: Genre): string {
-  const truncated = fitSourceText(text);
+  // ★ V3.1.1 — 각색은 풀 컨텍스트 필요 (캐릭터·복선·톤 다 봐야) = 40K (옛 20K의 2배)
+  // 영화 1편(평균 5만자) = 거의 다 분석. 5구간 발췌라 = 발단·전개·위기·절정·결말 다 보존.
+  const truncated = fitSourceText(text, 40000);
   const conversionRule = getConversionRule(sourceGenre, targetGenre);
   return `# 작업 요청: 각색 모드
 
@@ -397,7 +399,9 @@ ${conversionRule}
 
 
 export function buildRevisePrompt(text: string, direction: string, genre: Genre, targetSection = "전체", versionNumber = 2): string {
-  const truncated = fitSourceText(text);
+  // ★ V3.1.1 — 같은 매체 다시 쓰기도 = 풀 컨텍스트 권장 (캐릭터·복선 보존 위해) = 25K (옛 20K 살짝 ↑)
+  // 각색(40K)보다는 작음 = 같은 매체라 = 자체 구조 익숙.
+  const truncated = fitSourceText(text, 25000);
   return `# 작업 요청: 같은 매체 내 각색 — v${versionNumber}
 
 ## 장르

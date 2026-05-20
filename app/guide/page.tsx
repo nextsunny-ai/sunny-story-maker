@@ -439,12 +439,13 @@ export default function GuidePage() {
               </div>
             </div>
 
-            {/* 매체 변환 — 자동 처리 */}
+            {/* 매체 변환 — 풀 컨텍스트 + 자동 처리 */}
             <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>🔄 매체 변환 (Adapt)</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-                ✅ 영화 1편 (몇만자) → 웹툰·드라마·숏폼 등 어떤 매체로도 변환 가능. 큰 시나리오 = 자동 5구간 발췌.<br />
-                ✅ <strong>AI가 알아서 1 단위씩</strong> 변환 = 작가는 자연 발화. "영화 → 웹툰으로 가자" → AI가 1화부터 출력 → "다음 이어줘" 누적.<br />
+                ✅ <strong>★ 풀 컨텍스트 보장</strong> = 각색은 캐릭터·복선·톤·디테일 다 봐야 정확. 다른 작업(쓰기·검토)보다 = 자동 발췌 한도 2배 (40K자 = 영화 1편 평균 거의 다 분석). 5구간 발췌 (앞·1/4·중반·3/4·결말) = 발단·전개·위기·절정·결말 다 보존.<br />
+                ✅ 영화 → 웹툰·드라마·숏폼 등 어떤 매체로도 변환. <strong>AI가 알아서 1 단위씩</strong> 변환 = 작가는 자연 발화. "영화 → 웹툰으로" → AI가 1화부터 출력 → "다음 이어줘" 누적.<br />
+                ⚠️ 8만자+ 거대 본문 = 일부 디테일 누락 가능. V3.2에서 = "2단계 path" (원본 분석 → 변환) 본격 박힐 예정.<br />
                 ★ <strong>자연 발화 예시</strong>: "이 영화를 웹툰으로" / "이 분위기로 다음 회" / "더 짧게" / "더 강한 후크"
               </div>
             </div>
