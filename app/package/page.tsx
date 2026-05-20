@@ -119,6 +119,27 @@ function PackageMain() {
   });
 
   const [genreLetter, setGenreLetter] = useState("A");
+
+  // ★ V3.1 C6 — 매체 변경 시 = 매체별 한국 실무 추천 산출물 자동 선택
+  useEffect(() => {
+    import("@/lib/storymaker/medium-artifacts").then(({ getRecommendedArtifacts }) => {
+      const recommended = getRecommendedArtifacts(genreLetter);
+      const recKeys = recommended.map(a => a.key);
+      setOutputs(prev => {
+        // 사용자가 직접 변경하지 X 옛 디폴트면 = 매체별 추천으로 교체
+        const next: Record<string, boolean> = {};
+        for (const item of ITEMS) {
+          next[item.k] = recKeys.includes(item.k);
+        }
+        // 옛 지원사업 토글은 보존
+        if (prev.intent) next.intent = true;
+        if (prev.production) next.production = true;
+        if (prev.bio) next.bio = true;
+        if (prev.impact) next.impact = true;
+        return next;
+      });
+    }).catch(() => { /* import 실패 = 옛 디폴트 그대로 */ });
+  }, [genreLetter]);
   const [project, setProject] = useState("");
   const [runtime, setRuntime] = useState("");
   const [platform, setPlatform] = useState("");

@@ -949,8 +949,13 @@ function WriteMain() {
     if (typeof window !== "undefined" && searchParams.get("from") === "develop") {
       try {
         const raw = window.localStorage.getItem("storyMaker.developHandoff");
-        if (raw) developPrior = JSON.parse(raw);
-      } catch { /* ignore */ }
+        if (raw) developPrior = JSON.parse(raw);  // ★ V3.1 D3 — read 실패 시 logWarn 박힘 (= 의도적 silent X)
+      } catch (e) {
+        // ★ V3.1 D3 — develop handoff·workConversation read 실패 = 작가 영향 X 작지만 로그는 박음
+        if (typeof window !== "undefined") {
+          import("@/lib/log").then(({ logWarn }) => logWarn(`localStorage read failed: ${e instanceof Error ? e.message : String(e)}`, "write:localStorage")).catch(() => {});
+        }
+      }
     }
 
     // ★ 한 클로드 conversation 모델 — 옛 turn 누적해서 보냄 (prompt cache 1h TTL = 입력 토큰 1/10)
@@ -1467,7 +1472,12 @@ function WriteMain() {
       try {
         const raw = window.localStorage.getItem("storyMaker.developHandoff");
         if (raw) developPrior = JSON.parse(raw);
-      } catch { /* ignore */ }
+      } catch (e) {
+        // ★ V3.1 D3 — develop handoff·workConversation read 실패 = 작가 영향 X 작지만 로그는 박음
+        if (typeof window !== "undefined") {
+          import("@/lib/log").then(({ logWarn }) => logWarn(`localStorage read failed: ${e instanceof Error ? e.message : String(e)}`, "write:localStorage")).catch(() => {});
+        }
+      }
     }
     // ★ V2.13.4 — 옛 대화 전달 = conversationMessages 한 경로로 통일.
     //   옛 recentChat(prior) 방식 제거: build-prompt의 formatConversationHistory가
@@ -1568,7 +1578,12 @@ function WriteMain() {
                 ));
               }
             }
-          } catch { /* ignore */ }
+          } catch (e) {
+        // ★ V3.1 D3 — develop handoff·workConversation read 실패 = 작가 영향 X 작지만 로그는 박음
+        if (typeof window !== "undefined") {
+          import("@/lib/log").then(({ logWarn }) => logWarn(`localStorage read failed: ${e instanceof Error ? e.message : String(e)}`, "write:localStorage")).catch(() => {});
+        }
+      }
         }
       }
       // ★ workConversation 누적

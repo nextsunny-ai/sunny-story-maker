@@ -134,12 +134,12 @@ export function ClaudeCliGate() {
         style={{
           maxWidth: 560,
           width: "100%",
-          background: "#ffffff",
-          border: "1px solid rgba(0,0,0,0.08)",
+          background: "var(--card, #ffffff)",
+          border: "1px solid var(--line, rgba(0,0,0,0.08))",
           borderRadius: 16,
           boxShadow: "0 12px 48px rgba(0,0,0,0.12)",
           padding: "36px 40px",
-          color: "#1a1a1a",
+          color: "var(--ink-1, #1a1a1a)",
         }}
       >
         <div style={{ fontSize: 13, color: "#888", letterSpacing: "0.04em", marginBottom: 8 }}>

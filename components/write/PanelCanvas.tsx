@@ -74,6 +74,7 @@ function EditableLine({
 }) {
   const ref = useRef<HTMLSpanElement>(null);
   const [focused, setFocused] = useState(false);
+  const isComposingRef = useRef(false); // ★ V3.1 B3 — IME 한국어 조합
   return (
     <span
       ref={ref}
@@ -86,9 +87,12 @@ function EditableLine({
         const t = ref.current?.innerText || "";
         if (t !== value) onChange(t);
       }}
+      onCompositionStart={() => { isComposingRef.current = true; }}
+      onCompositionEnd={() => { isComposingRef.current = false; }}
       onKeyDown={(e: KeyboardEvent<HTMLSpanElement>) => {
-        if (!multiline && e.key === "Enter") { e.preventDefault(); ref.current?.blur(); }
-        if (e.key === "Escape") { if (ref.current) ref.current.innerText = value; ref.current?.blur(); }
+        if (isComposingRef.current || e.nativeEvent.isComposing) return; // ★ B3 = 한국어 조합 중 무시
+        if (!multiline && e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ref.current?.blur(); }
+        if (e.key === "Escape") { e.preventDefault(); if (ref.current) ref.current.innerText = value; ref.current?.blur(); }
       }}
       style={{
         outline: focused ? "1px solid var(--coral)" : "none",

@@ -42,10 +42,13 @@ export function migrateParasToDoc(paras: ParaLike[], letter: string): WriteDoc {
     .map((p) => p.text)
     .join("\n\n");
   const blocks = plainTextToBlocks(group, flattened, letter);
+  // ★ V3.1 B1 — CUESHEET 그룹 = cueColumns 자동 박힘 (= round-trip 보존)
+  const cueColumns = group === "CUESHEET" ? (CUE_COLUMNS[letter] || CUE_COLUMNS.M) : undefined;
   return {
     v: 3,
     group,
     letter,
+    ...(cueColumns ? { cueColumns } : {}),
     blocks: blocks.length > 0 ? blocks : paras.map((p) => ({
       id: p.id,
       kind: "prose" as const,
@@ -59,13 +62,23 @@ export function migrateParasToDoc(paras: ParaLike[], letter: string): WriteDoc {
 
 // ─── Block[] → 평탄 텍스트 (export·AI 호출·매체 변경 공용) ───
 export function blocksToPlainText(doc: WriteDoc): string {
-  return doc.blocks
-    .map((b) => blockToText(b))
-    .filter((t) => t && t.trim())
-    .join("\n\n");
+  const parts: string[] = [];
+
+  // ★ V3.1 B1 — CUESHEET = 표 헤더 row 먼저 (round-trip 보존)
+  if (doc.group === "CUESHEET" && doc.cueColumns && doc.cueColumns.length > 0) {
+    const headers = ["시간", ...doc.cueColumns.map(c => c.label)];
+    parts.push(`| ${headers.join(" | ")} |`);
+    parts.push(`|${headers.map(() => "---").join("|")}|`);
+  }
+
+  for (const b of doc.blocks) {
+    const t = blockToText(b, doc);
+    if (t && t.trim()) parts.push(t);
+  }
+  return parts.join("\n");
 }
 
-function blockToText(b: Block): string {
+function blockToText(b: Block, doc?: WriteDoc): string {
   switch (b.kind) {
     case "prose":
       return b.text || "";
@@ -77,10 +90,11 @@ function blockToText(b: Block): string {
     }
 
     case "scene-heading": {
+      // ★ V3.1 B1 — S#1. (점 박힘 = round-trip 보존)
       const ie = b.intExt ? `${b.intExt}. ` : "";
-      const sn = b.sceneNo ? `S#${b.sceneNo} ` : "";
+      const sn = b.sceneNo ? `S#${b.sceneNo}. ` : "";
       const place = b.place || "";
-      const time = b.time ? ` - ${b.time}` : "";
+      const time = b.time ? ` / ${b.time}` : "";
       return `${sn}${ie}${place}${time}`.trim();
     }
 
@@ -88,9 +102,10 @@ function blockToText(b: Block): string {
       return b.text || "";
 
     case "dialogue": {
+      // ★ V3.1 B1 — 한국 시나리오 표준 "캐릭터: 대사" (= round-trip 1줄 보존)
       const ch = b.character + (b.effect ? " (E)" : "");
-      const paren = b.parenthetical ? `\n(${b.parenthetical})` : "";
-      return `${ch}${paren}\n${b.text}`;
+      const paren = b.parenthetical ? ` (${b.parenthetical})` : "";
+      return `${ch}${paren}: ${b.text}`;
     }
 
     case "music-number": {
@@ -99,6 +114,11 @@ function blockToText(b: Block): string {
     }
 
     case "cue-row": {
+      // ★ V3.1 B1 — doc.cueColumns 순서대로 cells 박음 (= round-trip 보존)
+      if (doc?.cueColumns) {
+        const ordered = doc.cueColumns.map(c => b.cells[c.key] || "");
+        return `| ${b.timecode} | ${ordered.join(" | ")} |`;
+      }
       const cells = Object.values(b.cells).filter(Boolean).join(" | ");
       return `| ${b.timecode} | ${cells} |`;
     }

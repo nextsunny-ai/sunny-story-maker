@@ -180,7 +180,7 @@ function FieldRow({
 }
 
 // ─── L 게임 — 대사 데이터 표 ───
-function GameCanvas({ doc, onBlockEdit, onBlockContinue, onBlockDelete }: MediumCanvasRouterProps) {
+function GameCanvas({ doc, onBlockEdit, onBlockContinue, onBlockDelete, onBlockMove }: MediumCanvasRouterProps) {
   const lines = doc.blocks.filter((b) => b.kind === "game-line") as GameLineBlock[];
   const others = doc.blocks.filter((b) => b.kind !== "game-line");
 
@@ -219,9 +219,12 @@ function GameCanvas({ doc, onBlockEdit, onBlockContinue, onBlockDelete }: Medium
                 key={line.id}
                 line={line}
                 showAdd={idx === lines.length - 1}
+                isFirst={idx === 0}
+                isLast={idx === lines.length - 1}
                 onEdit={onBlockEdit}
                 onContinue={onBlockContinue}
                 onDelete={onBlockDelete}
+                onMove={onBlockMove}
               />
             ))}
           </tbody>
@@ -240,13 +243,16 @@ function Th({ children }: { children: React.ReactNode }) {
 }
 
 function GameLineRow({
-  line, showAdd, onEdit, onContinue, onDelete,
+  line, showAdd, isFirst, isLast, onEdit, onContinue, onDelete, onMove,
 }: {
   line: GameLineBlock;
   showAdd: boolean;
+  isFirst?: boolean;
+  isLast?: boolean;
   onEdit?: (id: string, patch: Partial<Block>) => void;
   onContinue?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onMove?: (id: string, direction: "up" | "down") => void;
 }) {
   const patch = (p: Partial<GameLineBlock>) => onEdit?.(line.id, p as Partial<Block>);
   return (
@@ -269,18 +275,26 @@ function GameLineRow({
       <td style={{ padding: "6px 8px", verticalAlign: "top", borderRight: "1px solid var(--line)", width: 70, fontSize: 11.5, color: "var(--ink-3)" }}>
         <EditField value={line.affinity || ""} placeholder="±0" onChange={(v) => patch({ affinity: v || undefined })} />
       </td>
-      {/* ★ V3.1 B6 — 행 삭제 + (마지막 행에만) 행 추가 */}
-      <td style={{ padding: 4, width: 60, verticalAlign: "middle", textAlign: "center" }}>
-        <div style={{ display: "flex", gap: 3, justifyContent: "center", flexWrap: "wrap" }}>
+      {/* ★ V3.1 B6 보강 — 행 ↑↓×+ */}
+      <td style={{ padding: 4, width: 80, verticalAlign: "middle", textAlign: "center" }}>
+        <div style={{ display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap" }}>
+          {onMove && !isFirst && (
+            <button type="button" onClick={() => onMove(line.id, "up")} title="위 행과 순서 변경"
+              style={{ fontSize: 10, padding: "2px 4px", background: "transparent", color: "var(--ink-4)", border: "1px solid var(--line)", borderRadius: 3, cursor: "pointer" }}>↑</button>
+          )}
+          {onMove && !isLast && (
+            <button type="button" onClick={() => onMove(line.id, "down")} title="아래 행과 순서 변경"
+              style={{ fontSize: 10, padding: "2px 4px", background: "transparent", color: "var(--ink-4)", border: "1px solid var(--line)", borderRadius: 3, cursor: "pointer" }}>↓</button>
+          )}
           {onDelete && (
             <button type="button" onClick={() => {
               if (confirm(`대사 ID "${line.lineId}" 삭제할까요?`)) onDelete(line.id);
             }} title="이 행 삭제"
-              style={{ fontSize: 10, padding: "2px 5px", background: "transparent", color: "var(--coral-deep, #c84738)", border: "1px solid var(--coral)", borderRadius: 3, cursor: "pointer" }}>×</button>
+              style={{ fontSize: 10, padding: "2px 4px", background: "transparent", color: "var(--coral-deep, #c84738)", border: "1px solid var(--coral)", borderRadius: 3, cursor: "pointer" }}>×</button>
           )}
           {showAdd && onContinue && (
             <button type="button" onClick={() => onContinue(line.id)} title="다음 행 추가"
-              style={{ fontSize: 10, padding: "2px 5px", background: "transparent", color: "var(--coral)", border: "1px solid var(--coral)", borderRadius: 3, cursor: "pointer" }}
+              style={{ fontSize: 10, padding: "2px 4px", background: "transparent", color: "var(--coral)", border: "1px solid var(--coral)", borderRadius: 3, cursor: "pointer" }}
             >+</button>
           )}
         </div>

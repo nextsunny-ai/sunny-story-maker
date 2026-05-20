@@ -331,6 +331,17 @@ export function WriteWorkbook({
                     textWithoutMarkers = m.text.replace(PATCH_RE, "").trim();
                   }
 
+                  // ★ V3.1 C4 — [[다음:단계명]] 마커 파싱 (workflow 자동 진행)
+                  const NEXT_RE = /\[\[다음:([^\]]+)\]\]/g;
+                  const nextSteps: string[] = [];
+                  let nm: RegExpExecArray | null;
+                  while ((nm = NEXT_RE.exec(textWithoutMarkers)) !== null) {
+                    nextSteps.push(nm[1].trim());
+                  }
+                  if (nextSteps.length > 0) {
+                    textWithoutMarkers = textWithoutMarkers.replace(NEXT_RE, "").trim();
+                  }
+
                   // ★ V3.1 C2 — [[의견/질문/평가:N:내용]] 마커 파싱 (본문 patch X · 채팅 도구)
                   const TOOL_RE = /\[\[(의견|질문|평가):(\d+)(?::([\s\S]*?))?\]\]/g;
                   type ToolKind = "의견" | "질문" | "평가";
@@ -346,6 +357,26 @@ export function WriteWorkbook({
                   if (tools.length > 0) {
                     textWithoutMarkers = textWithoutMarkers.replace(TOOL_RE, "").trim();
                   }
+                  // ★ V3.1 C4 — 다음 단계 버튼 렌더링
+                  const NextStepBlock = nextSteps.length > 0 && onFlowStepActivate ? (
+                    <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed var(--coral)", display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {nextSteps.map((step, ni) => (
+                        <button
+                          key={ni}
+                          type="button"
+                          onClick={() => onFlowStepActivate(step)}
+                          style={{
+                            fontSize: 12, padding: "5px 12px", fontWeight: 700,
+                            background: "var(--coral, #ff6b53)", color: "#fff",
+                            border: "none", borderRadius: 999, cursor: "pointer",
+                          }}
+                        >
+                          → 다음 단계: {step}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null;
+
                   // 채팅 도구 카드 렌더링 (의견·질문·평가)
                   const TOOL_EMOJI: Record<ToolKind, string> = { "의견": "💡", "질문": "❓", "평가": "🎯" };
                   const TOOL_COLOR: Record<ToolKind, string> = { "의견": "#f59e0b", "질문": "#3b82f6", "평가": "#10b981" };
@@ -428,6 +459,7 @@ export function WriteWorkbook({
                           </div>
                         )}
                         {ToolsBlock}
+                        {NextStepBlock}
                       </>
                     );
                   }
