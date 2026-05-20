@@ -44,9 +44,11 @@ function OsmuMain() {
 
   const targetCount = GENRES.length - 1; // 원본 제외
   const depthInfo = {
-    A: { label: "매트릭스 분석", desc: "각 매체 1단락 · 빠른 스캔", eta: "1~3분", pages: "1단락" },
-    B: { label: "트리트먼트", desc: "각 매체 A4 1쪽 · 핵심 잡기", eta: `${targetCount * 1}~${targetCount * 2}분`, pages: "A4 1쪽" },
-    C: { label: "풀 패키지", desc: "시놉+캐릭터+첫 부분 · 본격", eta: `${targetCount * 3}~${targetCount * 5}분`, pages: "패키지" },
+    A: { label: "매트릭스 분석", desc: "각 매체 1단락 · 빠른 스캔 (★ 가장 안정)", eta: "1~3분", pages: "1단락", disabled: false },
+    B: { label: "트리트먼트", desc: "각 매체 A4 1쪽 · 핵심 잡기 (⚠ 토큰 큼 = 한도 도달 가능)", eta: `${targetCount * 1}~${targetCount * 2}분`, pages: "A4 1쪽", disabled: false },
+    // ★ V3.1.1 — 풀 패키지 = 12 매체 × (시놉+캐릭터+본문) ≈ 5만자 출력 = AI 출력 한도 초과 = 사실상 작동 X
+    // 대표님 명시 (2026-05-20): "풀패키지 그건 아예 못할 거 같아". 옵션 비활성 + adapt 페이지 권장.
+    C: { label: "풀 패키지", desc: "★ 작동 한계 = adapt 페이지에서 1매체씩 본격 변환 권장", eta: "—", pages: "비활성", disabled: true },
   } as const;
   const cur = depthInfo[depth];
 
@@ -81,10 +83,30 @@ function OsmuMain() {
     abortRef.current = ac;
 
     try {
-      // 분당 토큰 한도 절약 — 8000자로 자동 truncate (분석엔 충분)
-      const truncatedBody = body.length > 8000
-        ? body.slice(0, 8000) + "\n\n[…이하 생략 — 분당 토큰 절약 위해 8,000자만 분석]"
-        : body;
+      // ★ V3.1.1 — 영화 1편(5만자) 등 큰 시나리오도 핵심 발췌 (앞·1/4·중반·3/4·결말 5구간 = 20K자)
+      // 옛 = 앞 8,000자만 분석 = 결말·중반 누락 = 부실. 새 = 5구간 발췌 = 핵심 다 보존.
+      const truncatedBody = (() => {
+        const LIMIT = 20000;
+        if (body.length <= LIMIT) return body;
+        const headLen = Math.floor(LIMIT * 0.30);
+        const q1Len = Math.floor(LIMIT * 0.15);
+        const midLen = Math.floor(LIMIT * 0.15);
+        const q3Len = Math.floor(LIMIT * 0.15);
+        const tailLen = LIMIT - headLen - q1Len - midLen - q3Len;
+        const total = body.length;
+        const q1Start = Math.floor(total * 0.25 - q1Len / 2);
+        const midStart = Math.floor(total * 0.5 - midLen / 2);
+        const q3Start = Math.floor(total * 0.75 - q3Len / 2);
+        return body.slice(0, headLen)
+          + `\n\n…(앞부분 끝 · 원문 ${total.toLocaleString()}자 중 [1/4 지점]으로)…\n\n`
+          + body.slice(q1Start, q1Start + q1Len)
+          + `\n\n…([1/4] 끝 · [중반]으로)…\n\n`
+          + body.slice(midStart, midStart + midLen)
+          + `\n\n…([중반] 끝 · [3/4]로)…\n\n`
+          + body.slice(q3Start, q3Start + q3Len)
+          + `\n\n…([3/4] 끝 · [결말]로)…\n\n`
+          + body.slice(total - tailLen);
+      })();
       const { getWorkId } = await import("@/lib/storymaker/work-id");
       const workId = title.trim() ? getWorkId(source, title.trim()) : "";
       await streamAgent({
@@ -244,11 +266,21 @@ function OsmuMain() {
                   return (
                     <button
                       key={k}
-                      className={"osmu-depth-pill" + (depth === k ? " is-on" : "")}
-                      onClick={() => setDepth(k)}
+                      className={"osmu-depth-pill" + (depth === k ? " is-on" : "") + (info.disabled ? " is-disabled" : "")}
+                      onClick={() => {
+                        if (info.disabled) {
+                          alert("풀 패키지 = 12 매체 × (시놉+캐릭터+본문) ≈ 5만자 출력 = AI 한도 초과 = 사실상 작동 X.\n\n★ 권장 = adapt 페이지에서 1 매체씩 본격 변환 (예: '영화 → 웹툰 50화' = 단계별).");
+                          router.push("/adapt");
+                          return;
+                        }
+                        setDepth(k);
+                      }}
                       title={info.desc}
+                      disabled={info.disabled}
+                      style={info.disabled ? { opacity: 0.5, cursor: "help" } : undefined}
+                      aria-disabled={info.disabled}
                     >
-                      <span className="osmu-depth-pill-name">{info.label}</span>
+                      <span className="osmu-depth-pill-name">{info.label}{info.disabled ? " ⚠" : ""}</span>
                       <span className="osmu-depth-pill-pages">{info.pages}</span>
                     </button>
                   );
