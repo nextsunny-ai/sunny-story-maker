@@ -1713,6 +1713,11 @@ function WriteMain() {
   //   웹 = skipped: "not-tauri" (= 자동저장은 localStorage + Supabase 본문 그대로)
   useEffect(() => {
     if (isDemo) return;
+    // ★ V3.1 — 작가 prefs (backupIntervalSec)로 빈도 박힘
+    const loadInterval = async () => {
+      const { loadStoragePrefs } = await import("@/lib/storymaker/storage-prefs");
+      return loadStoragePrefs().backupIntervalSec || 60;
+    };
     const tick = () => {
       const title = (work.title || ideaParam || "").trim();
       if (!title) return;
@@ -1723,10 +1728,13 @@ function WriteMain() {
       if (!body.trim()) return;
       void autoBackupDocx(title, body); // fire-and-forget — 실패 silent
     };
-    // 첫 호출 = 30초 후 1회 (= 작가가 글 좀 쓴 후) → 이후 60초마다
-    const initial = setTimeout(tick, 30_000);
-    const interval = setInterval(tick, 60_000);
-    return () => { clearTimeout(initial); clearInterval(interval); };
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const initial = setTimeout(async () => {
+      tick();
+      const sec = await loadInterval();
+      interval = setInterval(tick, sec * 1000);
+    }, 30_000);
+    return () => { clearTimeout(initial); if (interval) clearInterval(interval); };
   }, [isDemo, work.title, ideaParam, paras]);
 
   // ★ V3.1 D2 — Supabase work_snapshots (5분마다 본문 변화 시 1행).

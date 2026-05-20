@@ -87,9 +87,13 @@ export async function autoBackupDocx(title: string, markdown: string): Promise<B
     const fs = await import("@tauri-apps/plugin-fs");
     const pathMod = await import("@tauri-apps/api/path");
 
-    // (2) ~/Documents/StoryMaker/{작품명}/ 폴더 보장
-    const documentsDir = await pathMod.documentDir();
-    const folder = await pathMod.join(documentsDir, "StoryMaker", key);
+    // (2) 작가 지정 폴더 우선 → 없으면 ~/Documents/StoryMaker/{작품명}/
+    //     ★ V3.1 — Settings에서 작가가 폴더 선택 가능 (Google Drive·Dropbox·USB 등)
+    const { loadStoragePrefs } = await import("./storage-prefs");
+    const prefs = loadStoragePrefs();
+    const baseFolder = prefs.backupFolder
+      || (await pathMod.join(await pathMod.documentDir(), "StoryMaker"));
+    const folder = await pathMod.join(baseFolder, key);
     await fs.mkdir(folder, { recursive: true });
 
     // (3) .docx 생성 → Uint8Array
