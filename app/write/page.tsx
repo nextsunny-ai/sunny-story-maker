@@ -11,6 +11,7 @@ import { Btn } from "@/components/ui";
 import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
 import { appendTurns } from "@/lib/storymaker/work-id";
 import { downloadDocx, downloadTxt } from "@/lib/storymaker/export";
+import type { WriteDoc as WriteDocV3 } from "@/lib/storymaker/write-doc";
 import { streamFetch } from "@/lib/stream-agent";
 import { getModelChoice } from "@/lib/storymaker/model-prefs";
 import { getWorkflow, QUICK_ACTIONS } from "@/lib/workflows";
@@ -307,7 +308,8 @@ interface PersistedProject {
   work: WorkInfo;
   notes: Note[];
   flow: FlowItem[];
-  paras: Para[];
+  paras: Para[];           // V2 호환 — 옛 작품 그대로 보존 (롤백 안전망, 글로벌 룰 17)
+  doc?: WriteDocV3;        // ★ V3.0 — 새 본문 모델. 단계 1+에서 paras와 함께 저장 (paras는 평탄화 거울)
   chat: ChatMsg[];
   mediumFields?: FieldValues;
   briefDone?: boolean;
