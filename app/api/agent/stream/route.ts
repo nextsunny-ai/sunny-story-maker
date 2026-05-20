@@ -278,7 +278,8 @@ function buildBasePrompt(b: RequestBody): string {
 
     case "package":
     case "full-package":
-      return buildFullPackagePrompt(b.idea ?? "", genre, b.userInput ?? {}, b.artifactKeys ?? []);
+      // ★ V3.1.1 — b.analysis 박혀있으면 = 2단계 path (= Haiku 풀 컨텍스트 분석 활용)
+      return buildFullPackagePrompt(b.idea ?? "", genre, b.userInput ?? {}, b.artifactKeys ?? [], b.analysis);
 
     case "osmu":
       return buildOsmuPrompt(b.idea ?? "", b.sourceIp);

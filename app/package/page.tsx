@@ -615,14 +615,52 @@ function PackageMain() {
 
       const { getWorkId } = await import("@/lib/storymaker/work-id");
       const workId = project.trim() ? getWorkId(genreLetter, project.trim()) : "";
+
+      // ★ V3.1.1 — 1단계: Haiku로 풀 컨텍스트 분석 (Pro fair use = 한도 거의 무제한)
+      // 작가 입력 (제목·로그라인·줄거리·의뢰서 답변·옛 자료) 다 통합해서 = 핵심 정리
+      let analysis = "";
+      const analysisInput = [
+        `# 작품 정보`,
+        `- 제목: ${project || "(미정)"}`,
+        `- 매체: ${genreLetter}`,
+        ``,
+        `## 한 줄 아이디어`,
+        logline.trim() || "(미작성)",
+        ``,
+        `## 줄거리·시놉시스`,
+        story.trim() || "(미작성)",
+        ``,
+        `## 의뢰서 답변`,
+        Object.entries(userInput || {})
+          .filter(([, v]) => v)
+          .map(([k, v]) => `- ${k}: ${v}`)
+          .join("\n") || "(미작성)",
+      ].join("\n");
+
+      setActiveStep("analyze");
+      await streamAgent({
+        body: {
+          mode: "analyze",
+          text: analysisInput,
+          genreLetter,
+          fast: true, // Haiku 강제 = 한도 안 차감
+        },
+        userPromptSummary: `[패키지 사전 분석] ${(project || "작품").slice(0, 50)}`,
+        signal: ac.signal,
+        onDelta: (chunk) => { analysis += chunk; },
+        onError: (msg) => setError(msg),
+      });
+
+      // ★ V3.1.1 — 2단계: Sonnet/Opus로 산출물 생성 (= 분석 결과 활용 = 풀 컨텍스트 quality + 토큰 절약)
       await streamAgent({
         body: {
           mode: "full-package",
           idea: logline.trim() || story.trim() || project,
           genreLetter,
-          fast: false, // 패키지는 깊이 — Opus
+          fast: false, // 패키지는 깊이 — Opus/Sonnet
           userInput,
           artifactKeys: runKeys,
+          analysis, // ★ Haiku 분석 결과 전달
           ...(workId ? { workId } : {}),
           ...(Object.keys(prior).length > 0 ? { prior } : {}),
         },

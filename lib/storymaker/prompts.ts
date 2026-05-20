@@ -1334,16 +1334,22 @@ const ARTIFACT_LABELS: Record<string, { name: string; spec: string }> = {
   impact:     { name: "예상 효과", spec: "관객·시장·문화적 효과. 정량·정성 1~2쪽." },
 };
 
-export function buildFullPackagePrompt(idea: string, genre: Genre, userInput: Record<string, string>, artifactKeys: string[]): string {
+export function buildFullPackagePrompt(idea: string, genre: Genre, userInput: Record<string, string>, artifactKeys: string[], analysis?: string): string {
   const artifactDetails = artifactKeys.map((k, i) => {
     const meta = ARTIFACT_LABELS[k];
     if (!meta) return `${i + 1}. ${k}`;
     return `${i + 1}. **${meta.name}** — ${meta.spec}`;
   }).join("\n");
 
+  // ★ V3.1.1 — analysis 박혀있으면 = Haiku로 사전 분석한 결과 활용 (= 2단계 path)
+  const analysisPart = analysis
+    ? `\n## ★ 사전 분석 (= Haiku로 풀 컨텍스트 분석한 결과 — 캐릭터·복선·세계관·핵심 씬 정리)\n${analysis}\n`
+    : "";
+
   return `# 작업 요청: 기획 패키지 (${artifactKeys.length}종 산출물)
 
 ${commonBrief(idea, genre, userInput)}
+${analysisPart}
 
 ## 작업 — ${artifactKeys.length}종 산출물 본문을 차례로 출력 (한 호출)
 ${artifactDetails}
