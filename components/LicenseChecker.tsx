@@ -140,7 +140,7 @@ export function LicenseChecker() {
           "[Story Maker] 계정 상태:",
           fresh.record.plan,
           fresh.record.status,
-          "= 사용 제한될 수 있습니다. support@sunnytoon.com 문의."
+          "= 사용 제한될 수 있습니다. sunny@sunnyent.co.kr 문의."
         );
       }
     }

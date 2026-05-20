@@ -545,7 +545,7 @@ function translateAuthError(message: string): string {
   if (m.includes("network") || m.includes("fetch failed") || m.includes("failed to fetch")) return "네트워크 오류가 발생했습니다. 인터넷 연결을 확인하고 다시 시도해주세요.";
   if (m.includes("invalid email") || m.includes("email_address_invalid")) return "이메일 형식이 올바르지 않습니다.";
   if (m.includes("user not found") || m.includes("user_not_found")) return "가입되지 않은 이메일입니다. 아래 [30일 무료 시작]으로 먼저 가입해주세요.";
-  if (m.includes("redirect_uri") || m.includes("redirect uri")) return "Google 로그인 설정에 일시적 문제가 있습니다. 이메일·비밀번호로 로그인하시거나 support@sunnytoon.com 으로 문의해주세요.";
+  if (m.includes("redirect_uri") || m.includes("redirect uri")) return "Google 로그인 설정에 일시적 문제가 있습니다. 이메일·비밀번호로 로그인하시거나 sunny@sunnyent.co.kr 으로 문의해주세요.";
   if (m.includes("captcha")) return "보안 확인이 필요합니다. 페이지를 새로고침하고 다시 시도해주세요.";
   if (m.includes("token") && (m.includes("expired") || m.includes("invalid"))) return "확인 링크가 만료됐거나 유효하지 않습니다. 다시 가입하시거나 [확인 메일 재발송]을 눌러주세요.";
   if (m.includes("missing_code") || m.includes("missing code")) return "인증 코드를 받지 못했습니다. 다시 시도해주세요.";

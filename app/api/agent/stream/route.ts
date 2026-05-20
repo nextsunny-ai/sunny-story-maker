@@ -636,7 +636,7 @@ export async function POST(req: NextRequest) {
       if (licenseRow?.plan === "banned" || licenseRow?.status === "suspended") {
         return new Response(
           JSON.stringify({
-            error: "계정이 정지되었습니다. 지원팀(support@sunnytoon.com)에 문의해주세요.",
+            error: "계정이 정지되었습니다. 지원팀(sunny@sunnyent.co.kr)에 문의해주세요.",
             code: "BANNED",
           }),
           { status: 403, headers: { "content-type": "application/json" } }

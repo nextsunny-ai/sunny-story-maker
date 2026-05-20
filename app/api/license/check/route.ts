@@ -116,7 +116,7 @@ export async function POST() {
   if (record.plan === "banned" || record.status === "suspended") {
     return NextResponse.json(
       {
-        error: "계정이 정지되었습니다. 문의: support@sunnytoon.com",
+        error: "계정이 정지되었습니다. 문의: sunny@sunnyent.co.kr",
         code: "ACCOUNT_SUSPENDED",
       },
       { status: 403 }

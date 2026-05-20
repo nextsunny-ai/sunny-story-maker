@@ -91,7 +91,7 @@ export default function PrivacyPage() {
         <h2 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 500, marginTop: 36, marginBottom: 12 }}>8. 책임자</h2>
         <p>
           개인정보보호 책임자: 유희정 (Story Maker 운영자)<br />
-          이메일: support@sunnytoon.com
+          이메일: sunny@sunnyent.co.kr
         </p>
 
         <h2 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 500, marginTop: 36, marginBottom: 12 }}>9. 정책 변경</h2>

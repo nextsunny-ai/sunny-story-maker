@@ -111,47 +111,41 @@ export default function DownloadPage() {
         {/* 좌: 가이드 4단계 */}
         <section style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <div>
-            <div style={{ fontSize: 11, color: "var(--ink-5)", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>
-              — DESKTOP APP v2.12
-            </div>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: 38, lineHeight: 1.2, fontWeight: 500, color: "var(--ink)", letterSpacing: "-0.02em", margin: 0 }}>
               본인 PC에서 <em style={{ fontStyle: "italic" }}>무료로 사용</em><span style={{ color: "var(--coral)" }}>.</span>
             </h1>
             <p style={{ fontSize: 15, color: "var(--ink-3)", lineHeight: 1.7, marginTop: 14 }}>
-              Claude Pro/Max 구독($20/월)만 있으면 = <strong style={{ color: "var(--ink-1)" }}>추가 비용 0원</strong>으로 무제한 사용.
+              Claude Pro/Max 구독($20/월)만 있으면 <strong style={{ color: "var(--ink-1)" }}>추가 비용 없이 무제한</strong>.
             </p>
           </div>
 
+          {/* 준비 — 한 줄 */}
+          <div style={{ fontSize: 14, color: "var(--ink-2)", lineHeight: 1.7 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--ink-4)" }}>준비</span>
+            <br />
+            <a href="https://claude.ai/upgrade" target="_blank" rel="noreferrer" style={{ color: "var(--coral)", textDecoration: "underline" }}>Claude Pro</a> 또는 Max 구독 ($20/월) — 평소 쓰는 Claude 계정이면 OK.
+          </div>
+
+          {/* 설치 3단계 — 간결 */}
           <div style={{ background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 12, padding: "20px 22px" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--ink-4)", marginBottom: 10 }}>준비물 (한 번만)</div>
-            <ol style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: "var(--ink-2)", lineHeight: 1.85 }}>
-              <li>
-                <a href="https://claude.ai/upgrade" target="_blank" rel="noreferrer" style={{ color: "var(--coral)", textDecoration: "underline" }}>Claude Pro</a> 또는 Max 구독 ($20/월부터)
-              </li>
-              <li>
-                <a href="https://docs.anthropic.com/en/docs/claude-code/quickstart" target="_blank" rel="noreferrer" style={{ color: "var(--coral)", textDecoration: "underline" }}>Claude Code 설치</a> + 본인 계정 로그인 (= 평소 쓰는 그 Claude 계정)
-              </li>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--ink-4)", marginBottom: 12 }}>설치 · 3분</div>
+            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: "var(--ink-2)", lineHeight: 2 }}>
+              <li>우측 <strong style={{ color: "var(--ink-1)" }}>다운로드</strong> 클릭 → 파일 받기 (약 5MB)</li>
+              <li>받은 파일 더블클릭 → 보안 경고 시 <strong style={{ color: "var(--coral)" }}>"추가 정보 → 실행"</strong> (<a href="/guide#defender-guide" style={{ color: "var(--coral)", textDecoration: "underline" }}>자세히</a>)</li>
+              <li>"다음" 몇 번 → 바탕화면 단축키 더블클릭하면 끝</li>
             </ol>
           </div>
 
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--ink-4)", marginBottom: 10 }}>설치 (4단계 · 3분)</div>
-            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: "var(--ink-2)", lineHeight: 1.95 }}>
-              <li>우측 <strong style={{ color: "var(--ink-1)" }}>"Windows 데스크탑 앱"</strong> 다운로드 클릭 → SetupExe 파일 받기 (4.5MB)</li>
-              <li>받은 파일 더블클릭 → Windows Defender 경고 시 <strong style={{ color: "var(--coral)" }}>"추가 정보 → 실행"</strong> 한 번 클릭 (= 첫 출시 unsigned, 안전합니다 · <a href="/guide#defender-guide" style={{ color: "var(--coral)", textDecoration: "underline" }}>단계별 가이드</a>)</li>
-              <li>"다음 다음 다음" 설치 완료 → 시작 메뉴 + 바탕화면 단축키 자동 생성</li>
-              <li>바탕화면 단축키 더블클릭 → 끝. 매번 더블클릭하면 됩니다.</li>
-            </ol>
+          {/* 자동 — 짧게 */}
+          <div style={{ background: "rgba(120, 200, 140, 0.06)", border: "1px solid rgba(120, 200, 140, 0.25)", borderRadius: 10, padding: "14px 18px", fontSize: 13, color: "var(--ink-2)", lineHeight: 1.8 }}>
+            ✓ 새 버전 자동 알림 + 1클릭 설치<br />
+            ✓ 작법 노하우 매주 자동 갱신<br />
+            ✓ 작품 = 자동 저장 = 어디서든 이어쓰기
           </div>
 
-          <div style={{ background: "rgba(120, 200, 140, 0.06)", border: "1px solid rgba(120, 200, 140, 0.25)", borderRadius: 10, padding: "14px 18px", fontSize: 13, color: "var(--ink-2)", lineHeight: 1.65 }}>
-            ✓ <strong>업데이트</strong> = 새 버전 나오면 = 앱 시작 시 자동 알림 + 1클릭 설치<br />
-            ✓ <strong>작법 노하우</strong> = 매주 자동 갱신 (= 사장님 큐레이션 + GitHub 새 자료)<br />
-            ✓ <strong>본인 작품 데이터</strong> = Supabase 자동 저장 = 어디서든 이어쓰기
-          </div>
-
-          <div style={{ fontSize: 12, color: "var(--ink-5)", lineHeight: 1.7 }}>
-            막힐 때 = <a href="/guide" style={{ color: "var(--ink-3)", textDecoration: "underline" }}>가이드 페이지</a> 또는 = <a href="mailto:support@sunnytoon.com" style={{ color: "var(--ink-3)", textDecoration: "underline" }}>support@sunnytoon.com</a>
+          {/* 도움 */}
+          <div style={{ fontSize: 12.5, color: "var(--ink-4)", lineHeight: 1.7 }}>
+            막힐 때 = <a href="/guide" style={{ color: "var(--ink-2)", textDecoration: "underline" }}>가이드 페이지</a> 또는 = <a href="mailto:sunny@sunnyent.co.kr" style={{ color: "var(--ink-2)", textDecoration: "underline" }}>sunny@sunnyent.co.kr</a>
           </div>
         </section>
 
