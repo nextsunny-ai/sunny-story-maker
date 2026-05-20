@@ -359,18 +359,76 @@ function getConversionRule(s: Genre, t: Genre): string {
   return ""; // 매체 같거나 = 룰 없음 = 토큰 절약
 }
 
-export function buildAdaptPrompt(text: string, sourceGenre: Genre, targetGenre: Genre): string {
-  // ★ V3.1.1 — 각색은 풀 컨텍스트 필요 (캐릭터·복선·톤 다 봐야) = 40K (옛 20K의 2배)
-  // 영화 1편(평균 5만자) = 거의 다 분석. 5구간 발췌라 = 발단·전개·위기·절정·결말 다 보존.
-  const truncated = fitSourceText(text, 40000);
+// ★ V3.1.1 — 각색 1단계: Haiku로 원본 풀 컨텍스트 분석 (= Pro fair use = 한도 거의 무제한)
+// 풀 본문 (영화 1편 5만자·드라마 풀시즌 30만자·소설 10만자+) 다 읽고 = 핵심 추출.
+// 출력 = 약 3,000~5,000자 정리. 2단계 (Opus/Sonnet 변환)의 입력으로 사용.
+export function buildAnalyzePrompt(text: string, sourceGenre: Genre): string {
+  // Haiku 한도 안 = 풀 텍스트 박음 (한도 = 100K자 = 약 3만 토큰 = Haiku 컨텍스트 안전).
+  const fullText = text.length > 100000 ? fitSourceText(text, 100000) : text;
+  return `# 작업 요청: 원본 분석 (각색 전 사전 작업)
+
+## 원본 정보
+- 매체: ${sourceGenre.name} (${sourceGenre.sub})
+- 분량: ${text.length.toLocaleString()}자
+- 표준 양식: ${sourceGenre.standard}
+
+## 원본 본문 (★ 풀 컨텍스트)
+\`\`\`
+${fullText}
+\`\`\`
+
+## 출력 — 다음 6 항목 한국 시나리오·문학 표준으로 정리
+
+### 1. 한 줄 로그라인 (= 작품 핵심)
+(20자 이내 한 줄)
+
+### 2. 시놉시스 (= 3막 구조)
+- 1막 (Setup): (3~5줄)
+- 2막 (Confront): (3~5줄)
+- 3막 (Resolution): (3~5줄)
+
+### 3. 주요 캐릭터 (3~6명)
+각 캐릭터:
+- 이름·나이·직업·역할
+- 동기·결핍·아크 (어떻게 변하는가)
+- 고유 비유 체계 (있다면)
+- 화법 특징 (이름 가리기 테스트 통과 핵심)
+
+### 4. 핵심 갈등·복선·세계관
+- 메인 갈등 1개 + 서브 갈등 2~3개
+- 복선 = 회수 시점·중요도 (★★★)
+- 세계관·룰·금기 (있다면)
+
+### 5. 핵심 씬 5~10개 (= 변환 시 반드시 보존)
+- 각 씬 = 한 줄 요약 + 왜 핵심인가
+- 정서적·서사적 절정 위주
+
+### 6. 톤·정서·문체 특징
+- 작가 보존해야 할 = "이 작품만의 색"
+- 한국 문체·정서 패턴 (있다면)
+
+## 룰
+- 한국 시나리오·문학 작법 기준
+- 작가가 = 이걸 들고 = 다른 매체로 변환 할 때 = 핵심 다 가져갈 수 있게
+- 추측 X, 원본에 박힌 것만
+- 마크다운 헤더 (### 1. ~) 그대로 = 다음 단계 파싱 위해 보존
+`;
+}
+
+export function buildAdaptPrompt(text: string, sourceGenre: Genre, targetGenre: Genre, analysis?: string): string {
+  // ★ V3.1.1 — 2단계 path: analysis (Haiku 풀 컨텍스트 분석) 박혀있으면 = 분석 우선 활용 (옛 본문은 발췌).
+  //   = 풀 컨텍스트 quality + 작가 한도 절약 (= Opus/Sonnet 입력 = 작음).
+  //   분석 없으면 = 옛 path (= 본문 5구간 발췌 40K).
+  const truncated = analysis ? fitSourceText(text, 15000) : fitSourceText(text, 40000);
+  const analysisPart = analysis
+    ? `\n## ★ 사전 분석 (= Haiku로 원본 풀 컨텍스트 읽고 정리한 결과)\n${analysis}\n\n## 원본 본문 (= 분석 참고용 발췌)\n`
+    : "## 원본 시나리오:\n";
   const conversionRule = getConversionRule(sourceGenre, targetGenre);
   return `# 작업 요청: 각색 모드
 
 ## 원본
 **원본 장르**: ${sourceGenre.name} (${sourceGenre.sub})
-
-원본 시나리오:
-\`\`\`
+${analysisPart}\`\`\`
 ${truncated}
 \`\`\`
 

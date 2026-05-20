@@ -87,6 +87,9 @@ function AdaptMain() {
   const [versions, setVersions] = useState<AdaptVersion[]>([]);
   const [adapting, setAdapting] = useState(false);
   const [adaptError, setAdaptError] = useState<string | null>(null);
+  // ★ V3.1.1 — 2단계 path 진행 상태 + Haiku 분석 결과 (작가 인지·재활용)
+  const [adaptStage, setAdaptStage] = useState<"idle" | "analyzing" | "converting">("idle");
+  const [analysisText, setAnalysisText] = useState("");
 
   // 본문이 있을 때만 v1 (원본)을 자동으로 보여줌
   const displayVersions = useMemo<AdaptVersion[]>(() => {
@@ -184,11 +187,45 @@ function AdaptMain() {
     }
   };
 
-  // 다른 매체 변환 — AI 호출
+  // ★ V3.1.1 — SSE 응답 = 텍스트로 모음 (analyze·adapt 2단계 path에서 공용)
+  const streamCollect = async (body: Record<string, unknown>): Promise<string> => {
+    const res = await fetch("/api/agent/stream", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.body) throw new Error("응답 없음");
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let collected = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const events = buf.split("\n\n");
+      buf = events.pop() || "";
+      for (const evt of events) {
+        const lines = evt.split("\n");
+        const eventType = lines.find(l => l.startsWith("event:"))?.slice(6).trim();
+        const dataLine = lines.find(l => l.startsWith("data:"))?.slice(5).trim();
+        if (!dataLine) continue;
+        try {
+          const data = JSON.parse(dataLine);
+          if (eventType === "delta" && data.text) collected += data.text;
+          else if (eventType === "error") throw new Error(data.message);
+        } catch { /* ignore parse */ }
+      }
+    }
+    return collected;
+  };
+
+  // 다른 매체 변환 — ★ V3.1.1 2단계 path: (1) Haiku 풀 컨텍스트 분석 → (2) Opus/Sonnet 변환
   const handleAdaptCross = async () => {
     if (adapting || !sourceText.trim()) return;
     setAdapting(true);
     setAdaptError(null);
+    setAdaptStage("analyzing");
     const today = new Date();
     const date = `${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
     const nextV = displayVersions.length + 1;
@@ -199,42 +236,28 @@ function AdaptMain() {
       : null;
     const userSummary2 = `[매체 변환] ${sourceLetter} → ${targetLetter}`.slice(0, 200);
     try {
-      const res = await fetch("/api/agent/stream", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          mode: "adapt",
-          text: sourceText,
-          genreLetter: sourceLetter,
-          targetGenreLetter: targetLetter,
-          fast: false,
-          ...(workId2 ? { workId: workId2 } : {}),
-          ...(conv2 ? { conversationMessages: conv2.messages } : {}),
-        }),
+      // ★ 1단계: Haiku로 원본 풀 컨텍스트 분석 (Pro fair use = 한도 거의 무제한)
+      // 영화 1편(5만자), 드라마 시즌(30만자), 소설(10만자+) 다 풀 컨텍스트로 읽기 가능.
+      const analysis = await streamCollect({
+        mode: "analyze",
+        text: sourceText,
+        genreLetter: sourceLetter,
+        fast: true, // Haiku 강제
       });
-      if (!res.body) throw new Error("응답 없음");
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-      let body = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const events = buf.split("\n\n");
-        buf = events.pop() || "";
-        for (const evt of events) {
-          const lines = evt.split("\n");
-          const eventType = lines.find(l => l.startsWith("event:"))?.slice(6).trim();
-          const dataLine = lines.find(l => l.startsWith("data:"))?.slice(5).trim();
-          if (!dataLine) continue;
-          try {
-            const data = JSON.parse(dataLine);
-            if (eventType === "delta" && data.text) body += data.text;
-            else if (eventType === "error") throw new Error(data.message);
-          } catch { /* ignore parse */ }
-        }
-      }
+      setAnalysisText(analysis);
+
+      // ★ 2단계: Opus/Sonnet으로 변환 (분석 결과 + 본문 발췌 = 작은 입력 = 작가 한도 절약 + 풀 컨텍스트 quality)
+      setAdaptStage("converting");
+      const body = await streamCollect({
+        mode: "adapt",
+        text: sourceText,
+        genreLetter: sourceLetter,
+        targetGenreLetter: targetLetter,
+        analysis,
+        fast: false,
+        ...(workId2 ? { workId: workId2 } : {}),
+        ...(conv2 ? { conversationMessages: conv2.messages } : {}),
+      });
       // ★ workConversation 누적
       if (workId2 && conv2 && body.trim()) {
         const updated = appendTurns(conv2, [
@@ -259,6 +282,7 @@ function AdaptMain() {
       setAdaptError(e instanceof Error ? e.message : "변환 실패");
     } finally {
       setAdapting(false);
+      setAdaptStage("idle");
     }
   };
 

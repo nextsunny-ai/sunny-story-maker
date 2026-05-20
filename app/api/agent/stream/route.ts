@@ -12,6 +12,7 @@ import {
   buildCollaboratePrompt,
   buildReviewPrompt,
   buildAdaptPrompt,
+  buildAnalyzePrompt,
   buildRevisePrompt,
   buildLoglinePrompt,
   buildTitlePrompt,
@@ -83,6 +84,8 @@ interface RequestBody {
   //   prompt cache 1h TTL = 옛 turn들도 cached = 입력 토큰 1/10
   conversationMessages?: ConversationMessage[];
   isChatMode?: boolean;  // ★ V3.1 #11 — 카드 채팅 (build-prompt 일관성). true면 buildCardChatPrompt 사용
+  // ★ V3.1.1 — 각색 2단계 path: Haiku로 사전 분석한 결과 (캐릭터·복선·세계관 정리)
+  analysis?: string;
 }
 
 interface WriterLearningEntry {
@@ -233,7 +236,12 @@ function buildBasePrompt(b: RequestBody): string {
       return buildTargetedReviewPrompt(b.text ?? "", b.targets ?? [], genre);
 
     case "adapt":
-      return buildAdaptPrompt(b.text ?? "", genre, targetGenre);
+      // ★ V3.1.1 — analysis 박혀있으면 = 2단계 path (= Haiku 풀 컨텍스트 분석 결과 활용)
+      return buildAdaptPrompt(b.text ?? "", genre, targetGenre, b.analysis);
+
+    case "analyze":
+      // ★ V3.1.1 — 각색 1단계: Haiku로 원본 풀 컨텍스트 분석. Pro fair use = 한도 거의 무제한.
+      return buildAnalyzePrompt(b.text ?? "", genre);
 
     case "revise":
       return buildRevisePrompt(b.text ?? "", b.direction ?? "", genre, b.targetSection, b.versionNumber);
