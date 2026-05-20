@@ -452,15 +452,17 @@ export default function GuidePage() {
           </div>
         </section>
 
-        {/* 문의 */}
+        {/* 문의 — 2026-05-20 대표님 명시: sunny@sunnyent.co.kr */}
         <section style={{ padding: "24px 28px", background: "rgba(255, 107, 107, 0.06)", border: "1px solid rgba(255, 107, 107, 0.2)", borderRadius: 12, textAlign: "center" }}>
           <div style={{ fontSize: 14, color: "var(--ink-1)", marginBottom: 8, fontWeight: 600 }}>
-            해결되지 않으면?
+            개선 제안·컴플레인·질문
           </div>
-          <div style={{ fontSize: 13.5, color: "var(--ink-3)", lineHeight: 1.65 }}>
-            앱 우측 하단 💬 위젯 → 카테고리 선택 → 메시지
-            <br />
-            또는 = <a href="mailto:support@sunnytoon.com" style={{ color: "var(--coral)", textDecoration: "underline" }}>support@sunnytoon.com</a>
+          <div style={{ fontSize: 13.5, color: "var(--ink-3)", lineHeight: 1.7 }}>
+            앱 우측 하단 <strong>💬 위젯</strong> → 카테고리 선택 → 메시지<br />
+            또는 = <a href="mailto:sunny@sunnyent.co.kr" style={{ color: "var(--coral)", textDecoration: "underline", fontWeight: 600 }}>sunny@sunnyent.co.kr</a> 직접 메일<br />
+            <span style={{ fontSize: 11.5, color: "var(--ink-4)", display: "inline-block", marginTop: 6 }}>
+              답신 = 가입하신 이메일로 직접 회신드립니다.
+            </span>
           </div>
         </section>
 

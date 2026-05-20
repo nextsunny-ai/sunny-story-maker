@@ -66,12 +66,12 @@ export function FeedbackWidget() {
         setError(j.error ?? `전송 실패 (HTTP ${res.status})`);
         return;
       }
-      setInfo("의견 잘 받았습니다. 감사합니다 ✓");
+      setInfo("의견 잘 받았습니다 ✓\n답신은 sunny@sunnyent.co.kr에서 가입한 이메일로 보내드립니다.");
       setMessage("");
       setTimeout(() => {
         setOpen(false);
         setInfo(null);
-      }, 1500);
+      }, 3000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "네트워크 오류");
     } finally {

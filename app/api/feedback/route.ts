@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { sendFeedbackEmailAsync } from "@/lib/email";
 
-// ★ V3.1 (2026-05-20 대표님 명시) — 텔레그램 자동 알림 X.
-//   글로벌 룰 2 = "자동 푸시 알림 X — 대표님 명시 요청 시만".
-//   피드백은 feedbacks DB + /admin/dashboard에서만 확인.
+// ★ V3.1 (2026-05-20 대표님 명시):
+//   - 텔레그램 자동 알림 X (글로벌 룰 2)
+//   - 프로그램 개선사항·컴플레인 = 이메일로만 (sunny@sunnyent.co.kr)
+//   피드백은 (1) feedbacks DB 저장 + (2) 사장님 이메일 발송 + (3) /admin/dashboard에서 백업 확인.
 
 /**
  * In-app 피드백 API
@@ -99,8 +101,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ★ V3.1 (2026-05-20) — 텔레그램 자동 알림 제거 (대표님 명시).
-  //   피드백은 feedbacks DB에만 박힘. 사장님은 /admin/dashboard에서 본문·답신·resolved 처리.
+  // ★ V3.1 (2026-05-20 대표님 명시) — 사장님 이메일로 발송 (sunny@sunnyent.co.kr).
+  //   환경변수 RESEND_API_KEY 박혀있을 때만 동작. 없으면 silent.
+  //   답신 = 이메일 답장하면 = reply-to로 작가에게 바로 전달.
+  sendFeedbackEmailAsync({
+    writerEmail: userData.user.email ?? null,
+    writerId: userData.user.id,
+    category: body.category,
+    message,
+    pageUrl: body.pageUrl,
+    appVersion: body.appVersion,
+  });
 
   return NextResponse.json({ success: true });
 }
