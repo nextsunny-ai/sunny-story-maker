@@ -2,7 +2,7 @@
 name = "sunny-story-maker"
 version = "2.13.3"
 description = "12개 매체 한국 작가팀 워크플로우"
-authors = ["써니엔터테인먼트 <sunny@sunnyent.co.kr>"]
+authors = ["Sunny Entertainment Co., Ltd. <sunny@sunnyent.co.kr>"]
 license = ""
 repository = "https://github.com/nextsunny-ai/sunny-story-maker"
 edition = "2021"

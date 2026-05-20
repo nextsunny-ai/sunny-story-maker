@@ -33,7 +33,7 @@
     "active": true,
     "targets": ["nsis", "msi", "app", "dmg"],
     "createUpdaterArtifacts": true,
-    "publisher": "써니엔터테인먼트",
+    "publisher": "Sunny Entertainment Co., Ltd.",
     "homepage": "https://story.sunnytoon.com",
     "category": "Productivity",
     "shortDescription": "12개 매체 한국 작가팀 워크플로우",
