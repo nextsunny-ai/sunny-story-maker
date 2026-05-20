@@ -16,7 +16,7 @@ const DOWNLOAD_OPTIONS: {
 }[] = [
   { id: "windows-exe", emoji: "⊞", label: "Windows 데스크탑 앱 (.exe)", hint: "4.5MB · 더블클릭 = 자동 설치 · 추천 ★", recommended: true },
   { id: "windows", emoji: "⊞", label: "Windows 자동 설치 ZIP", hint: "PowerShell 스크립트로 자동 설치 (Node.js·Claude Code 자동)" },
-  { id: "mac", emoji: "🍎", label: "Mac 자동 설치 ZIP", hint: "setup.command 더블클릭 = 자동 설치" },
+  { id: "mac", emoji: "🍎", label: "Mac 데스크탑 앱 (.dmg)", hint: "Apple Silicon · 7.7MB · 마운트 → 앱 폴더 드래그 · 첫 실행은 우클릭→열기" },
 ];
 
 export default function DownloadPage() {
@@ -71,7 +71,7 @@ export default function DownloadPage() {
       const fileName =
         selected === "windows-exe" ? "SUNNY Story Maker Setup.exe" :
         selected === "windows" ? "sunny-story-maker-windows.zip" :
-        "sunny-story-maker-mac.zip";
+        "SUNNY Story Maker.dmg";
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
@@ -235,16 +235,42 @@ export default function DownloadPage() {
             </div>
           )}
 
+          {/* ★ Mac 보안 우회 안내 (= Apple 코드 서명 미적용 = 첫 실행 우클릭 → 열기) ★ */}
+          {selected === "mac" && (
+            <div style={{ marginTop: 14, padding: "14px 16px", background: "rgba(160, 24, 95, 0.04)", border: "1px solid rgba(160, 24, 95, 0.18)", borderRadius: 8, fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.7 }}>
+              <strong style={{ color: "#A0185F" }}>🍎 Mac 첫 실행 = 보안 안내</strong>
+              <br />
+              <span style={{ fontSize: 11.5, color: "var(--ink-4)" }}>
+                Apple 코드 서명 미적용 = 더블클릭만 하면 "확인되지 않은 개발자" 경고가 뜹니다. 한 번만 우회하시면 이후엔 더블클릭 OK.
+              </span>
+              <ol style={{ margin: "8px 0 4px", paddingLeft: 18, fontSize: 12, lineHeight: 1.9 }}>
+                <li>받은 <strong>.dmg 더블클릭</strong> → 마운트 → <strong>SUNNY Story Maker.app</strong>을 <strong>응용 프로그램</strong> 폴더로 드래그</li>
+                <li>응용 프로그램 폴더에서 앱을 <strong>우클릭(또는 Control+클릭) → "열기"</strong></li>
+                <li>경고창에서 <strong>"열기"</strong> 한 번 더 클릭 → 끝. (다음부터는 더블클릭으로 바로 열립니다)</li>
+              </ol>
+              <div style={{ marginTop: 8, fontSize: 11, color: "var(--ink-5)" }}>
+                ★ macOS Sequoia(15.0+) 사용자가 위 단계로 안 되시면 → <strong>시스템 설정 → 개인 정보 보호 및 보안</strong> → 페이지 아래 <strong>"그래도 열기"</strong> 버튼 클릭.
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 18, padding: "12px 14px", background: "rgba(120, 200, 140, 0.06)", border: "1px solid rgba(120, 200, 140, 0.25)", borderRadius: 8, fontSize: 12, color: "var(--ink-2)", lineHeight: 1.7 }}>
+            <strong>🔄 이미 설치하신 분 — 자동 업데이트</strong>
+            <br />
+            앱을 켜면 새 버전이 있을 때 자동 알림 → 1클릭 설치. <strong>웹 콘텐츠는 자동 반영</strong>되므로 이미 켜져 있어도 새 기능을 쓸 수 있습니다. 단 옛 V2.11 이전 작가는 자동 업데이트가 없으니 이 페이지에서 다시 받아주세요.
+          </div>
+
           <div style={{ marginTop: 22, paddingTop: 20, borderTop: "1px solid var(--line)", fontSize: 11, color: "var(--ink-5)", lineHeight: 1.7 }}>
-            ※ Windows .exe = V2.13.0 (4.7 MB · NSIS 자동 설치 · 자동 업데이터).<br />
-            ※ macOS .dmg = V2.13.0 (Apple Silicon aarch64 · 7.7 MB).<br />
+            ※ Windows .exe = V2.13.3 (4.5 MB · NSIS 자동 설치 · 자동 업데이터).<br />
+            ※ macOS .dmg = V2.13.3 (Apple Silicon aarch64 · 7.7 MB · 자동 업데이터).<br />
+            ※ 웹 콘텐츠 = V2.14 (작가 직접 쓰기 + 각색 원문 보강 + 한도 시 자동 모델 전환).<br />
             ※ iOS·Android = 다음 단계.
           </div>
         </section>
       </div>
 
       <footer style={{ padding: "20px 32px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--ink-5)" }}>
-        <span>SUNNY Story Maker · v2.13.0 · 2026-05-14</span>
+        <span>SUNNY Story Maker · v2.13.3 셸 + V2.14 콘텐츠 · 2026-05-20</span>
         <div style={{ display: "flex", gap: 16 }}>
           <a href="/guide" style={{ color: "var(--ink-4)", textDecoration: "none" }}>가이드</a>
           <a href="/changelog" style={{ color: "var(--ink-4)", textDecoration: "none" }}>변경 이력</a>
