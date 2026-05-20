@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { notifyAsync } from "@/lib/telegram";
+
+// ★ V3.1 (2026-05-20 대표님 명시) — 텔레그램 자동 알림 X.
+//   글로벌 룰 2 = "자동 푸시 알림 X — 대표님 명시 요청 시만".
+//   피드백은 feedbacks DB + /admin/dashboard에서만 확인.
 
 /**
  * In-app 피드백 API
@@ -96,14 +99,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ★ V3.1 F3 — 통합 텔레그램 알림 (lib/telegram.ts)
-  notifyAsync("feedback", "스토리메이커 — 작가 피드백", {
-    "작가": userData.user.email ?? userData.user.id,
-    "카테고리": body.category,
-    "페이지": body.pageUrl ?? "(없음)",
-    "버전": body.appVersion ?? "?",
-    "메시지": message.slice(0, 1500),
-  });
+  // ★ V3.1 (2026-05-20) — 텔레그램 자동 알림 제거 (대표님 명시).
+  //   피드백은 feedbacks DB에만 박힘. 사장님은 /admin/dashboard에서 본문·답신·resolved 처리.
 
   return NextResponse.json({ success: true });
 }

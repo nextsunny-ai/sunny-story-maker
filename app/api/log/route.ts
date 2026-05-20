@@ -28,7 +28,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { notifyAsync } from "@/lib/telegram";
+
+// ★ V3.1 (2026-05-20 대표님 명시) — 텔레그램 자동 알림 X.
+//   글로벌 룰 2 = "자동 푸시 알림 X — 대표님 명시 요청 시만".
+//   에러 100명 작가 × 매일 = 사장님 폭주 위험 = 절대 X.
+//   사장님은 client_logs DB + /admin/dashboard에서만 확인.
 
 const VALID_LEVELS = ["error", "warn", "info"] as const;
 type Level = typeof VALID_LEVELS[number];
@@ -83,16 +87,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, warn: "log table not ready" }, { status: 200 });
   }
 
-  // ★ V3.1 F3 — 통합 텔레그램 알림 (error 레벨만)
-  if (body.level === "error") {
-    notifyAsync("error", "스토리메이커 — 클라이언트 에러", {
-      "작가": userData.user?.email ?? "(비로그인)",
-      "URL": body.url ?? "?",
-      "버전": body.appVersion ?? "?",
-      "소스": body.source ?? "?",
-      "메시지": message.slice(0, 800),
-    });
-  }
+  // ★ V3.1 (2026-05-20) — 텔레그램 자동 알림 제거.
+  //   에러는 client_logs DB에만 박힘. 사장님이 /admin/dashboard에서 보기.
 
   return NextResponse.json({ success: true });
 }

@@ -10,6 +10,11 @@
 - 복구: `git mv _archive/lib_db/* lib/db/` 또는 `lib/db/` 폴더 복원.
 - 검증 (정리 전): `grep -rE "@/lib/db" --include="*.ts" --include="*.tsx"` = 0 hit.
 
+### `lib_telegram.ts.unused` (옛 lib/telegram.ts)
+- 사용자: 통합 텔레그램 알림 (notify·notifyAsync) — 사장님 운영 알림
+- 사유: V3.1 추가 시 = 작가 100명 × 매일 에러 = 사장님 폭주 위험 발견. 대표님 글로벌 룰 2 ("자동 푸시 알림 X — 대표님 명시 시만") 준수.
+- 미래: 사장님이 명시 요청하면 = 이 파일 lib/로 복원 + 환경변수 박힘 + 명시적 호출 path만.
+
 ## 복구 룰
 
 옛 코드가 다시 필요해지면 = 이 폴더에서 가져와 적절한 위치로 `git mv`.
