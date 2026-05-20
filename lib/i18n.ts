@@ -51,6 +51,25 @@ const STRINGS: Record<Locale, Record<string, string>> = {
     "취소": "Cancel",
     "다시 시도": "Retry",
 
+    // V3.1 — WriteCanvas 한국어 → 영어
+    "다시 써": "Rewrite",
+    "직접 쓰기": "Write Here",
+    "본문 가져오기": "Import Body",
+    "프린트": "Print",
+    "여기에 직접 쓰세요…": "Write here…",
+    "여기부터 직접 쓰거나, 우측 채팅에서 AI에게 맡기세요": "Type here, or ask AI in the chat on the right",
+    "대기 중": "Pending",
+    "작품 변경": "Switch Project",
+
+    // login·signup
+    "이메일": "Email",
+    "비밀번호": "Password",
+    "이름": "Name",
+    "회원가입": "Sign up",
+    "로그인": "Log in",
+    "Google로 계속": "Continue with Google",
+    "이메일과 비밀번호를 입력해주세요.": "Please enter your email and password.",
+
     // V3.1 — WriteWorkbook 한국어 → 영어 (중복 키 제거)
     "디렉션·메모": "Directions·Notes",
     "+ 디렉션 추가 (예: 회상은 1인칭)": "+ Add direction (e.g., flashback in 1st person)",

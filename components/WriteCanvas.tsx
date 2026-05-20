@@ -682,11 +682,11 @@ function Paragraph({ p, paused, onRewrite, onEdit, onContinue }: {
             <div style={{ display: "flex", gap: 6 }}>
               <button type="button" className="wpara-action" onClick={saveEdit} title="저장">
                 <span className="wpara-action-icon">✓</span>
-                <span>저장</span>
+                <span>{t("저장")}</span>
               </button>
-              <button type="button" className="wpara-action" onClick={cancelEdit} title="취소">
+              <button type="button" className="wpara-action" onClick={cancelEdit} title={t("취소")}>
                 <span className="wpara-action-icon">✕</span>
-                <span>취소</span>
+                <span>{t("취소")}</span>
               </button>
             </div>
           </div>
@@ -704,7 +704,7 @@ function Paragraph({ p, paused, onRewrite, onEdit, onContinue }: {
                 style={{ marginLeft: 10 }}
               >
                 <span className="wpara-action-icon">✍️</span>
-                <span>직접 쓰기</span>
+                <span>{t("직접 쓰기")}</span>
               </button>
             )}
           </div>
@@ -728,11 +728,11 @@ function Paragraph({ p, paused, onRewrite, onEdit, onContinue }: {
           <div className="wpara-actions">
             <button type="button" className="wpara-action" onClick={onRewrite} title="이 단락 다시 쓰기">
               <span className="wpara-action-icon">↻</span>
-              <span>다시 써</span>
+              <span>{t("다시 써")}</span>
             </button>
-            <button type="button" className="wpara-action" onClick={startEdit} title="직접 수정">
+            <button type="button" className="wpara-action" onClick={startEdit} title={t("수정")}>
               <span className="wpara-action-icon">✎</span>
-              <span>수정</span>
+              <span>{t("수정")}</span>
             </button>
             <button
               type="button"

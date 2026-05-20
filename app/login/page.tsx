@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ICONS } from "@/lib/icons";
 import { Symbol } from "@/components/Symbol";
 import { createClient } from "@/lib/supabase/client";
+import { t, useLocale } from "@/lib/i18n";
 
 function isTauriEnv(): boolean {
   if (typeof window === "undefined") return false;
@@ -23,6 +24,7 @@ export default function LoginPage() {
 
 function LoginPageInner() {
   const I = ICONS;
+  useLocale(); // ★ V3.1 i18n
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/";
@@ -350,7 +352,7 @@ function LoginPageInner() {
           <div className="login-fields">
             {mode === "signup" && (
               <div className="login-field">
-                <label>이름</label>
+                <label>{t("이름")}</label>
                 <input
                   className="field-input"
                   value={name}
@@ -361,7 +363,7 @@ function LoginPageInner() {
               </div>
             )}
             <div className="login-field">
-              <label>이메일</label>
+              <label>{t("이메일")}</label>
               <input
                 className="field-input"
                 type="email"
@@ -516,7 +518,7 @@ function LoginPageInner() {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
-              <span>Google로 계속</span>
+              <span>{t("Google로 계속")}</span>
             </button>
           </div>
 
