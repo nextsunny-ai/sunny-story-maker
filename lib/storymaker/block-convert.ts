@@ -2,7 +2,7 @@
 // 단계 0 = 스텁(PROSE 그룹은 완전 동작, 나머지는 PROSE 폴백). 단계 1~6에서 그룹별 정밀 파서 점진 추가.
 
 import type { Block, MediumGroup, WriteDoc } from "./write-doc";
-import { groupOf } from "./write-doc";
+import { groupOf, CUE_COLUMNS } from "./write-doc";
 
 // V2.14 Para 구조 (마이그레이션 input). WriteCanvas.tsx의 Para와 동형.
 interface ParaLike {
@@ -145,6 +145,9 @@ export function plainTextToBlocks(group: MediumGroup, text: string, _letter?: st
   }
   if (group === "PANEL") {
     return parsePanelCuts(text);
+  }
+  if (group === "CUESHEET") {
+    return parseCuesheet(text, _letter);
   }
   if (group === "PROSE") {
     return splitProseBlocks(text);
@@ -430,6 +433,58 @@ function splitProseBlocks(text: string): Block[] {
       text: t,
       status: "done" as const,
     }));
+}
+
+// ─── CUESHEET 파서 (V3.0 단계 4 — markdown 표 행 추출) ───
+function parseCuesheet(text: string, letter?: string): Block[] {
+  const blocks: Block[] = [];
+  let seq = 0;
+  const nextId = () => `b_${Date.now()}_${seq++}`;
+  const columns = (letter && CUE_COLUMNS[letter]) || CUE_COLUMNS.M;
+
+  const lines = text.split("\n");
+  let inTable = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.trim();
+    if (!line) { inTable = false; continue; }
+
+    // markdown 표 행: | a | b | c | (cell이 2개 이상)
+    if (/^\|.*\|$/.test(line) && (line.match(/\|/g)?.length || 0) >= 3) {
+      // separator line (--- | --- | ---) = skip + 표 시작 신호
+      if (/^[\s|:\-]+$/.test(line)) { inTable = true; continue; }
+
+      const cells = line.slice(1, -1).split("|").map((s) => s.trim());
+
+      // 헤더 행 (첫 표 행 + cells가 columns header와 매칭) = skip
+      if (!inTable) {
+        const looksLikeHeader = cells.length >= 2 && (cells[0].includes("시간") || /^time/i.test(cells[0]));
+        if (looksLikeHeader) { inTable = true; continue; }
+      }
+      inTable = true;
+
+      const timecode = cells[0] || "";
+      const cellMap: Record<string, string> = {};
+      columns.forEach((c, idx) => { cellMap[c.key] = cells[idx + 1] || ""; });
+
+      blocks.push({
+        id: nextId(), kind: "cue-row",
+        timecode, cells: cellMap,
+        status: "done",
+      });
+      continue;
+    }
+
+    // 표가 아닌 텍스트 = prose 폴백 (G 다큐 구성안형 등)
+    blocks.push({
+      id: nextId(), kind: "prose",
+      text: line, status: "done",
+    });
+    inTable = false;
+  }
+
+  return blocks;
 }
 
 // ─── 매체 변경 시 데이터 보존 (블록 평탄화 → 새 그룹 파서) ───
