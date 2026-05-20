@@ -82,6 +82,7 @@ interface RequestBody {
   //   매 호출 = 옛 user/assistant turn들 누적 박힘 + 새 user msg 추가
   //   prompt cache 1h TTL = 옛 turn들도 cached = 입력 토큰 1/10
   conversationMessages?: ConversationMessage[];
+  isChatMode?: boolean;  // ★ V3.1 #11 — 카드 채팅 (build-prompt 일관성). true면 buildCardChatPrompt 사용
 }
 
 interface WriterLearningEntry {
@@ -118,12 +119,71 @@ ${sections}
 위 항목은 작가의 누적 노하우입니다. 좋아하는 건 적극 활용, 피하는 건 절대 X, 디렉션은 그대로, 비유는 우선 적용.\n`;
 }
 
+// ★ V3.1 #11 — build-prompt 일관성. 카드 채팅 전용 프롬프트 (5개 후보 강제 X).
+function buildCardChatPrompt(b: RequestBody): string {
+  const genre = findGenre(b.genreLetter);
+  const cardLabel = b.mode;
+  const priorPart = b.prior
+    ? "\n\n## 작가가 이번 요청에 박은 컨텍스트\n" +
+      Object.entries(b.prior)
+        .map(([k, v]) => `### ${k}\n${(v || "").slice(0, 2500)}`)
+        .join("\n\n")
+    : "";
+  const ideaPart = b.idea ? `\n\n## 작품 아이디어\n${b.idea.slice(0, 1500)}` : "";
+
+  return `# 작업: 작가와 「${cardLabel}」 같이 다듬기 (대화)
+
+## 매체
+**${genre.name} (${genre.sub})** — 작가가 「${cardLabel}」 카드를 다듬는 중. 채팅으로 디렉션을 보냄.
+
+## 작가 의도 (★ 절대 준수)
+1. 작가의 직전 메시지를 그대로 읽고 = 그에 맞춰 응답한다.
+2. 작가가 **본인 안을 직접 제시·지정** = 그 안을 받아들이고 = 짧은 평가·확정만. **새 후보를 다시 내지 X.**
+3. 작가가 **디렉션** (예: "더 짧게", "톤 바꿔") = 디렉션 반영해 = 1~3개만 제안. 5개 자동 X.
+4. 작가가 **명시적으로 "후보 더 줘"** 요청 = 그때만 여러 개 제안.
+5. "후보 5개"를 자동으로 박는 stage 형식 = 절대 쓰지 X = 대화 우선.
+
+## 응답 형식
+- 짧게 (2~5문장 권장). 평어체 또는 작가 호칭.
+- 인사·자기소개·"다음 단계 안내" 자동 박지 X = 작가 메시지에 곧바로 답.
+
+## ★★★ 확정 마커 (작가가 결정하면 = 반드시 출력)
+작가가 「${cardLabel}」을 확정·결정하는 의사를 보이면 (예: "이걸로 가자", "1번", "그래 그거", "확정"):
+1. 먼저 대화 응답을 자연스럽게 쓰고,
+2. 응답 맨 마지막 줄에 정확히 \`[[확정:확정된 내용만]]\` 한 줄을 추가한다.
+- 내용만 넣는다 — 「」·번호·설명·잡담 다 빼고 순수 결과만.${ideaPart}${priorPart}
+
+## 출력
+작가 직전 메시지에 맞는 대화 응답. (작가가 확정했으면 = 맨 마지막 줄에 [[확정:...]])`;
+}
+
+// ★ V3.1 #11 — 옛 turn을 userMessage에 박음 (V2.13.4 사고 정정의 웹 path 일관성)
+function formatConversationHistory(msgs?: ConversationMessage[]): string {
+  if (!msgs || msgs.length === 0) return "";
+  const recent = msgs.slice(-20);
+  const lines = recent.map((m) => {
+    const who = m.role === "user" ? "작가" : "보조작가";
+    return `${who}: ${(m.content || "").slice(0, 3000)}`;
+  });
+  return `## ★★★ 지금까지 나눈 대화 (반드시 이어서 응답)
+
+${lines.join("\n\n")}
+
+위 대화 흐름을 그대로 인지하고, 작가의 마지막 메시지에 이어서 답한다.
+작가가 "1번"·"2번"·"그거"·"방금 말한 거"라고 하면 = 위 대화에서 보조작가가 제시한 바로 그 항목을 가리킨다. 절대 새로 지어내지 X.`;
+}
+
 function buildUserPrompt(b: RequestBody): string {
-  const base = buildBasePrompt(b);
   const learning = formatWriterLearning(b.writerLearning);
-  // 작가 누적 학습은 base prompt 앞에 박음 — AI가 가장 먼저 인지하도록
   const memory = formatWorkMemoryFromFiles(b.priorFiles);
-  const parts = [memory, learning, base].filter(Boolean);
+  const conversationHistory = formatConversationHistory(b.conversationMessages);
+
+  // ★ V3.1 #11 — 카드 채팅(isChatMode)이면 stage-builder base 대신 대화 전용 프롬프트.
+  //   build-prompt route와 동일 흐름 = 웹 path도 카드 채팅 5개 후보 강제 X.
+  const isCardChat = b.isChatMode === true && b.mode !== "chat";
+  const base = isCardChat ? buildCardChatPrompt(b) : buildBasePrompt(b);
+
+  const parts = [memory, learning, conversationHistory, base].filter(Boolean);
   return parts.join("\n\n---\n\n");
 }
 
