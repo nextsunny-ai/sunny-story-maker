@@ -21,28 +21,38 @@ export default function ResetPasswordPage() {
       setError("비밀번호를 입력해주세요.");
       return;
     }
-    if (password.length < 6) {
-      setError("비밀번호는 6자 이상이어야 합니다.");
+    // ★ V2.14.9 — signup과 일관 (옛엔 6자였음 = 작가 헤맴)
+    if (password.length < 8) {
+      setError("비밀번호는 8자 이상이어야 합니다.");
       return;
     }
     if (password !== confirm) {
-      setError("비밀번호가 일치하지 않습니다.");
+      setError("두 비밀번호가 일치하지 않습니다. 같은 비밀번호를 양쪽 칸에 입력해주세요.");
       return;
     }
     setLoading(true);
     const supabase = createClient();
     const { error: updateErr } = await supabase.auth.updateUser({ password });
     if (updateErr) {
-      // 세션이 없으면 = 메일 링크가 만료됨
-      if (updateErr.message.toLowerCase().includes("auth session missing")) {
-        setError("재설정 세션이 만료됐습니다. 로그인 페이지에서 다시 비밀번호 찾기를 시도해주세요.");
+      const m = updateErr.message.toLowerCase();
+      // 흔한 에러 한국어 변환 (V2.14.9)
+      if (m.includes("auth session missing") || m.includes("session_not_found")) {
+        setError("재설정 세션이 만료됐습니다. 로그인 페이지에서 [비밀번호 찾기]를 다시 눌러 새 링크를 받아주세요.");
+      } else if (m.includes("same_password") || m.includes("new password should be different")) {
+        setError("새 비밀번호가 기존과 같습니다. 다른 비밀번호를 입력해주세요.");
+      } else if (m.includes("weak_password") || m.includes("password should be at least")) {
+        setError("비밀번호가 너무 약합니다. 8자 이상, 영문·숫자 혼합 권장.");
+      } else if (m.includes("rate limit") || m.includes("too many requests")) {
+        setError("요청이 너무 많습니다. 1분 후 다시 시도해주세요.");
+      } else if (m.includes("network") || m.includes("fetch")) {
+        setError("네트워크 오류. 인터넷 연결을 확인하고 다시 시도해주세요.");
       } else {
-        setError(updateErr.message);
+        setError(`변경 실패: ${updateErr.message}`);
       }
       setLoading(false);
       return;
     }
-    setInfo("비밀번호 변경 완료. 잠시 후 홈으로 이동합니다.");
+    setInfo("비밀번호 변경 완료! 잠시 후 홈으로 이동합니다.");
     setTimeout(() => {
       router.push("/");
       router.refresh();
