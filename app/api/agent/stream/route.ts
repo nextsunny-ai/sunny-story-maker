@@ -583,10 +583,13 @@ function streamViaClaudeCode(systemPrompt: string, userMessage: string, model: s
 }
 
 export async function POST(req: NextRequest) {
-  // ★ BYOK 정통 모델 (글로벌 룰 16, 2026-05-11):
-  // - LOCAL/Tauri (USE_CLAUDE_CODE=true) → 작가 본인 OAuth (~/.claude/.credentials.json) = Pro 구독으로 감당 = 추가 비용 0
-  // - 웹 = body.userApiKey (Settings 페이지) = 작가 본인 종량제 부담
+  // ★ BYOK 정통 모델 (글로벌 룰 16, 2026-05-11·2026-05-20 재확인):
+  // - 작가 = 본인 PC Claude Code OAuth 토큰 (~/.claude/.credentials.json) → streamViaOAuth
+  //   또는 = `claude` CLI subprocess → streamViaClaudeCode
+  // - Pro/Max 구독($20~$100/월)으로 감당 = 사장님·작가 추가 비용 0
+  // - 옛 body.userApiKey (작가 본인 API 키) path = 2026-05-18 제거됨
   // - 대표님 ANTHROPIC_API_KEY (Vercel 환경변수) = 박지 X (영구 룰)
+  //   → 웹에서 호출 시도 = DESKTOP_REQUIRED 안내 (= 다운로드 페이지로)
   const useClaudeCode = process.env.USE_CLAUDE_CODE === "true";
 
   let body: RequestBody;
