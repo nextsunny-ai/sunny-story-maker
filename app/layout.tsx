@@ -4,6 +4,7 @@ import { FeedbackWidget } from "@/components/FeedbackWidget";
 import { LicenseChecker } from "@/components/LicenseChecker";
 import { ClaudeCliGate } from "@/components/ClaudeCliGate";
 import { ErrorReporter } from "@/components/ErrorReporter";
+import { SessionBanner } from "@/components/SessionBanner";
 
 export const metadata: Metadata = {
   title: "SUNNY Story Maker — 작가의 첫 줄",
@@ -17,6 +18,7 @@ export default function RootLayout({
   return (
     <html lang="ko" data-tone="B">
       <body>
+        <SessionBanner />
         {children}
         <FeedbackWidget />
         <LicenseChecker />
