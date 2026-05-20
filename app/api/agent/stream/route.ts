@@ -84,8 +84,10 @@ interface RequestBody {
   //   prompt cache 1h TTL = 옛 turn들도 cached = 입력 토큰 1/10
   conversationMessages?: ConversationMessage[];
   isChatMode?: boolean;  // ★ V3.1 #11 — 카드 채팅 (build-prompt 일관성). true면 buildCardChatPrompt 사용
-  // ★ V3.1.1 — 각색 2단계 path: Haiku로 사전 분석한 결과 (캐릭터·복선·세계관 정리)
+  // ★ V3.1.1 — Haiku 2단계 path: 사전 분석 결과 (각색·OSMU·Plan Package·Grant 공용)
   analysis?: string;
+  // ★ V3.1.1 — OSMU depth (= A 매트릭스 / B 트리트먼트 / C 풀 패키지)
+  depth?: "A" | "B" | "C";
 }
 
 interface WriterLearningEntry {
@@ -282,7 +284,8 @@ function buildBasePrompt(b: RequestBody): string {
       return buildFullPackagePrompt(b.idea ?? "", genre, b.userInput ?? {}, b.artifactKeys ?? [], b.analysis);
 
     case "osmu":
-      return buildOsmuPrompt(b.idea ?? "", b.sourceIp);
+      // ★ V3.1.1 — b.depth (A/B/C) + b.analysis (Haiku 사전 분석) 박혀있으면 활용
+      return buildOsmuPrompt(b.idea ?? "", b.sourceIp, b.depth as "A" | "B" | "C" | undefined, b.analysis);
 
     case "extract-grant-meta":
       return buildGrantMetaPrompt(b.text ?? "");

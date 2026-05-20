@@ -45,10 +45,10 @@ function OsmuMain() {
   const targetCount = GENRES.length - 1; // 원본 제외
   const depthInfo = {
     A: { label: "매트릭스 분석", desc: "각 매체 1단락 · 빠른 스캔 (★ 가장 안정)", eta: "1~3분", pages: "1단락", disabled: false },
-    B: { label: "트리트먼트", desc: "각 매체 A4 1쪽 · 핵심 잡기 (⚠ 토큰 큼 = 한도 도달 가능)", eta: `${targetCount * 1}~${targetCount * 2}분`, pages: "A4 1쪽", disabled: false },
-    // ★ V3.1.1 — 풀 패키지 = 12 매체 × (시놉+캐릭터+본문) ≈ 5만자 출력 = AI 출력 한도 초과 = 사실상 작동 X
-    // 대표님 명시 (2026-05-20): "풀패키지 그건 아예 못할 거 같아". 옵션 비활성 + adapt 페이지 권장.
-    C: { label: "풀 패키지", desc: "★ 작동 한계 = adapt 페이지에서 1매체씩 본격 변환 권장", eta: "—", pages: "비활성", disabled: true },
+    B: { label: "트리트먼트", desc: "각 매체 A4 1쪽 · Haiku 사전 분석 + Sonnet 변환", eta: `${targetCount * 1}~${targetCount * 2}분`, pages: "A4 1쪽", disabled: false },
+    // ★ V3.1.1 — 풀 패키지 = Haiku 2단계 path로 재활성 (대표님 명시 2026-05-21)
+    // 출력 한도 빠듯 = AI가 = 6~8 매체에서 잘릴 가능성 = depth A 추천 → adapt 페이지에서 본격 권장.
+    C: { label: "풀 패키지", desc: "각 매체 시놉+캐릭터+첫 부분 (⚠ 출력 한도 빠듯 = 일부 매체 잘림 가능)", eta: `${targetCount * 3}~${targetCount * 5}분`, pages: "패키지", disabled: false },
   } as const;
   const cur = depthInfo[depth];
 
@@ -109,16 +109,36 @@ function OsmuMain() {
       })();
       const { getWorkId } = await import("@/lib/storymaker/work-id");
       const workId = title.trim() ? getWorkId(source, title.trim()) : "";
+
+      // ★ V3.1.1 — depth B/C = Haiku 2단계 path (= 풀 컨텍스트 + Sonnet 변환). depth A = 옛 path.
+      let analysis = "";
+      if (depth === "B" || depth === "C") {
+        await streamAgent({
+          body: {
+            mode: "analyze",
+            text: truncatedBody,
+            genreLetter: source,
+            fast: true, // Haiku 강제 = 한도 안 차감
+          },
+          userPromptSummary: `[OSMU ${depth} 사전 분석] ${title || "원본"}`,
+          signal: ac.signal,
+          onDelta: (chunk) => { analysis += chunk; },
+          onError: (msg) => setError(msg),
+        });
+      }
+
       await streamAgent({
         body: {
           mode: "osmu",
           idea: truncatedBody,
           sourceIp: title || "원본 작품",
           genreLetter: source,
-          fast: (await import("@/lib/storymaker/model-prefs")).isFastModel("osmu"),
+          depth, // ★ V3.1.1 — depth 전달
+          ...(analysis ? { analysis } : {}), // ★ depth B/C = Haiku 분석 결과
+          fast: depth === "A" ? (await import("@/lib/storymaker/model-prefs")).isFastModel("osmu") : false, // depth B/C = Sonnet
           ...(workId ? { workId } : {}),
         },
-        userPromptSummary: `[OSMU] ${title || "원본"} (${source}) → 매체 매트릭스`,
+        userPromptSummary: `[OSMU ${depth}] ${title || "원본"} (${source}) → ${depth === "A" ? "매트릭스" : depth === "B" ? "트리트먼트" : "풀 패키지"}`,
         signal: ac.signal,
         onDelta: (chunk) => setStreamText(prev => prev + chunk),
         onError: (msg) => setError(msg),
