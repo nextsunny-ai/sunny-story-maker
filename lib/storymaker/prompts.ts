@@ -308,8 +308,8 @@ ${genrePart}
 
 // V3.1 — 긴 원본을 각색용으로 5구간(앞·1/4·중반·3/4·결말)으로 압축.
 // 영화·드라마 한 편(3~5만 자), 장편 소설(10만+ 자)에서도 발단·전개·위기·절정·결말 모두 발췌.
-// 한도 40,000자 (Claude 200K 컨텍스트 안전, 토큰 부담 합리).
-function fitSourceText(text: string, limit = 40000): string {
+// ★ V3.1.1 한도 40,000 → 20,000자 (= 토큰 절반 = 작가 한도 도달 늦춤, 5구간 발췌로 핵심 보존)
+function fitSourceText(text: string, limit = 20000): string {
   if (text.length <= limit) return text;
   const headLen = Math.floor(limit * 0.30);
   const q1Len = Math.floor(limit * 0.15);
@@ -331,8 +331,37 @@ function fitSourceText(text: string, limit = 40000): string {
     + text.slice(total - tailLen);
 }
 
+// ★ V3.1.1 — 매체 변환 룰 = 동적 박기 (= source≠target 조합에 맞는 1 케이스만 = 토큰 절약)
+function getConversionRule(s: Genre, t: Genre): string {
+  const SCREENPLAY = ["A","B","C","D","E"];
+  const PROSE_LONG = ["H","O"];
+  const sl = s.letter;
+  const tl = t.letter;
+
+  if (SCREENPLAY.includes(sl) && PROSE_LONG.includes(tl)) {
+    return `\n### 매체 변환 흔한 사고: ${s.name} → ${t.name}\n- 비주얼·대사 → 내면·심리 묘사 추가 (영상=행동, 산문=머릿속)\n- 화면 100p ≈ 산문 100~150화 = 시간선·서브플롯 확장\n- 시점 고정 (1인칭 또는 3인칭 제한)`;
+  }
+  if (PROSE_LONG.includes(sl) && SCREENPLAY.includes(tl)) {
+    return `\n### 매체 변환 흔한 사고: ${s.name} → ${t.name}\n- 내면 → 객관 시각·행동·대사 변환 (관객은 머릿속 못 봄)\n- 200화 → 100p = 핵심 사건 5~7개 압축. 회상 최소화.`;
+  }
+  if (SCREENPLAY.includes(sl) && tl === "F") {
+    return `\n### 매체 변환 흔한 사고: 시나리오 → 웹툰\n- 한 씬 = 8~15컷 분할 (영화 1씬 ≠ 웹툰 1컷)\n- 대사 풍선 짧게 (1~2줄). 후크 컷 = 매 5~7컷`;
+  }
+  if (SCREENPLAY.includes(sl) && (tl === "I" || tl === "N")) {
+    return `\n### 매체 변환 흔한 사고: 시나리오 → ${t.name}\n- 감정 절정 = 넘버(♪) 추가 (대사로 표현 불가 정서)\n- 1막 끝 = 인터미션 후크. 11시 넘버 = 2막 후반 최강곡.`;
+  }
+  if (sl === "G" && (SCREENPLAY.includes(tl) || PROSE_LONG.includes(tl))) {
+    return `\n### 매체 변환 흔한 사고: 다큐 → ${t.name} (픽션)\n- 인물 합성/시간 압축/드라마틱 재구성 (사실 그대로 X)\n- 실명 변경 + 디스클레이머`;
+  }
+  if (sl === "K") {
+    return `\n### 매체 변환 흔한 사고: 전시 → ${t.name}\n- Zone 체류 (3~5분) → 영상 길이 변환\n- 인터랙티브 → 시청자 클릭·선택 또는 시각화\n- 도슨트 → 내레이션`;
+  }
+  return ""; // 매체 같거나 = 룰 없음 = 토큰 절약
+}
+
 export function buildAdaptPrompt(text: string, sourceGenre: Genre, targetGenre: Genre): string {
   const truncated = fitSourceText(text);
+  const conversionRule = getConversionRule(sourceGenre, targetGenre);
   return `# 작업 요청: 각색 모드
 
 ## 원본
@@ -355,43 +384,7 @@ ${truncated}
 3. 캐릭터명 일관 (변경 시 명시)
 4. 복선 대사 유지 (삭제 시 뒤 연결 끊기는지 확인)
 5. 목표 장르 양식 정확히 적용
-
-## ★ 한국 매체 변환 흔한 사고 (= 작가 경험 = 박혀있어야)
-
-### 영화 → 웹소설
-- 비주얼·대사 위주 → **내면·심리 묘사 추가** (영화는 행동, 소설은 머릿속)
-- 영화 100p ≈ 웹소설 100~150화 (회당 5,000자) = 시간선·서브플롯 확장 필요
-- 1인칭 또는 3인칭 제한 = 시점 고정
-
-### 웹소설 → 영화
-- 1인칭 내면 → **객관 시각·행동·대사로 변환** (관객은 머릿속 못 봄)
-- 200화 → 영화 100p = 핵심 사건 = 5~7개로 압축. 서브플롯 잘라내기.
-- 회상 = 영화에서 최소화 (= 관객 혼란)
-
-### 시나리오 → 웹툰
-- 한 씬 = **8~15컷으로 분할** (영화 1씬 ≠ 웹툰 1컷)
-- 대사 풍선 = 짧게 (= 모바일 화면). 한 풍선 1~2줄.
-- 후크 컷 = 매 5~7컷 = 스크롤 멈추는 비주얼
-
-### 시나리오 → 뮤지컬
-- **감정 절정 씬 = 넘버(♪) 추가** (= 일상 대사로 표현 불가능한 정서)
-- 1막 끝 = act1_climax = 인터미션 후 돌아오게 하는 전환점
-- 11시 넘버 = 클라이맥스 2막 후반 = 가장 강력한 곡
-
-### 다큐 → 픽션 (드라마·영화)
-- 인물 합성 / 시간 압축 / 드라마틱 재구성 (= 사실 그대로 X)
-- 사실 = 모티프, 픽션 = 작가 시선
-- 실명 변경 + 디스클레이머 ("이 작품은 ~을 모티프로 한 픽션입니다")
-
-### 전시 → 영상
-- Zone 체류 시간 (3~5분/Zone) → **영상 길이로 변환**
-- 인터랙티브 → 시청자 클릭·선택 (유튜브) / 또는 = 시각화로 대체
-- 도슨트 = 내레이션 변환
-
-### 모든 변환 공통
-- 분량 환산 표 (영화 100p ≈ TV 4~5회 / 웹툰 30~50화 / 웹소설 100~150화 / 뮤지컬 2시간)
-- 매체별 페이월 위치 다름 (웹툰·웹소설 = 매 회 / 영화·드라마 = 한 번 / OTT = 시즌)
-- 캐릭터 이름·소품·복선 = 보존 = 작가 = 원본 사랑
+${conversionRule}
 
 ## 출력 단계
 1. **각색 전략** — 무엇을 유지/추가/변경할지
@@ -920,7 +913,7 @@ ${priorPart}
 
 export function buildTreatmentPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
-    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1500)}`).join("\n\n")
+    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1000)}`).join("\n\n")
     : "";
 
   return `# 작업 요청: 트리트먼트 (A4 3~5쪽)
@@ -960,7 +953,7 @@ ${priorPart}
 
 export function buildCharactersPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
-    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1500)}`).join("\n\n")
+    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1000)}`).join("\n\n")
     : "";
 
   const protagonistCount = userInput?.protagonist_count || "1인 단독 (원톱)";
@@ -1013,7 +1006,7 @@ ${priorPart}
 
 export function buildWorldviewPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
-    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1200)}`).join("\n\n")
+    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 800)}`).join("\n\n")
     : "";
 
   const era = userInput?.era || "현대";
@@ -1063,7 +1056,7 @@ ${priorPart}
 
 export function buildEpisodesPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
-    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1500)}`).join("\n\n")
+    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1000)}`).join("\n\n")
     : "";
 
   const episodes = userInput?.episodes || userInput?.total_episodes || "12부";
@@ -1112,7 +1105,7 @@ ${priorPart}
 
 export function buildProposalPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
-    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1500)}`).join("\n\n")
+    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1000)}`).join("\n\n")
     : "";
 
   return `# 작업 요청: 기획안 (제출용)
@@ -1167,7 +1160,7 @@ ${priorPart}
 
 export function buildScriptPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, targetSection = "EP01 첫 부분 샘플 (5~10페이지)", _mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
-    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 2000)}`).join("\n\n")
+    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 800)}`).join("\n\n")
     : "";
 
   return `# 작업 요청: 본문 (${targetSection})
