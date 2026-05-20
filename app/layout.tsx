@@ -97,8 +97,10 @@ const JSON_LD = {
   },
   publisher: {
     "@type": "Organization",
-    name: "SUNNY Entertainment",
+    name: "써니엔터테인먼트",
+    legalName: "주식회사 써니엔터테인먼트",
     url: "https://sunnytoon.com",
+    email: "sunny@sunnyent.co.kr",
   },
 };
 

@@ -322,7 +322,7 @@ function LoginPageInner() {
           </div>
           <div className="login-brand-foot-row">
             <span className="login-brand-foot-k">© 2026</span>
-            <span className="login-brand-foot-v">Sunny<span className="dot">.</span></span>
+            <span className="login-brand-foot-v">써니엔터테인먼트<span className="dot">.</span></span>
           </div>
         </div>
       </div>
