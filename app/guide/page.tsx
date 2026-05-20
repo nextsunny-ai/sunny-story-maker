@@ -392,6 +392,14 @@ export default function GuidePage() {
             "작가가 쓰는 종이, AI는 옆에서 거드는 것" — 작가가 쓰다가 AI가 이어쓰고, AI가 쓰다가 작가가 이어받는 흐름. 모든 단락 = 작가·AI 누구든 쓸 수 있습니다.
           </p>
           <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ padding: "16px 20px", background: "rgba(255, 107, 107, 0.06)", border: "1px solid rgba(255, 107, 107, 0.2)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>⓪ 옛 시나리오 가져오기 (옵션 — 이미 쓰던 원고 있으면)</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                Write 페이지 헤더 <strong>📥 원고 가져오기</strong> 버튼 → 워드·한글·PDF·텍스트·Fountain 업로드, 또는 = 텍스트 paste = 본문에 자동 박힘. 시나리오 양식 자동 감지(S#·캐릭터·대사) = 단락 자동 분할. 빈 작업실 = 자동 노출, 본문 있어도 헤더에서 언제든 다시 켜기.
+                <br />
+                <strong>옛 작품 다시 열기</strong> = 사이드바 <strong>📂 프로젝트 열기</strong> (.smkr) 또는 <strong>My Works</strong> 목록에서 클릭 = 본문·인물 노트·history 그대로.
+              </div>
+            </div>
             <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>① 빈 작업실 = 작가가 먼저</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
