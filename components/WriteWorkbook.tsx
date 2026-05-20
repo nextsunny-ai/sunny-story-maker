@@ -19,11 +19,13 @@ interface WriteWorkbookProps {
   onRemoveNote: (id: string) => void;
   onClose: () => void;
   mediumLabel?: string; // ★ 사장님 명시: 작품 정보에 매체 표시
+  onApplyToScript?: (text: string) => void; // ★ V2.14 — AI 채팅 메시지를 본문 끝에 단락으로 추가
 }
 
 export function WriteWorkbook({
   notes, flow, chat, input,
   onInputChange, onSend, onAddNote, onRemoveNote, onClose, mediumLabel,
+  onApplyToScript,
 }: WriteWorkbookProps) {
   const I = ICONS;
   const [newNote, setNewNote] = useState("");
@@ -264,7 +266,23 @@ export function WriteWorkbook({
               <div className="wbook-msg-head">
                 <span className="wbook-msg-who">{m.role === "writer" ? "나" : "Sunny"}</span>
                 <span className="wbook-msg-time">{m.t}</span>
-                {/* 카피 버튼 — AI 채팅창 표준 */}
+                {/* 카피 버튼 + ★ V2.14 채팅 → 본문 적용 버튼 (AI 메시지만) */}
+                {m.text && m.role === "ai" && onApplyToScript && (
+                  <button
+                    type="button"
+                    onClick={() => onApplyToScript(m.text)}
+                    title="이 메시지를 본문 끝에 새 단락으로 추가"
+                    style={{
+                      marginLeft: "auto",
+                      background: "transparent",
+                      border: "1px solid var(--coral)",
+                      color: "var(--coral-deep)",
+                      cursor: "pointer", fontSize: 10.5, fontWeight: 600,
+                      padding: "2px 8px", borderRadius: 6,
+                      letterSpacing: "0.02em",
+                    }}
+                  >📥 본문에 적용</button>
+                )}
                 {m.text && (
                   <button
                     type="button"
@@ -278,7 +296,7 @@ export function WriteWorkbook({
                     }}
                     title="메시지 복사"
                     style={{
-                      marginLeft: "auto",
+                      marginLeft: m.role === "ai" && onApplyToScript ? 4 : "auto",
                       background: "transparent", border: "none",
                       cursor: "pointer", fontSize: 11,
                       color: "var(--ink-4)", padding: "1px 4px",

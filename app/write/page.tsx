@@ -1119,6 +1119,24 @@ function WriteMain() {
       : p));
   };
 
+  // ★ 채팅 → 본문 적용 — AI 채팅 메시지를 본문 끝에 새 단락(들)로 append.
+  // 대표님 비전: "작가가 채팅에서 수정 지시 → AI 응답 → [본문에 적용] 한 번에 반영"
+  const onApplyChatToScript = (text: string) => {
+    if (!text || !text.trim()) return;
+    const blocks = text.split(/\n\s*\n+/).map(b => b.trim()).filter(Boolean);
+    if (blocks.length === 0) return;
+    setParas(prev => {
+      const newParas: Para[] = blocks.map((block, i) => ({
+        id: `p_chat_${Date.now()}_${i}`,
+        n: prev.length + i + 1,
+        label: "채팅 적용",
+        text: block,
+        status: "done" as const,
+      }));
+      return [...prev, ...newParas];
+    });
+  };
+
   // ★ 전체 수정 — 본문 통째로 받아서 빈 줄 기준 단락 자동 분리
   const onEditAllParas = (fullText: string) => {
     const blocks = fullText
@@ -1555,6 +1573,7 @@ function WriteMain() {
               onAddNote={addNote}
               onRemoveNote={removeNote}
               onClose={() => setBookOpen(false)}
+              onApplyToScript={onApplyChatToScript}
               mediumLabel={(() => {
                 // ★ 작가가 /develop에서 선택한 옵션 = 매체 표시에 연동
                 //   예: "B. 영화 · 단편 (~30분)" / "A. TV 드라마 · 16부작" / "C. 숏드라마 · 80화"
