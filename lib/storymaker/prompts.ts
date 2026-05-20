@@ -306,20 +306,29 @@ ${genrePart}
 }
 
 
-// 긴 원본을 각색용으로 압축 — 시작·중반(사건)·결말 3구간을 모두 보존한다.
-// (영화 시나리오 한 편 = 보통 2~4만 자. 앞부분만 자르면 결말을 못 보고, 앞·뒤만 자르면 중반 사건을 놓침.)
-function fitSourceText(text: string, limit = 24000): string {
+// V3.1 — 긴 원본을 각색용으로 5구간(앞·1/4·중반·3/4·결말)으로 압축.
+// 영화·드라마 한 편(3~5만 자), 장편 소설(10만+ 자)에서도 발단·전개·위기·절정·결말 모두 발췌.
+// 한도 40,000자 (Claude 200K 컨텍스트 안전, 토큰 부담 합리).
+function fitSourceText(text: string, limit = 40000): string {
   if (text.length <= limit) return text;
-  const headLen = Math.floor(limit * 0.45);
-  const midLen = Math.floor(limit * 0.18);
-  const tailLen = limit - headLen - midLen;
-  const midStart = Math.floor(text.length * 0.5 - midLen / 2);
-  const totalKChar = text.length.toLocaleString();
+  const headLen = Math.floor(limit * 0.30);
+  const q1Len = Math.floor(limit * 0.15);
+  const midLen = Math.floor(limit * 0.15);
+  const q3Len = Math.floor(limit * 0.15);
+  const tailLen = limit - headLen - q1Len - midLen - q3Len;
+  const total = text.length;
+  const q1Start = Math.floor(total * 0.25 - q1Len / 2);
+  const midStart = Math.floor(total * 0.5 - midLen / 2);
+  const q3Start = Math.floor(total * 0.75 - q3Len / 2);
   return text.slice(0, headLen)
-    + `\n\n…(앞 ${headLen.toLocaleString()}자 끝 — 원문 ${totalKChar}자 중 일부 생략)…\n\n`
+    + `\n\n…(앞부분 끝 · 원문 ${total.toLocaleString()}자 중 [1/4 지점]으로)…\n\n`
+    + text.slice(q1Start, q1Start + q1Len)
+    + `\n\n…([1/4] 끝 · [중반]으로)…\n\n`
     + text.slice(midStart, midStart + midLen)
-    + `\n\n…(중반 발췌 끝 — 결말부로 점프)…\n\n`
-    + text.slice(text.length - tailLen);
+    + `\n\n…([중반] 끝 · [3/4]로)…\n\n`
+    + text.slice(q3Start, q3Start + q3Len)
+    + `\n\n…([3/4] 끝 · [결말]로)…\n\n`
+    + text.slice(total - tailLen);
 }
 
 export function buildAdaptPrompt(text: string, sourceGenre: Genre, targetGenre: Genre): string {
