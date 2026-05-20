@@ -15,6 +15,7 @@ type Handlers = {
   onTogglePanel?: () => void;   // Ctrl+B (workbook 토글)
   onUndo?: () => void;          // Ctrl+Z (V3.1 D1)
   onRedo?: () => void;          // Ctrl+Shift+Z / Ctrl+Y
+  onFind?: () => void;          // Ctrl+F / Ctrl+H (V3.1 추가-2 — 찾기/바꾸기)
   enabled?: boolean;
 };
 
@@ -26,6 +27,7 @@ export function useKeyboard({
   onTogglePanel,
   onUndo,
   onRedo,
+  onFind,
   enabled = true,
 }: Handlers): void {
   useEffect(() => {
@@ -55,6 +57,19 @@ export function useKeyboard({
           e.preventDefault();
           onSave();
         }
+        return;
+      }
+
+      // Ctrl+F — 찾기/바꾸기 (★ V3.1 추가-2). input·textarea 내부에서도 가로챔 (작가 = 본문 안에서도 호출)
+      if ((e.key === "f" || e.key === "F") && onFind) {
+        e.preventDefault();
+        onFind();
+        return;
+      }
+      // Ctrl+H — 바꾸기 단축키 (워드·구글독스 표준). isEditable 외에서만
+      if ((e.key === "h" || e.key === "H") && onFind && !isEditable) {
+        e.preventDefault();
+        onFind();
         return;
       }
 
@@ -106,5 +121,5 @@ export function useKeyboard({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onSave, onToggleEdit, onDownload, onEscape, onTogglePanel, onUndo, onRedo, enabled]);
+  }, [onSave, onToggleEdit, onDownload, onEscape, onTogglePanel, onUndo, onRedo, onFind, enabled]);
 }

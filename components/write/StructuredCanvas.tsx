@@ -5,7 +5,7 @@
 //   K 전시 = Zone 카드 (zoneName + area + flow + objects + interactive + docent)
 //   L 게임 = 대사 데이터 표 (lineId + character + text + condition + nextId + affinity)
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
 import type { Block, ZoneBlock, GameLineBlock } from "@/lib/storymaker/write-doc";
 import type { MediumCanvasRouterProps } from "./MediumCanvasRouter";
 
@@ -184,8 +184,8 @@ function GameCanvas({ doc, onBlockEdit, onBlockContinue, onBlockDelete, onBlockM
   const lines = doc.blocks.filter((b) => b.kind === "game-line") as GameLineBlock[];
   const others = doc.blocks.filter((b) => b.kind !== "game-line");
 
-  // ★ V3.1 — 분기 트리 시각화 (nextId 연결 기반)
-  const [showTree, setShowTree] = useState(false);
+  // ★ V3.1 — 분기 시각화 모드: "table" | "tree" | "graph" (V3.1 B8 SVG 추가)
+  const [viewMode, setViewMode] = useState<"table" | "tree" | "graph">("table");
 
   return (
     <div className="structured-canvas-game">
@@ -196,19 +196,32 @@ function GameCanvas({ doc, onBlockEdit, onBlockContinue, onBlockDelete, onBlockM
       ))}
 
       {lines.length > 1 && (
-        <div style={{ marginBottom: 12, textAlign: "right" }}>
-          <button
-            type="button"
-            onClick={() => setShowTree(s => !s)}
-            style={{ fontSize: 11.5, padding: "5px 12px", background: showTree ? "var(--coral, #ff6b53)" : "transparent", color: showTree ? "#fff" : "var(--coral-deep, #c84738)", border: "1px solid var(--coral)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}
-          >
-            {showTree ? "📋 표 보기" : "🌳 분기 트리"}
-          </button>
+        <div style={{ marginBottom: 12, textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 4 }}>
+          {(["table", "tree", "graph"] as const).map(m => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setViewMode(m)}
+              style={{
+                fontSize: 11.5,
+                padding: "5px 10px",
+                background: viewMode === m ? "var(--coral, #ff6b53)" : "transparent",
+                color: viewMode === m ? "#fff" : "var(--coral-deep, #c84738)",
+                border: "1px solid var(--coral)",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {m === "table" ? "📋 표" : m === "tree" ? "🌳 트리" : "🕸 그래프"}
+            </button>
+          ))}
         </div>
       )}
 
-      {showTree && lines.length > 0 && <GameBranchTree lines={lines} />}
-      {!showTree && (
+      {viewMode === "tree" && lines.length > 0 && <GameBranchTree lines={lines} />}
+      {viewMode === "graph" && lines.length > 0 && <GameBranchGraph lines={lines} />}
+      {viewMode === "table" && (
         <>
 
       {lines.length === 0 ? (
@@ -342,6 +355,159 @@ function GameBranchTree({ lines }: { lines: GameLineBlock[] }) {
         </div>
       )}
       {roots.map(r => renderNode(r, 0, new Set()))}
+    </div>
+  );
+}
+
+// ★ V3.1 B8 — Game 분기 SVG 그래프 시각화 (hierarchical layout)
+function GameBranchGraph({ lines }: { lines: GameLineBlock[] }) {
+  const markerId = `arr-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;  // SVG marker id 고유화 (다중 인스턴스 충돌 방지)
+  const byId = new Map<string, GameLineBlock>();
+  for (const l of lines) byId.set(l.lineId, l);
+
+  // depth 계산 (= roots부터 BFS)
+  const referenced = new Set<string>();
+  for (const l of lines) {
+    if (l.nextId) l.nextId.split(/[,;]/).forEach(n => referenced.add(n.trim()));
+  }
+  const roots = lines.filter(l => !referenced.has(l.lineId));
+
+  // node → depth 매핑 (BFS, 사이클 방지)
+  const depthOf = new Map<string, number>();
+  const queue: Array<{ id: string; depth: number }> = roots.map(r => ({ id: r.lineId, depth: 0 }));
+  while (queue.length > 0) {
+    const { id, depth } = queue.shift()!;
+    if (depthOf.has(id)) continue;
+    depthOf.set(id, depth);
+    const cur = byId.get(id);
+    if (cur?.nextId) {
+      cur.nextId.split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(nid => {
+        if (byId.has(nid) && !depthOf.has(nid)) queue.push({ id: nid, depth: depth + 1 });
+      });
+    }
+  }
+  // depth가 안 잡힌 노드 (= 사이클·orphan) = 최대 depth+1
+  const maxAssignedDepth = Math.max(0, ...Array.from(depthOf.values()));
+  for (const l of lines) {
+    if (!depthOf.has(l.lineId)) depthOf.set(l.lineId, maxAssignedDepth + 1);
+  }
+
+  // depth별 그룹화
+  const depthGroups = new Map<number, string[]>();
+  for (const l of lines) {
+    const d = depthOf.get(l.lineId)!;
+    if (!depthGroups.has(d)) depthGroups.set(d, []);
+    depthGroups.get(d)!.push(l.lineId);
+  }
+  const maxDepth = Math.max(0, ...Array.from(depthGroups.keys()));
+  const maxNodesPerDepth = Math.max(1, ...Array.from(depthGroups.values()).map(arr => arr.length));
+
+  // 노드 위치 계산
+  const NODE_W = 120;
+  const NODE_H = 40;
+  const COL_GAP = 60;
+  const ROW_GAP = 24;
+  const PAD = 20;
+  const width = Math.max(600, (maxDepth + 1) * (NODE_W + COL_GAP) + PAD * 2);
+  const height = Math.max(200, maxNodesPerDepth * (NODE_H + ROW_GAP) + PAD * 2);
+
+  const positions = new Map<string, { x: number; y: number }>();
+  for (const [d, ids] of depthGroups) {
+    const colY = (height - ids.length * (NODE_H + ROW_GAP)) / 2;
+    ids.forEach((id, i) => {
+      positions.set(id, {
+        x: PAD + d * (NODE_W + COL_GAP),
+        y: colY + i * (NODE_H + ROW_GAP),
+      });
+    });
+  }
+
+  // 엣지 (= parent.center.right → child.center.left)
+  const edges: Array<{ from: string; to: string; missing?: boolean }> = [];
+  for (const l of lines) {
+    if (!l.nextId) continue;
+    l.nextId.split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(nid => {
+      edges.push({ from: l.lineId, to: nid, missing: !byId.has(nid) });
+    });
+  }
+
+  return (
+    <div style={{ padding: 14, background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10, overflow: "auto" }}>
+      <div style={{ fontSize: 11, color: "var(--ink-4)", marginBottom: 10, letterSpacing: "0.05em", fontWeight: 700 }}>
+        🕸 분기 그래프 ({lines.length}개 노드 · {edges.length}개 연결 · 깊이 {maxDepth + 1})
+      </div>
+      <svg width={width} height={height} style={{ display: "block" }}>
+        {/* 엣지 = 곡선 path */}
+        {edges.map((e, i) => {
+          const p1 = positions.get(e.from);
+          if (!p1) return null;
+          const p2 = positions.get(e.to);
+          const targetX = p2 ? p2.x : p1.x + NODE_W + COL_GAP - 10;
+          const targetY = p2 ? p2.y + NODE_H / 2 : p1.y + NODE_H / 2;
+          const x1 = p1.x + NODE_W;
+          const y1 = p1.y + NODE_H / 2;
+          const cx = (x1 + targetX) / 2;
+          const d = `M ${x1} ${y1} C ${cx} ${y1}, ${cx} ${targetY}, ${targetX} ${targetY}`;
+          return (
+            <path
+              key={`e-${i}`}
+              d={d}
+              stroke={e.missing ? "#dc2626" : "#999"}
+              strokeWidth={1.5}
+              fill="none"
+              strokeDasharray={e.missing ? "4 3" : undefined}
+              markerEnd={`url(#${markerId})`}
+            />
+          );
+        })}
+        <defs>
+          <marker id={markerId} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#777" />
+          </marker>
+        </defs>
+        {/* 노드 = rect + 텍스트 */}
+        {lines.map(l => {
+          const p = positions.get(l.lineId);
+          if (!p) return null;
+          return (
+            <g key={l.lineId} transform={`translate(${p.x}, ${p.y})`}>
+              <rect
+                width={NODE_W}
+                height={NODE_H}
+                rx={8}
+                fill="var(--card, #fff)"
+                stroke="var(--coral, #ff6b53)"
+                strokeWidth={1.5}
+              />
+              <text x={8} y={16} fontSize={11} fontWeight={700} fill="var(--coral-deep, #c84738)" fontFamily="monospace">
+                {l.lineId}
+              </text>
+              <text x={8} y={32} fontSize={11} fill="var(--ink, #222)">
+                {(l.character || "—").slice(0, 12)}
+              </text>
+            </g>
+          );
+        })}
+        {/* 끊긴 nextId (= missing 노드) 표시 */}
+        {edges.filter(e => e.missing).map((e, i) => {
+          const p = positions.get(e.from);
+          if (!p) return null;
+          return (
+            <text
+              key={`m-${i}`}
+              x={p.x + NODE_W + COL_GAP - 6}
+              y={p.y + NODE_H / 2 + 4}
+              fontSize={10}
+              fill="#dc2626"
+            >
+              ⚠ {e.to}
+            </text>
+          );
+        })}
+      </svg>
+      <div style={{ fontSize: 10, color: "var(--ink-4)", marginTop: 8 }}>
+        가로 = 분기 깊이 / 세로 = 같은 깊이 노드. 빨간 점선 = 끊긴 nextId.
+      </div>
     </div>
   );
 }

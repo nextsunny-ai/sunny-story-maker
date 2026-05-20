@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "SUNNY Story Maker",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "identifier": "com.sunnytoon.story-maker",
   "build": {
     "frontendDist": "https://story.sunnytoon.com",
@@ -55,7 +55,16 @@
     },
     "android": {
       "debugApplicationIdSuffix": ".debug"
-    }
+    },
+    "fileAssociations": [
+      {
+        "ext": ["smkr"],
+        "name": "Story Maker Project",
+        "description": "SUNNY Story Maker 작품 파일",
+        "role": "Editor",
+        "mimeType": "application/x-storymaker"
+      }
+    ]
   },
   "plugins": {
     "updater": {

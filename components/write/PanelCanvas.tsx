@@ -3,7 +3,7 @@
 // V3.0 PANEL 그룹 본문 캔버스 (F 웹툰).
 // 컷 카드 시퀀스. 각 카드 = 그림 묘사 + (선택) 대사·SFX·나레이션.
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Markdown } from "@/components/Markdown";
 import type { Block, CutBlock } from "@/lib/storymaker/write-doc";
 import type { MediumCanvasRouterProps } from "./MediumCanvasRouter";
@@ -131,6 +131,17 @@ function CutRenderer({
   const patch = (p: Partial<CutBlock>) => onEdit?.(block.id, p as Partial<Block>);
   const [showOptional, setShowOptional] = useState(!!(block.dialogue || block.sfx || block.narration));
   const [dragOver, setDragOver] = useState<"before" | "after" | null>(null);
+  // ★ V3.1 B7 — 모바일 터치 드래그 (touch event 통합)
+  const touchDragRef = useRef<{ active: boolean; startY: number; movedAt: number; timerId?: number } | null>(null);
+  // unmount 시 timer cleanup (= sessionStorage stale ID 방지)
+  useEffect(() => {
+    return () => {
+      if (touchDragRef.current?.timerId) {
+        window.clearTimeout(touchDragRef.current.timerId);
+      }
+      try { window.sessionStorage.removeItem("smkr.touchDragId"); } catch { /* ignore */ }
+    };
+  }, []);
 
   return (
     <div
@@ -158,6 +169,63 @@ function CutRenderer({
         }
         setDragOver(null);
       }}
+      // ★ V3.1 B7 — 모바일 터치 드래그 (긴 누름 = drag mode 시작)
+      onTouchStart={(e) => {
+        if (!onReorder) return;
+        // 옛 타이머 있으면 정리 (= stale timer 방지)
+        if (touchDragRef.current?.timerId) window.clearTimeout(touchDragRef.current.timerId);
+        const t = e.touches[0];
+        const newRef: { active: boolean; startY: number; movedAt: number; timerId?: number } = {
+          active: false, startY: t.clientY, movedAt: Date.now(),
+        };
+        touchDragRef.current = newRef;
+        // 500ms 길게 누르면 = drag mode 활성
+        newRef.timerId = window.setTimeout(() => {
+          if (touchDragRef.current === newRef && Date.now() - newRef.movedAt >= 450) {
+            newRef.active = true;
+            try { window.navigator.vibrate?.(40); } catch { /* unsupported */ }
+            window.sessionStorage.setItem("smkr.touchDragId", block.id);
+          }
+        }, 500);
+      }}
+      onTouchMove={(e) => {
+        if (!onReorder || !touchDragRef.current?.active) return;
+        e.preventDefault();
+        const t = e.touches[0];
+        // 손가락 위치 = 어떤 카드 위인지 detect
+        const el = document.elementFromPoint(t.clientX, t.clientY) as HTMLElement | null;
+        const cardEl = el?.closest("[data-cut-block-id]") as HTMLElement | null;
+        const targetId = cardEl?.dataset.cutBlockId;
+        if (targetId === block.id) {
+          const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+          const midpoint = rect.top + rect.height / 2;
+          setDragOver(t.clientY < midpoint ? "before" : "after");
+        }
+      }}
+      onTouchEnd={(e) => {
+        // 어떤 상태든 = timer 정리
+        if (touchDragRef.current?.timerId) {
+          window.clearTimeout(touchDragRef.current.timerId);
+          touchDragRef.current.timerId = undefined;
+        }
+        if (!onReorder || !touchDragRef.current?.active) {
+          window.sessionStorage.removeItem("smkr.touchDragId");
+          touchDragRef.current = null;
+          return;
+        }
+        const t = e.changedTouches[0];
+        const el = document.elementFromPoint(t.clientX, t.clientY) as HTMLElement | null;
+        const cardEl = el?.closest("[data-cut-block-id]") as HTMLElement | null;
+        const targetId = cardEl?.dataset.cutBlockId;
+        const draggedId = window.sessionStorage.getItem("smkr.touchDragId");
+        if (draggedId && targetId && draggedId !== targetId) {
+          onReorder(draggedId, targetId, dragOver || "after");
+        }
+        window.sessionStorage.removeItem("smkr.touchDragId");
+        touchDragRef.current = null;
+        setDragOver(null);
+      }}
+      data-cut-block-id={block.id}
       style={{
       marginBottom: 16,
       padding: "14px 16px",

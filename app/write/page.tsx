@@ -21,6 +21,8 @@ import { autoBackupDocx } from "@/lib/storymaker/auto-backup";
 import { createSnapshot } from "@/lib/storymaker/snapshots";
 import { SnapshotHistory } from "@/components/SnapshotHistory";
 import { saveSmkrToProjectFolder, openSmkrFile } from "@/lib/storymaker/project-file";
+import { FindReplace, isSafeRegex } from "@/components/FindReplace";
+import { CastNotes } from "@/components/CastNotes";
 import {
   MediumFieldRenderer,
   buildDefaultValues,
@@ -579,6 +581,10 @@ function WriteMain() {
   const [notes, setNotes] = useState<Note[]>(initial.notes);
   const [flow, setFlow] = useState<FlowItem[]>(initial.flow);
   const [paras, setParas] = useState<Para[]>(initial.paras);
+  // V3.1 추가-2 — 본문 찾기/바꾸기 모달
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  // V3.1 추가-3 — 인물·설정 노트 패널
+  const [showCastNotes, setShowCastNotes] = useState(false);
 
   // ★ V3.1 D1 — Undo/Redo paras history stack (최대 50개, debounce 500ms)
   const parasHistoryRef = useRef<{ stack: Para[][]; index: number }>({ stack: [initial.paras], index: 0 });
@@ -1838,15 +1844,60 @@ function WriteMain() {
   // ★ V3.1 D1 — Ctrl+Z / Ctrl+Y · Ctrl+Shift+Z (단락 차원 undo)
   useKeyboard({
     onSave: () => {
-      if (!isDemo) saveSnapshot("manual", { force: true });
+      if (!isDemo) {
+        saveSnapshot("manual", { force: true });
+        // V3.1 추가-4 — 수동 저장 toast (작가 안심)
+        if (typeof window !== "undefined") {
+          const t = document.createElement("div");
+          t.textContent = "💾 저장됨";
+          t.style.cssText = "position:fixed;top:64px;right:20px;background:rgba(34,197,94,0.95);color:#fff;padding:8px 16px;border-radius:8px;z-index:99999;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.15)";
+          document.body.appendChild(t);
+          setTimeout(() => t.remove(), 1400);
+        }
+      }
     },
     onToggleEdit: () => setBookOpen(v => !v),
     onTogglePanel: () => setBookOpen(v => !v),
     onDownload: () => onDownloadScript("docx"),
     onUndo: undoParas,
     onRedo: redoParas,
+    onFind: () => setShowFindReplace(true),  // V3.1 추가-2 — Ctrl+F·Ctrl+H = 찾기/바꾸기
     enabled: !isDemo && !needsRedirect && !showNoProjectGate,
   });
+
+  // V3.1 추가-2 — 본문 찾기/바꾸기 핸들러. paras 모든 text 순회·치환.
+  const onReplaceInBody = useCallback((find: string, replace: string, replaceAll: boolean, caseSensitive: boolean, regex: boolean) => {
+    if (!find) return;
+    // ★ Defense in depth — ReDoS catastrophic backtracking 방어 (FindReplace에서 1차 검증, 여기서 2차)
+    if (regex && !isSafeRegex(find).ok) return;
+    let totalReplaced = 0;
+    let replacedFirst = false;  // replaceAll=false면 = 첫 매치 1개만
+    const pattern = regex ? find : find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    setParas(prev => prev.map(p => {
+      if (!p.text || (!replaceAll && replacedFirst)) return p;
+      try {
+        const re = new RegExp(pattern, (caseSensitive ? "" : "i") + (replaceAll ? "g" : ""));
+        const before = p.text;
+        const after = before.replace(re, replace);
+        if (after !== before) {
+          totalReplaced += (before.match(new RegExp(pattern, (caseSensitive ? "g" : "gi"))) || []).length;
+          if (!replaceAll) replacedFirst = true;
+          return { ...p, text: after };
+        }
+      } catch { /* regex 오류 = skip */ }
+      return p;
+    }));
+    if (totalReplaced > 0) {
+      // 토스트로 알림
+      if (typeof window !== "undefined") {
+        const div = document.createElement("div");
+        div.textContent = `${totalReplaced}개 치환 완료`;
+        div.style.cssText = "position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#ff6b53;color:#fff;padding:8px 16px;border-radius:8px;z-index:99999;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.2)";
+        document.body.appendChild(div);
+        setTimeout(() => div.remove(), 2000);
+      }
+    }
+  }, []);
 
   const onResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -2009,6 +2060,51 @@ function WriteMain() {
             setParas(restoredParas);
           }}
         />
+      )}
+
+      {/* ★ V3.1 추가-2 — 본문 찾기/바꾸기 모달 (Ctrl+F·Ctrl+H) */}
+      {showFindReplace && (
+        <FindReplace
+          body={paras.map(p => p.text || "").join("\n\n")}
+          onReplace={onReplaceInBody}
+          onClose={() => setShowFindReplace(false)}
+        />
+      )}
+
+      {/* ★ V3.1 추가-3 — 인물·설정 노트 패널 (📓 버튼 + 모달) */}
+      {!isDemo && persistKey && (
+        <>
+          <button
+            type="button"
+            onClick={() => setShowCastNotes(v => !v)}
+            title="인물·설정 노트 (작품별 자동 저장)"
+            aria-label="인물·설정 노트 열기"
+            style={{
+              position: "fixed",
+              bottom: 20,
+              right: 20,
+              zIndex: 9997,
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              border: "none",
+              background: showCastNotes ? "var(--ink, #222)" : "var(--coral, #ff6b53)",
+              color: "#fff",
+              fontSize: 20,
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+              transition: "background 0.15s",
+            }}
+          >
+            📓
+          </button>
+          {showCastNotes && (
+            <CastNotes
+              workId={persistKey}
+              onClose={() => setShowCastNotes(false)}
+            />
+          )}
+        </>
       )}
     </main>
   );

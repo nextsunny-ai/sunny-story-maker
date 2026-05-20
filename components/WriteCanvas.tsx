@@ -9,6 +9,7 @@ import { MediumCanvasRouter } from "@/components/write/MediumCanvasRouter";
 import { Markdown } from "@/components/Markdown";
 import { LibraryPicker } from "@/components/LibraryPicker";
 import { TypingIndicator } from "@/components/TypingIndicator";
+import { WorkStats } from "@/components/WorkStats";
 import { t, useLocale } from "@/lib/i18n";
 
 export interface WorkInfo {
@@ -182,9 +183,42 @@ export function WriteCanvas({
                   borderRadius: 6, padding: "2px 6px", cursor: "pointer",
                 }}
               >
-                {GENRES.map(g => (
-                  <option key={g.letter} value={g.letter}>{g.letter}. {g.name}</option>
-                ))}
+                {/* ★ V3.1 B9 — 매체별 표준 분량 표시 (작가 의사결정 가시화) */}
+                <optgroup label="시나리오·드라마">
+                  {GENRES.filter(g => ["A","B","C"].includes(g.letter)).map(g => (
+                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="애니메이션">
+                  {GENRES.filter(g => ["D","E"].includes(g.letter)).map(g => (
+                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="만화·웹툰">
+                  {GENRES.filter(g => g.letter === "F").map(g => (
+                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="다큐·예능·유튜브">
+                  {GENRES.filter(g => ["G","J","M"].includes(g.letter)).map(g => (
+                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="공연·뮤지컬">
+                  {GENRES.filter(g => ["I","N"].includes(g.letter)).map(g => (
+                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="소설·웹소설·에세이">
+                  {GENRES.filter(g => ["H","O","P"].includes(g.letter)).map(g => (
+                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="전시·게임">
+                  {GENRES.filter(g => ["K","L"].includes(g.letter)).map(g => (
+                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                  ))}
+                </optgroup>
               </select>
             ) : (
               <span>{work.medium}</span>
@@ -192,9 +226,13 @@ export function WriteCanvas({
             <span className="wcanvas-head-dot">·</span>
             <span>{work.elapsed}</span>
             <span className="wcanvas-head-dot">·</span>
-            <span>{totalChars.toLocaleString()}자</span>
-            <span className="wcanvas-head-dot">·</span>
             <span>{doneCount}/{paras.length} 단락</span>
+            <span className="wcanvas-head-dot">·</span>
+            {/* ★ V3.1 추가-1 — 작품 통계 (매체별 환산·완성도) */}
+            <WorkStats
+              body={paras.map(p => p.text).join("\n\n")}
+              mediumLetter={(work.medium || "").trim().charAt(0)}
+            />
           </div>
         </div>
         <div className="wcanvas-head-right">

@@ -184,13 +184,14 @@ function parseExhibition(text: string): Block[] {
   let seq = 0;
   const nextId = () => `b_${Date.now()}_${seq++}`;
 
-  // [존N] 또는 Zone N 단위로 분리
-  const RE_ZONE = /\[\s*존\s*(\d+)\s*\]|^Zone\s+(\d+)\s*[:.]|^존\s+(\d+)\s*[:.]/gm;
-  const zoneMarkers: Array<{ no: number; start: number; headEnd: number }> = [];
+  // [존N] / Zone N / 존 N / ### 존N. 부제 / ## 존 N. 부제 단위로 분리 (★ V3.1 B6)
+  const RE_ZONE = /\[\s*존\s*(\d+)\s*\]|^#{1,3}\s*존\s*(\d+)\s*[\.:]?\s*(.*)$|^Zone\s+(\d+)\s*[:.]|^존\s+(\d+)\s*[:.]/gm;
+  const zoneMarkers: Array<{ no: number; start: number; headEnd: number; markerName?: string }> = [];
   let m: RegExpExecArray | null;
   while ((m = RE_ZONE.exec(text)) !== null) {
-    const no = parseInt(m[1] || m[2] || m[3], 10);
-    if (!isNaN(no)) zoneMarkers.push({ no, start: m.index, headEnd: m.index + m[0].length });
+    const no = parseInt(m[1] || m[2] || m[4] || m[5], 10);
+    const markerName = (m[3] || "").trim() || undefined;  // ### 존N. <부제> = 마커에서 zoneName 직접
+    if (!isNaN(no)) zoneMarkers.push({ no, start: m.index, headEnd: m.index + m[0].length, markerName });
   }
   if (zoneMarkers.length === 0) {
     return splitProseBlocks(text);
@@ -215,19 +216,33 @@ function parseExhibition(text: string): Block[] {
     let interactive: string | undefined;
     let docent: string | undefined;
 
-    for (const line of lines) {
-      if (!line) continue;
-      // ★ V3.1 B1 보강 — 작가가 쓰는 다양한 키워드 다 인식
+    // 마커에서 직접 추출된 zoneName 우선 (= "### 존1. 시작의 방" 같은 case)
+    if (cur.markerName) zoneName = cur.markerName;
+
+    // ★ 불릿(-, *, •) prefix 제거 후 매칭 (작가가 "- 면적: ..." 같이 쓰는 일이 많음)
+    for (const rawLine of lines) {
+      if (!rawLine) continue;
+      const line = rawLine.replace(/^[-*•]\s+/, "");
+      // ★ V3.1 B1+B6 보강 — 작가가 쓰는 다양한 키워드 다 인식
       const am = line.match(/^(?:면적|공간|규모|크기|Area|Space|Size)\s*[:：]\s*(.+)$/i);
       const fm = line.match(/^(?:동선|흐름|루트|경로|Flow|Route|Path)\s*[:：]\s*(.+)$/i);
       const om = line.match(/^(?:오브제|작품|전시물|구조물|Objects?|Items?|Exhibits?)\s*[:：]\s*(.+)$/i);
       const im = line.match(/^(?:인터랙티브|체험|상호작용|Interactive|Experience)\s*[:：]\s*(.+)$/i);
       const dm = line.match(/^(?:도슨트|해설|설명|음성안내|Docent|Narration|Guide)\s*[:：]\s*(.+)$/i);
+      // ★ V3.1 B6 추가 — 체류·컨셉·테마·굿즈·평면도
+      const sm = line.match(/^(?:체류|체류시간|체류 시간|Stay|Duration|Visit)\s*[:：]\s*(.+)$/i);
+      const cm = line.match(/^(?:컨셉|테마|콘셉트|Concept|Theme)\s*[:：]\s*(.+)$/i);
+      const gm = line.match(/^(?:굿즈|상품|머천다이즈|Goods?|Merch)\s*[:：]\s*(.+)$/i);
+      const mm = line.match(/^(?:평면도|도면|배치도|Floor|Map|Layout)\s*[:：]\s*(.+)$/i);
       if (am) area = (area ? `${area}; ${am[1]}` : am[1]);
+      else if (sm) area = (area ? `${area}; 체류 ${sm[1]}` : `체류 ${sm[1]}`);
+      else if (cm) area = (area ? `${area}; 컨셉 ${cm[1]}` : `컨셉 ${cm[1]}`);
+      else if (mm) area = (area ? `${area}; 평면도 ${mm[1]}` : `평면도 ${mm[1]}`);
       else if (fm) flow = fm[1];
-      else if (om) objects = om[1];
+      else if (om) objects = (objects ? `${objects}; ${om[1]}` : om[1]);
+      else if (gm) objects = (objects ? `${objects}; 굿즈 ${gm[1]}` : `굿즈 ${gm[1]}`);
       else if (im) interactive = im[1];
-      else if (dm) docent = dm[1];
+      else if (dm) docent = (docent ? `${docent}\n${dm[1]}` : dm[1]);
       else if (!zoneName) zoneName = line;
     }
 

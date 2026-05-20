@@ -15,6 +15,69 @@ import {
   WidthType,
 } from "docx";
 
+// ─── V3.1 B2 — 한국 시나리오 표준 자동 감지·들여쓰기 ───
+// 시나리오 매체 (TV/영화/숏드/애니/뮤지컬/연극) 본문이면 = 자동 한국 시나리오 표준 .docx 양식.
+// 호출자 변경 0 = backwards compatible. 시나리오 패턴 (S#N. 또는 N. 장소 + 캐릭터<탭>대사) 발견 시 자동 진입.
+
+type ScriptLineType = "scene" | "subscene" | "character_dialog" | "paren" | "cut" | "subtitle" | "action" | "blank";
+
+interface ParsedScriptLine {
+  type: ScriptLineType;
+  text: string;
+  character?: string;
+  dialog?: string;
+}
+
+/** 본문 markdown에 시나리오 양식 패턴 있는지 자동 감지 */
+function detectScriptFormat(md: string): boolean {
+  const lines = md.split("\n");
+  let sceneCount = 0;
+  let dialogCount = 0;
+  let cutCount = 0;
+  for (const line of lines) {
+    // 씬 헤딩: "   1. 거리" or "S#1. 장소" — 3공백+ 들여쓰기 + 숫자 + 점
+    if (/^\s{2,}(S#)?\d+\.\s*\S/.test(line)) sceneCount++;
+    // 캐릭터 + 다중 공백 + 대사: "   진우         대사" (5+ 공백 = 시나리오 캐릭터 행)
+    if (/^\s{2,}[가-힣A-Za-z][가-힣A-Za-z0-9 ]{0,15}(\s+E)?\s{4,}\S/.test(line)) dialogCount++;
+    // CUT TO. or -CUT TO.
+    if (/^-?\s*CUT\s*TO\./i.test(line.trim())) cutCount++;
+  }
+  // 씬 헤딩 ≥1 + 캐릭터 대사 ≥2 = 시나리오 본문 거의 확실
+  return (sceneCount >= 1 && dialogCount >= 2) || cutCount >= 1;
+}
+
+/** 시나리오 본문 1줄 = 유형 자동 분류 */
+function parseScriptLine(line: string): ParsedScriptLine {
+  const trimmed = line.trim();
+  if (!trimmed) return { type: "blank", text: "" };
+
+  // CUT 전환
+  if (/^-?\s*CUT\s*TO\./i.test(trimmed)) return { type: "cut", text: trimmed };
+
+  // 자막 = "자막. ..."
+  if (/^자막[\.\s]/.test(trimmed)) return { type: "subtitle", text: trimmed };
+
+  // 씬 헤딩 = "1. 거리" 또는 "S#1. 장소" — 들여쓰기 + 숫자 + 점
+  if (/^(S#)?\d+\.\s*\S/.test(trimmed)) return { type: "scene", text: trimmed };
+
+  // 하위 씬 = "-옥상 / 새벽" (CUT 아님)
+  if (/^-\S/.test(trimmed)) return { type: "subscene", text: trimmed };
+
+  // 부연 단독 (괄호) = "(놀라며)" 또는 "(손가락질만)"
+  if (/^\([^)]+\)\s*$/.test(trimmed)) return { type: "paren", text: trimmed };
+
+  // 캐릭터 + 다중 공백(탭 환산) + 대사 (시나리오 표준)
+  // 원본 line (들여쓰기 포함) 정규식 — "   진우         어, 지금 들어가는 중."
+  const charDialog = /^\s+([가-힣A-Za-z][가-힣A-Za-z0-9 ]{0,15})(\s+E)?\s{4,}(.+)$/.exec(line);
+  if (charDialog) {
+    const char = charDialog[1].trim() + (charDialog[2] ? " E" : "");
+    return { type: "character_dialog", text: trimmed, character: char, dialog: charDialog[3].trim() };
+  }
+
+  // 액션 라인 = 평문 = 왼쪽 끝
+  return { type: "action", text: trimmed };
+}
+
 // ─── Markdown 인라인 (굵게/기울임) → docx TextRun[] ───
 function parseInline(text: string): TextRun[] {
   const runs: TextRun[] = [];
@@ -149,11 +212,87 @@ export function markdownToDocx(md: string, title: string, cover?: CoverOptions):
     pageBreakBefore: true,
   }));
 
+  // ★ V3.1 B2 — 한국 시나리오 표준 자동 감지·들여쓰기
+  // 시나리오 본문 (TV·영화·숏드라마·애니·뮤지컬 등) = 자동 들여쓰기 양식.
+  // 방송국·제작사·영진위 제출 가능 수준.
+  const isScript = detectScriptFormat(md);
+
   let i = 0;
   let inCodeBlock = false;
   while (i < lines.length) {
     const line = lines[i];
     const trimmed = line.trim();
+
+    // ★ 시나리오 모드 분기 (V3.1 B2) — 한국 시나리오 표준 양식
+    if (isScript) {
+      const parsed = parseScriptLine(line);
+      switch (parsed.type) {
+        case "scene":
+          // 씬 헤딩 = 굵게·들여쓰기·앞뒤 여백
+          children.push(new Paragraph({
+            children: [new TextRun({ text: parsed.text, bold: true, size: 22, font: "맑은 고딕" })],
+            indent: { left: 360 },
+            spacing: { before: 320, after: 160 },
+            keepNext: true,
+          }));
+          break;
+        case "subscene":
+          // 하위 씬 (-옥상 / 새벽) = 굵게 + 살짝 여백
+          children.push(new Paragraph({
+            children: [new TextRun({ text: parsed.text, bold: true, size: 21, font: "맑은 고딕" })],
+            spacing: { before: 160, after: 80 },
+          }));
+          break;
+        case "cut":
+          // CUT TO. = 굵게·왼쪽 끝·앞뒤 여백
+          children.push(new Paragraph({
+            children: [new TextRun({ text: parsed.text, bold: true, font: "맑은 고딕" })],
+            spacing: { before: 160, after: 160 },
+          }));
+          break;
+        case "subtitle":
+          // 자막 = 가운데·이탤릭
+          children.push(new Paragraph({
+            children: [new TextRun({ text: parsed.text, italics: true, font: "맑은 고딕" })],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 100 },
+          }));
+          break;
+        case "character_dialog":
+          // 캐릭터 + 탭 + 대사 (= 한국 시나리오 표준 들여쓰기)
+          // 캐릭터 = 들여쓰기 6공백 / 대사 시작 = 12공백 (탭으로 정렬)
+          children.push(new Paragraph({
+            children: [
+              new TextRun({ text: parsed.character || "", bold: true, font: "맑은 고딕" }),
+              new TextRun({ text: "\t" }),
+              new TextRun({ text: parsed.dialog || "", font: "맑은 고딕" }),
+            ],
+            indent: { left: 1440, hanging: 720 },
+            spacing: { after: 80 },
+          }));
+          break;
+        case "paren":
+          // 부연 (괄호) = 들여쓰기 깊게·이탤릭·연한 색
+          children.push(new Paragraph({
+            children: [new TextRun({ text: parsed.text, italics: true, color: "555555", font: "맑은 고딕" })],
+            indent: { left: 1800 },
+            spacing: { after: 60 },
+          }));
+          break;
+        case "action":
+          // 액션 라인 (지문) = 왼쪽 끝 평문
+          children.push(new Paragraph({
+            children: parseInline(parsed.text),
+            spacing: { after: 100 },
+          }));
+          break;
+        case "blank":
+          // 빈 줄 = 단락 구분 (= skip = 다음 단락 = 자동 여백)
+          break;
+      }
+      i++;
+      continue;
+    }
 
     // 코드 블록 (```) 무시 (그대로 출력)
     if (trimmed.startsWith("```")) {
