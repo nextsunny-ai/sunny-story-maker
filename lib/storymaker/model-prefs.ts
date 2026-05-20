@@ -20,17 +20,17 @@ export interface ModelPrefs {
   chat: ModelChoice;    // 보조작가 채팅
 }
 
-// ★★★ 테스트용 임시 (2026-05-20 대표님 명시): 전부 Haiku.
-//   이유 — 테스트 중 토큰 구독 한도(5시간/7일)에 안 막히게. 테스트 끝나면 원복.
-//   ▶ 원복값: develop=haiku / write=opus / adapt=opus / review=haiku / osmu=haiku / chat=haiku
-//     (write·adapt만 Opus = 본문·각색은 작가 작품의 핵심 = 최고 품질)
+// ★ 작가용 정상 설정 (2026-05-20 V2.14.6 원복):
+//   write·adapt = Opus (본문 집필·각색 = 작가 작품의 핵심 = 최고 품질)
+//   나머지 = Haiku (한도 절약 + 한도 차면 자동 Haiku fallback이 받쳐줌)
+//   작가는 admin Settings에서 작업별로 직접 변경 가능.
 export const DEFAULT_MODEL_PREFS: ModelPrefs = {
-  develop: "haiku",
-  write: "haiku",    // 테스트용 임시 — 원복 시 opus
-  adapt: "haiku",    // 테스트용 임시 — 원복 시 opus
-  review: "haiku",
-  osmu: "haiku",
-  chat: "haiku",
+  develop: "haiku", // 사전 자료 6단계 — Haiku
+  write: "opus",    // ★ 본문 집필 = 작가 작품의 핵심
+  adapt: "opus",    // ★ 각색 = 본문 변환 = 깊이 필요
+  review: "haiku",  // 다중 페르소나 평가 — Haiku
+  osmu: "haiku",    // 12매체 매트릭스 — Haiku
+  chat: "haiku",    // 보조작가 채팅 — Haiku
 };
 
 export const MODEL_LABELS: Record<ModelChoice, string> = {
