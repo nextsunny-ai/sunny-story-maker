@@ -84,7 +84,7 @@ function LoginPageInner() {
 
         // 이메일 확인이 필요한 경우 session이 없음
         if (!data.session) {
-          setInfo("가입 완료. 이메일로 발송된 확인 링크를 눌러주세요.");
+          setInfo("가입 완료! 이메일로 발송된 확인 링크를 클릭해주세요. (5분 이내 도착 · 메일함이 안 보이면 스팸 폴더도 확인 · 안 오면 아래 [확인 메일 재발송])");
           setLoading(false);
           return;
         }
@@ -243,7 +243,32 @@ function LoginPageInner() {
     if (resetError) {
       setError(translateAuthError(resetError.message));
     } else {
-      setInfo("비밀번호 재설정 링크를 이메일로 발송했습니다.");
+      setInfo("비밀번호 재설정 링크를 이메일로 발송했습니다. (메일함이 안 보이면 스팸 폴더도 확인해주세요.)");
+    }
+    setLoading(false);
+  }
+
+  // ★ V2.14.8 — 확인 메일 재발송 (작가가 가입 후 메일 못 받거나 spam으로 가서 막히는 사고 예방)
+  async function handleResendConfirmation(): Promise<void> {
+    setError(null);
+    setInfo(null);
+    if (!email) {
+      setError("이메일을 먼저 입력해주세요.");
+      return;
+    }
+    setLoading(true);
+    const supabase = createClient();
+    const { error: resendError } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectTo)}`,
+      },
+    });
+    if (resendError) {
+      setError(translateAuthError(resendError.message));
+    } else {
+      setInfo("확인 메일을 다시 발송했습니다. 메일함과 스팸 폴더를 확인해주세요. (5분 이내 도착)");
     }
     setLoading(false);
   }
@@ -440,6 +465,27 @@ function LoginPageInner() {
             </div>
           )}
 
+          {/* ★ V2.14.8 — 확인 메일 재발송 버튼 (작가가 메일 못 받아서 막히는 사고 예방) */}
+          {(info?.includes("확인") || error?.includes("이메일 확인") || error?.includes("확인 링크")) && (
+            <button
+              type="button"
+              onClick={handleResendConfirmation}
+              disabled={loading}
+              style={{
+                marginTop: 10,
+                padding: "8px 14px",
+                background: "transparent",
+                color: "var(--coral)",
+                border: "1px solid var(--coral)",
+                borderRadius: 8,
+                cursor: loading ? "wait" : "pointer",
+                fontSize: 12.5, fontWeight: 600,
+              }}
+            >
+              📧 확인 메일 재발송
+            </button>
+          )}
+
           <button className="login-cta" type="submit" disabled={loading}>
             <span>
               {loading
@@ -486,10 +532,17 @@ function LoginPageInner() {
 function translateAuthError(message: string): string {
   const m = message.toLowerCase();
   if (m.includes("invalid login credentials")) return "이메일 또는 비밀번호가 올바르지 않습니다.";
-  if (m.includes("email not confirmed")) return "이메일 확인이 필요합니다. 메일함을 확인해주세요.";
-  if (m.includes("user already registered")) return "이미 가입된 이메일입니다. 로그인해주세요.";
-  if (m.includes("password should be at least")) return "비밀번호는 6자 이상이어야 합니다.";
-  if (m.includes("rate limit")) return "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
-  if (m.includes("network")) return "네트워크 오류가 발생했습니다.";
+  if (m.includes("email not confirmed")) return "이메일 확인이 필요합니다. 메일함과 스팸 폴더를 확인하시거나, 아래 [확인 메일 재발송] 버튼을 눌러주세요.";
+  if (m.includes("user already registered") || m.includes("email_exists") || m.includes("already exists")) return "이미 가입된 이메일입니다. 위에서 [로그인]으로 들어가주세요. 비밀번호를 잊으셨다면 [비밀번호 찾기].";
+  if (m.includes("password should be at least") || m.includes("weak_password") || m.includes("password is too short")) return "비밀번호는 8자 이상으로 설정해주세요.";
+  if (m.includes("rate limit") || m.includes("too many requests") || m.includes("over_email_send_rate_limit")) return "요청이 너무 많습니다. 1분 후 다시 시도해주세요.";
+  if (m.includes("network") || m.includes("fetch failed") || m.includes("failed to fetch")) return "네트워크 오류가 발생했습니다. 인터넷 연결을 확인하고 다시 시도해주세요.";
+  if (m.includes("invalid email") || m.includes("email_address_invalid")) return "이메일 형식이 올바르지 않습니다.";
+  if (m.includes("user not found") || m.includes("user_not_found")) return "가입되지 않은 이메일입니다. 아래 [30일 무료 시작]으로 먼저 가입해주세요.";
+  if (m.includes("redirect_uri") || m.includes("redirect uri")) return "Google 로그인 설정에 일시적 문제가 있습니다. 이메일·비밀번호로 로그인하시거나 support@sunnytoon.com 으로 문의해주세요.";
+  if (m.includes("captcha")) return "보안 확인이 필요합니다. 페이지를 새로고침하고 다시 시도해주세요.";
+  if (m.includes("token") && (m.includes("expired") || m.includes("invalid"))) return "확인 링크가 만료됐거나 유효하지 않습니다. 다시 가입하시거나 [확인 메일 재발송]을 눌러주세요.";
+  if (m.includes("missing_code") || m.includes("missing code")) return "인증 코드를 받지 못했습니다. 다시 시도해주세요.";
+  if (m.includes("oauth")) return "외부 로그인(Google) 처리 중 오류. 이메일·비밀번호로 시도하시거나 잠시 후 다시 시도해주세요.";
   return message;
 }
