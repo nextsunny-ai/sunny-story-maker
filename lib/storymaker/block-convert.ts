@@ -149,10 +149,111 @@ export function plainTextToBlocks(group: MediumGroup, text: string, _letter?: st
   if (group === "CUESHEET") {
     return parseCuesheet(text, _letter);
   }
+  if (group === "STRUCTURED") {
+    return _letter === "K" ? parseExhibition(text) : parseGameLines(text);
+  }
   if (group === "PROSE") {
     return splitProseBlocks(text);
   }
   return splitProseBlocks(text);
+}
+
+// ─── K 전시 파서 (V3.0 단계 6) ───
+function parseExhibition(text: string): Block[] {
+  const blocks: Block[] = [];
+  let seq = 0;
+  const nextId = () => `b_${Date.now()}_${seq++}`;
+
+  // [존N] 또는 Zone N 단위로 분리
+  const RE_ZONE = /\[\s*존\s*(\d+)\s*\]|^Zone\s+(\d+)\s*[:.]|^존\s+(\d+)\s*[:.]/gm;
+  const zoneMarkers: Array<{ no: number; start: number; headEnd: number }> = [];
+  let m: RegExpExecArray | null;
+  while ((m = RE_ZONE.exec(text)) !== null) {
+    const no = parseInt(m[1] || m[2] || m[3], 10);
+    if (!isNaN(no)) zoneMarkers.push({ no, start: m.index, headEnd: m.index + m[0].length });
+  }
+  if (zoneMarkers.length === 0) {
+    return splitProseBlocks(text);
+  }
+  // 첫 마커 이전 = prose 폴백
+  if (zoneMarkers[0].start > 0) {
+    const head = text.slice(0, zoneMarkers[0].start).trim();
+    if (head) head.split(/\n\s*\n+/).map(t => t.trim()).filter(Boolean).forEach((t) => {
+      blocks.push({ id: nextId(), kind: "prose", text: t, status: "done" });
+    });
+  }
+  for (let i = 0; i < zoneMarkers.length; i++) {
+    const cur = zoneMarkers[i];
+    const next = zoneMarkers[i + 1];
+    const body = text.slice(cur.headEnd, next ? next.start : text.length).trim();
+    const lines = body.split("\n").map(l => l.trim());
+
+    let zoneName = "";
+    let area: string | undefined;
+    let flow: string | undefined;
+    let objects: string | undefined;
+    let interactive: string | undefined;
+    let docent: string | undefined;
+
+    for (const line of lines) {
+      if (!line) continue;
+      const am = line.match(/^(?:면적|Area)\s*[:：]\s*(.+)$/i);
+      const fm = line.match(/^(?:동선|Flow)\s*[:：]\s*(.+)$/i);
+      const om = line.match(/^(?:오브제|Objects?)\s*[:：]\s*(.+)$/i);
+      const im = line.match(/^(?:인터랙티브|Interactive)\s*[:：]\s*(.+)$/i);
+      const dm = line.match(/^(?:도슨트|Docent)\s*[:：]\s*(.+)$/i);
+      if (am) area = am[1];
+      else if (fm) flow = fm[1];
+      else if (om) objects = om[1];
+      else if (im) interactive = im[1];
+      else if (dm) docent = dm[1];
+      else if (!zoneName) zoneName = line;
+    }
+
+    blocks.push({
+      id: nextId(), kind: "zone",
+      zoneNo: cur.no,
+      zoneName: zoneName || `존 ${cur.no}`,
+      area, flow, objects, interactive, docent,
+      status: "done",
+    });
+  }
+  return blocks;
+}
+
+// ─── L 게임 파서 (V3.0 단계 6) ───
+function parseGameLines(text: string): Block[] {
+  const blocks: Block[] = [];
+  let seq = 0;
+  const nextId = () => `b_${Date.now()}_${seq++}`;
+
+  const lines = text.split("\n");
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    // markdown 표 행: | id | char | text | cond | next | aff |
+    if (/^\|.*\|$/.test(line)) {
+      const cells = line.slice(1, -1).split("|").map(s => s.trim());
+      if (cells.length >= 3 && cells[0] && !/^[-:\s]+$/.test(cells[0]) && cells[0].toUpperCase() !== "ID") {
+        blocks.push({
+          id: nextId(), kind: "game-line",
+          lineId: cells[0],
+          character: cells[1] || "",
+          text: cells[2] || "",
+          condition: cells[3] || undefined,
+          nextId: cells[4] || undefined,
+          affinity: cells[5] || undefined,
+          status: "done",
+        });
+        continue;
+      }
+    }
+
+    // 그 외 = prose 폴백
+    blocks.push({ id: nextId(), kind: "prose", text: line, status: "done" });
+  }
+  return blocks;
 }
 
 // ─── PANEL 파서 (V3.0 단계 3 — 웹툰 [컷N]) ───

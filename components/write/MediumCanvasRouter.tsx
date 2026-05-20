@@ -9,6 +9,7 @@ import { ProseCanvas } from "./ProseCanvas";
 import { ScreenplayCanvas } from "./ScreenplayCanvas";
 import { PanelCanvas } from "./PanelCanvas";
 import { CuesheetCanvas } from "./CuesheetCanvas";
+import { StructuredCanvas } from "./StructuredCanvas";
 
 export interface MediumCanvasRouterProps {
   doc: WriteDoc;
@@ -39,14 +40,12 @@ export function MediumCanvasRouter(props: MediumCanvasRouterProps) {
     case "CUESHEET":
       return <CuesheetCanvas {...props} />;
 
-    // 단계 3 (PANEL)
-    case "PANEL":
-    // 단계 4 (CUESHEET)
-    case "CUESHEET":
-    // 단계 6 (STRUCTURED)
+    // 단계 6 (V3.0) — STRUCTURED = StructuredCanvas (K 전시·L 게임)
+    //   ★ 대표님이 가장 많이 쓰는 매체. letter로 K vs L 내부 분기.
     case "STRUCTURED":
+      return <StructuredCanvas {...props} />;
+
     default:
-      // 단계 0~1 임시 = PROSE 폴백 렌더 (텍스트는 다 보임)
       return <ProseCanvas {...props} />;
   }
 }
