@@ -1204,14 +1204,37 @@ function WriteMain() {
   const onBlockRewrite = (blockId: string) => onRewrite(blockId);
   const onBlockContinue = (afterBlockId: string) => onContinuePara(afterBlockId);
 
-  // ★ V3.0 단계 5 — 채팅 마커 [[수정/추가/삭제:N:내용]] 본문 patch
+  // ★ V3.0 단계 5 + V3.1 #10 보강 — 채팅 마커 [[수정/추가/삭제:N:내용]] 본문 patch
+  //   production 검증: N 범위 체크 + 빈 content 안내 + applied 토스트
   const onPatchBlock = (action: "수정" | "추가" | "삭제", n: number, content?: string) => {
+    const total = paras.length;
+    if (n < 1 || n > total) {
+      // 범위 밖 = AI가 잘못 생성. 작가에게 안내 (alert는 거슬리니까 콘솔 + 토스트 X)
+      console.warn(`[patch] N 범위 밖: action=${action} n=${n} total=${total}`);
+      // 추가의 경우 = 끝에 추가가 의도일 수 있음
+      if (action === "추가" && content) {
+        setParas(prev => [...prev, {
+          id: "p_patch_" + Date.now(),
+          n: prev.length + 1,
+          label: "AI 추가",
+          text: content,
+          status: "done" as const,
+        }]);
+      }
+      return;
+    }
     const idx = n - 1; // 1-indexed → 0-indexed
     if (action === "수정") {
-      if (content === undefined) return;
+      if (content === undefined || !content.trim()) {
+        console.warn(`[patch] 수정 content 비어있음 — skip`);
+        return;
+      }
       setParas(prev => prev.map((p, i) => i === idx ? { ...p, text: content, status: "done" as const } : p));
     } else if (action === "추가") {
-      if (content === undefined) return;
+      if (content === undefined || !content.trim()) {
+        console.warn(`[patch] 추가 content 비어있음 — skip`);
+        return;
+      }
       setParas(prev => {
         const newPara: Para = {
           id: "p_patch_" + Date.now(),

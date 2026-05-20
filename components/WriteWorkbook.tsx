@@ -368,7 +368,8 @@ export function WriteWorkbook({
                     );
                   }
                   const bodyText = textWithoutMarkers.slice(0, idx).trim();
-                  const choicesText = m.text.slice(idx + "===CHOICES===".length).trim();
+                  // ★ V3.1 #10 보강 — choices 영역에도 patch 마커 stripping (production edge case)
+                  const choicesText = m.text.slice(idx + "===CHOICES===".length).replace(PATCH_RE, "").trim();
                   const choices = choicesText
                     .split("\n")
                     .map(line => line.replace(/^[\d]+\.\s*|^[-*]\s*/, "").trim())
@@ -418,6 +419,35 @@ export function WriteWorkbook({
                               borderRadius: 999, cursor: "pointer",
                             }}
                           >+ 기타</button>
+                        </div>
+                      )}
+                      {patches.length > 0 && onPatchBlock && (
+                        <div style={{
+                          marginTop: 8, paddingTop: 8,
+                          borderTop: "1px dashed var(--coral)",
+                          display: "flex", flexDirection: "column", gap: 4,
+                        }}>
+                          <div style={{ fontSize: 10.5, color: "var(--coral-deep)", fontWeight: 700, letterSpacing: "0.05em" }}>
+                            본문 PATCH 제안
+                          </div>
+                          {patches.map((p, pi) => (
+                            <button
+                              key={pi}
+                              type="button"
+                              onClick={() => onPatchBlock(p.action, p.n, p.content)}
+                              title={`${p.n}번째 블록 ${p.action}`}
+                              style={{
+                                fontSize: 11.5, padding: "4px 10px",
+                                background: "transparent", color: "var(--coral-deep)",
+                                border: "1px solid var(--coral)", borderRadius: 6,
+                                cursor: "pointer", textAlign: "left",
+                                fontWeight: 600,
+                              }}
+                            >
+                              📥 {p.n}번째 {p.action}
+                              {p.content && <span style={{ fontWeight: 400, marginLeft: 6, color: "var(--ink-3)" }}>: {p.content.slice(0, 40)}{p.content.length > 40 ? "…" : ""}</span>}
+                            </button>
+                          ))}
                         </div>
                       )}
                     </>
