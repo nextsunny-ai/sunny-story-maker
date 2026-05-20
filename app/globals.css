@@ -5203,3 +5203,123 @@ a { color: inherit; text-decoration: none; }
   margin-top: 5px;
   line-height: 1.4;
 }
+
+/* ============================================================
+   V3.1 #4 — 반응형 모바일·태블릿
+   - 1024px 미만 = 태블릿: 사이드바 축소·패딩 축소
+   - 768px 미만 = 모바일: 사이드바 hidden + 풀스크린 main
+   - 480px 미만 = 좁은 모바일: 폰트·간격 더 축소
+   ============================================================ */
+
+/* 태블릿 — 1024px 미만 */
+@media (max-width: 1024px) {
+  .main { padding: 0 32px; }
+  .app { grid-template-columns: 200px 1fr; }
+  .sb-brand { padding: 4px 14px 16px; }
+  .sb-brand-text { font-size: 14px; }
+  .topbar { padding: 28px 0 22px; margin-bottom: 28px; }
+  /* Write 페이지 워크북 패널 = 자동 hidden 작가 명시 토글로만 */
+  .write-shell.book-open { grid-template-columns: minmax(0, 1fr) 6px 320px !important; }
+}
+
+/* 모바일 — 768px 미만 */
+@media (max-width: 768px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .sb {
+    position: fixed;
+    top: 0; left: -100%;
+    width: 80%;
+    max-width: 280px;
+    z-index: 100;
+    transition: left 0.3s var(--ease, ease);
+    height: 100vh;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.1);
+  }
+  .sb.mobile-open { left: 0; }
+  .main {
+    padding: 0 16px;
+    max-width: 100%;
+  }
+  .topbar {
+    padding: 20px 0 16px;
+    margin-bottom: 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  /* Write 페이지 = 워크북 패널 = full width modal-like */
+  .write-shell {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: 1fr auto;
+  }
+  .write-shell.book-open .wbook {
+    position: fixed !important;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100% !important;
+    z-index: 90;
+    background: var(--bg, #fff);
+  }
+  /* Topbar 제목 = 더 작게 */
+  .topbar h1, .topbar-title { font-size: 22px !important; line-height: 1.3; }
+  .topbar-sub { font-size: 12px !important; }
+  /* 버튼 = touch target 충분 */
+  .btn { min-height: 40px; padding: 8px 16px; }
+  /* 사이드바 footer 로케일 토글 = 가운데 정렬 유지 */
+  .sb-foot { padding: 12px 14px; }
+  /* 라이브러리·OSMU grid = 1열 */
+  .lib-grid { grid-template-columns: 1fr !important; gap: 12px; }
+  .osmu-genre-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .osmu-depth-grid { grid-template-columns: 1fr !important; }
+  .osmu-result-grid { grid-template-columns: 1fr !important; }
+  .home-continue-grid { grid-template-columns: 1fr !important; }
+  .home-genre-mini { grid-template-columns: repeat(2, 1fr) !important; }
+  .persona-grid { grid-template-columns: 1fr !important; }
+  /* 입력 폰트 = 16px (iOS auto-zoom 방지) */
+  input, textarea, select { font-size: 16px !important; }
+}
+
+/* 좁은 모바일 — 480px 미만 */
+@media (max-width: 480px) {
+  .main { padding: 0 12px; }
+  .topbar { padding: 16px 0 12px; margin-bottom: 16px; }
+  .topbar h1, .topbar-title { font-size: 19px !important; }
+  .btn { font-size: 13px; padding: 7px 12px; }
+  .home-genre-mini { grid-template-columns: 1fr !important; }
+  .osmu-genre-grid { grid-template-columns: 1fr !important; }
+  /* Save status bar = 컴팩트 */
+  .save-status-bar { flex-wrap: wrap; gap: 6px; padding: 6px 12px; font-size: 11px; }
+}
+
+/* 모바일 메뉴 토글 버튼 — 768px 미만에서만 표시 */
+.mobile-menu-toggle {
+  display: none;
+  position: fixed;
+  top: 12px; left: 12px;
+  z-index: 101;
+  width: 40px; height: 40px;
+  background: var(--bg, #fff);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  align-items: center;
+  justify-content: center;
+}
+@media (max-width: 768px) {
+  .mobile-menu-toggle { display: flex; }
+  /* 본문 = 상단 좌측 toggle 위해 여유 padding */
+  .main { padding-top: 60px; }
+}
+
+/* 모바일 메뉴 backdrop */
+.mobile-menu-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 99;
+}
+.mobile-menu-backdrop.open { display: block; }
