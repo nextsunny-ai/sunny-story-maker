@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, FormEvent, KeyboardEvent } from "react";
 import { ICONS } from "@/lib/icons";
 import { Markdown } from "@/components/Markdown";
+import { t, useLocale } from "@/lib/i18n";
 
 export interface Note { id: string; label: string }
 export interface FlowItem { id: string; state: "done" | "active" | "pending"; title: string; hint: string }
@@ -31,6 +32,7 @@ export function WriteWorkbook({
   onApplyToScript, onPatchBlock, onFlowStepActivate,
 }: WriteWorkbookProps) {
   const I = ICONS;
+  useLocale(); // ★ V3.1 i18n — locale 변경 시 re-render
   const [newNote, setNewNote] = useState("");
   // 디렉션·메모 = default 접힘 (작가가 필요할 때만 펼침). 사장님 명시: 채팅이 메인.
   const [notesOpen, setNotesOpen] = useState(false);
@@ -222,7 +224,7 @@ export function WriteWorkbook({
           className="wbook-section-head wbook-section-toggle"
           onClick={() => setNotesOpen(!notesOpen)}
         >
-          <span className="wbook-section-title">📌 디렉션·메모</span>
+          <span className="wbook-section-title">📌 {t("디렉션·메모")}</span>
           <span className="wbook-section-meta">
             {notes.length}
             <span className="wbook-section-chev">{notesOpen ? "−" : "+"}</span>
@@ -246,12 +248,12 @@ export function WriteWorkbook({
         <form className="wbook-note-add" onSubmit={onAddNoteSubmit}>
           <input
             type="text"
-            placeholder="+ 디렉션 추가 (예: 회상은 1인칭)"
+            placeholder={t("+ 디렉션 추가 (예: 회상은 1인칭)")}
             value={newNote}
             onChange={e => setNewNote(e.target.value)}
           />
         </form>
-        <div className="wbook-note-hint">대화에서 자동으로 추가되거나 직접 입력</div>
+        <div className="wbook-note-hint">{t("대화에서 자동으로 추가되거나 직접 입력")}</div>
         </>
         )}
       </section>
@@ -259,7 +261,7 @@ export function WriteWorkbook({
       {/* 대화 (메인 — 가장 큰 영역, 사장님 명시: 대화가 가장 중요) */}
       <section className="wbook-section wbook-chat-section">
         <div className="wbook-section-head">
-          <span className="wbook-section-title">💬 대화</span>
+          <span className="wbook-section-title">💬 {t("대화")}</span>
           <span className="wbook-section-meta">{chat.length}</span>
         </div>
 
@@ -574,7 +576,7 @@ export function WriteWorkbook({
           </button>
         </div>
         <div className="wbook-input-hint">
-          디렉션·수정·자료조사·이름 추천 — 무엇이든. AI가 본문에 반영하거나 채팅으로 답합니다.
+          {t("디렉션·수정·자료조사·이름 추천 — 무엇이든. AI가 본문에 반영하거나 채팅으로 답합니다.")}
         </div>
       </section>
 
@@ -584,7 +586,7 @@ export function WriteWorkbook({
           className="wbook-section-head wbook-section-toggle"
           onClick={() => setFlowOpen(!flowOpen)}
         >
-          <span className="wbook-section-title">💭 AI 작업 흐름</span>
+          <span className="wbook-section-title">💭 {t("AI 작업 흐름")}</span>
           <span className="wbook-section-meta">
             {flow.filter(f => f.state === "done").length}/{flow.length}
             <span className="wbook-section-chev">{flowOpen ? "−" : "+"}</span>

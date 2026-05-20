@@ -398,8 +398,10 @@ export async function POST(req: NextRequest) {
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    // ★ V3.1 D3 — server console log = Vercel function log에서 사장님 확인
+    console.error("[/api/build-prompt] 실패:", msg);
     return new Response(
-      JSON.stringify({ error: `prompt 빌드 실패: ${msg}` }),
+      JSON.stringify({ error: `프롬프트 생성 중 오류: ${msg}\n\n작품이 너무 길거나 양식이 잘못됐을 수 있습니다. 작품을 짧게 줄이거나 = 우측 하단 💬 위젯으로 알려주세요.` }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
   }

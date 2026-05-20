@@ -176,8 +176,8 @@ export function ClaudeCliGate() {
             </p>
             <div
               style={{
-                background: "#f8f6f2",
-                border: "1px solid rgba(0,0,0,0.06)",
+                background: "var(--bg-soft, #f8f6f2)",
+                border: "1px solid var(--line, rgba(0,0,0,0.06))",
                 borderRadius: 10,
                 padding: "14px 16px",
                 fontSize: 13.5,
@@ -217,7 +217,7 @@ export function ClaudeCliGate() {
         {errorMsg && (
           <div
             style={{
-              background: "#fff4e5",
+              background: "var(--card-soft, #fff4e5)",
               border: "1px solid #ffd9a8",
               borderRadius: 8,
               padding: "10px 14px",
@@ -237,7 +237,7 @@ export function ClaudeCliGate() {
           style={{
             width: "100%",
             padding: "12px 18px",
-            background: "#f3f1ec",
+            background: "var(--bg-soft, #f3f1ec)",
             color: "#1a1a1a",
             border: "1px solid rgba(0,0,0,0.08)",
             borderRadius: 10,

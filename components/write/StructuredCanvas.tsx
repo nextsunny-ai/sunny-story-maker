@@ -184,6 +184,9 @@ function GameCanvas({ doc, onBlockEdit, onBlockContinue, onBlockDelete, onBlockM
   const lines = doc.blocks.filter((b) => b.kind === "game-line") as GameLineBlock[];
   const others = doc.blocks.filter((b) => b.kind !== "game-line");
 
+  // ★ V3.1 — 분기 트리 시각화 (nextId 연결 기반)
+  const [showTree, setShowTree] = useState(false);
+
   return (
     <div className="structured-canvas-game">
       {others.map((b) => (
@@ -191,6 +194,22 @@ function GameCanvas({ doc, onBlockEdit, onBlockContinue, onBlockDelete, onBlockM
           {"text" in b ? (b as { text: string }).text : ""}
         </div>
       ))}
+
+      {lines.length > 1 && (
+        <div style={{ marginBottom: 12, textAlign: "right" }}>
+          <button
+            type="button"
+            onClick={() => setShowTree(s => !s)}
+            style={{ fontSize: 11.5, padding: "5px 12px", background: showTree ? "var(--coral, #ff6b53)" : "transparent", color: showTree ? "#fff" : "var(--coral-deep, #c84738)", border: "1px solid var(--coral)", borderRadius: 6, cursor: "pointer", fontWeight: 600 }}
+          >
+            {showTree ? "📋 표 보기" : "🌳 분기 트리"}
+          </button>
+        </div>
+      )}
+
+      {showTree && lines.length > 0 && <GameBranchTree lines={lines} />}
+      {!showTree && (
+        <>
 
       {lines.length === 0 ? (
         <div style={{ padding: 24, color: "var(--ink-4)", fontSize: 13, textAlign: "center", border: "1px dashed var(--line)", borderRadius: 10 }}>
@@ -230,6 +249,99 @@ function GameCanvas({ doc, onBlockEdit, onBlockContinue, onBlockDelete, onBlockM
           </tbody>
         </table>
       )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ★ V3.1 — Game 분기 트리 시각화 (nextId 연결 기반 indent tree)
+function GameBranchTree({ lines }: { lines: GameLineBlock[] }) {
+  // lineId → line map
+  const byId = new Map<string, GameLineBlock>();
+  for (const l of lines) byId.set(l.lineId, l);
+
+  // 진입 노드 = nextId로 참조되지 X 노드 (= 시작점)
+  const referenced = new Set<string>();
+  for (const l of lines) {
+    if (l.nextId) {
+      // 분기 = 콤마·세미콜론 구분
+      l.nextId.split(/[,;]/).forEach(n => referenced.add(n.trim()));
+    }
+  }
+  const roots = lines.filter(l => !referenced.has(l.lineId));
+
+  // 트리 렌더 — 사이클 방지용 visited
+  const renderNode = (line: GameLineBlock, depth: number, visited: Set<string>): React.ReactNode => {
+    if (visited.has(line.lineId)) {
+      return (
+        <div key={line.lineId + "-cycle"} style={{ paddingLeft: depth * 20, color: "var(--ink-5)", fontSize: 11 }}>
+          ↻ {line.lineId} (이미 박힌 노드 = 사이클)
+        </div>
+      );
+    }
+    const next = new Set(visited);
+    next.add(line.lineId);
+    const children = line.nextId
+      ? line.nextId.split(/[,;]/).map(s => s.trim()).filter(Boolean)
+      : [];
+    return (
+      <div key={line.lineId} style={{ marginBottom: 6 }}>
+        <div style={{
+          paddingLeft: depth * 20,
+          fontSize: 12.5, lineHeight: 1.5,
+          borderLeft: depth > 0 ? "2px solid var(--line)" : "none",
+          marginLeft: depth > 0 ? 8 : 0,
+        }}>
+          <span style={{ fontFamily: "monospace", color: "var(--coral-deep, #c84738)", fontWeight: 700 }}>
+            {line.lineId}
+          </span>
+          <span style={{ marginLeft: 8, fontWeight: 600 }}>{line.character}</span>
+          <span style={{ marginLeft: 8, color: "var(--ink-2)" }}>
+            "{line.text.slice(0, 50)}{line.text.length > 50 ? "…" : ""}"
+          </span>
+          {line.condition && (
+            <span style={{ marginLeft: 8, fontSize: 10.5, color: "var(--ink-4)", fontStyle: "italic" }}>
+              [조건: {line.condition}]
+            </span>
+          )}
+          {line.affinity && (
+            <span style={{ marginLeft: 8, fontSize: 10.5, color: line.affinity.startsWith("-") ? "#c84738" : "#10b981" }}>
+              {line.affinity}
+            </span>
+          )}
+        </div>
+        {children.length > 1 && (
+          <div style={{ paddingLeft: depth * 20 + 8, fontSize: 10.5, color: "var(--coral)", marginTop: 2 }}>
+            ⤷ {children.length}개 분기
+          </div>
+        )}
+        {children.map(nextId => {
+          const child = byId.get(nextId);
+          if (!child) {
+            return (
+              <div key={nextId + "-missing"} style={{ paddingLeft: (depth + 1) * 20, color: "var(--ink-5)", fontSize: 11 }}>
+                ⚠ {nextId} (= 정의되지 X 노드)
+              </div>
+            );
+          }
+          return renderNode(child, depth + 1, next);
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ padding: 14, background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10, fontSize: 13 }}>
+      <div style={{ fontSize: 11, color: "var(--ink-4)", marginBottom: 10, letterSpacing: "0.05em", fontWeight: 700 }}>
+        🌳 분기 트리 ({roots.length}개 시작점 · {lines.length}개 노드)
+      </div>
+      {roots.length === 0 && (
+        <div style={{ color: "var(--ink-4)", fontSize: 12 }}>
+          시작점이 없습니다 (= 모든 노드가 다른 노드의 분기). 첫 lineId의 nextId만 박혀있는지 점검하세요.
+        </div>
+      )}
+      {roots.map(r => renderNode(r, 0, new Set()))}
     </div>
   );
 }

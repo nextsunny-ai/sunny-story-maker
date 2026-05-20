@@ -8,7 +8,7 @@ import { Markdown } from "@/components/Markdown";
 import type { Block, CutBlock } from "@/lib/storymaker/write-doc";
 import type { MediumCanvasRouterProps } from "./MediumCanvasRouter";
 
-export function PanelCanvas({ doc, paused, onBlockEdit, onBlockContinue, onBlockDelete, onBlockMove }: MediumCanvasRouterProps) {
+export function PanelCanvas({ doc, paused, onBlockEdit, onBlockContinue, onBlockDelete, onBlockMove, onBlockReorder }: MediumCanvasRouterProps) {
   const cutBlocks = doc.blocks.filter(b => b.kind === "cut");
   return (
     <div className="panel-canvas">
@@ -17,7 +17,12 @@ export function PanelCanvas({ doc, paused, onBlockEdit, onBlockContinue, onBlock
           빈 작업실입니다. 채팅에서 "1화 시작해줘" 같이 요청하시거나 원고를 가져오세요.
         </div>
       )}
-      {doc.blocks.map((b, i) => {
+      {onBlockReorder && cutBlocks.length > 1 && (
+        <div style={{ fontSize: 11, color: "var(--ink-4)", padding: "4px 8px", textAlign: "center" }}>
+          💡 컷 카드를 드래그해서 = 다른 컷 위로 놓으면 = 한 번에 순서 변경
+        </div>
+      )}
+      {doc.blocks.map((b) => {
         const isCut = b.kind === "cut";
         const cutIdx = isCut ? cutBlocks.findIndex(c => c.id === b.id) : -1;
         return (
@@ -29,6 +34,7 @@ export function PanelCanvas({ doc, paused, onBlockEdit, onBlockContinue, onBlock
             onContinue={onBlockContinue}
             onDelete={onBlockDelete}
             onMove={onBlockMove}
+            onReorder={onBlockReorder}
             isFirstCut={cutIdx === 0}
             isLastCut={isCut && cutIdx === cutBlocks.length - 1}
           />
@@ -39,7 +45,7 @@ export function PanelCanvas({ doc, paused, onBlockEdit, onBlockContinue, onBlock
 }
 
 function BlockRouter({
-  block, paused, onEdit, onContinue, onDelete, onMove, isFirstCut, isLastCut,
+  block, paused, onEdit, onContinue, onDelete, onMove, onReorder, isFirstCut, isLastCut,
 }: {
   block: Block;
   paused: boolean;
@@ -47,11 +53,12 @@ function BlockRouter({
   onContinue?: (id: string) => void;
   onDelete?: (id: string) => void;
   onMove?: (id: string, direction: "up" | "down") => void;
+  onReorder?: (draggedId: string, targetId: string, position: "before" | "after") => void;
   isFirstCut?: boolean;
   isLastCut?: boolean;
 }) {
   if (block.kind === "cut") {
-    return <CutRenderer block={block} paused={paused} onEdit={onEdit} onContinue={onContinue} onDelete={onDelete} onMove={onMove} isFirst={isFirstCut} isLast={isLastCut} />;
+    return <CutRenderer block={block} paused={paused} onEdit={onEdit} onContinue={onContinue} onDelete={onDelete} onMove={onMove} onReorder={onReorder} isFirst={isFirstCut} isLast={isLastCut} />;
   }
   // fallback — 다른 kind는 텍스트만
   const text = "text" in block ? (block as { text?: string }).text || "" : "";
@@ -109,7 +116,7 @@ function EditableLine({
 }
 
 function CutRenderer({
-  block, onEdit, onContinue, onDelete, onMove, isFirst, isLast,
+  block, onEdit, onContinue, onDelete, onMove, onReorder, isFirst, isLast,
 }: {
   block: CutBlock;
   paused: boolean;
@@ -117,20 +124,50 @@ function CutRenderer({
   onContinue?: (id: string) => void;
   onDelete?: (id: string) => void;
   onMove?: (id: string, direction: "up" | "down") => void;
+  onReorder?: (draggedId: string, targetId: string, position: "before" | "after") => void;
   isFirst?: boolean;
   isLast?: boolean;
 }) {
   const patch = (p: Partial<CutBlock>) => onEdit?.(block.id, p as Partial<Block>);
   const [showOptional, setShowOptional] = useState(!!(block.dialogue || block.sfx || block.narration));
+  const [dragOver, setDragOver] = useState<"before" | "after" | null>(null);
 
   return (
-    <div style={{
+    <div
+      draggable={!!onReorder}
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/storymaker-block-id", block.id);
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      onDragOver={(e) => {
+        if (!onReorder) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        // 카드 절반 위 = before, 절반 아래 = after
+        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        setDragOver(e.clientY < midpoint ? "before" : "after");
+      }}
+      onDragLeave={() => setDragOver(null)}
+      onDrop={(e) => {
+        if (!onReorder) return;
+        e.preventDefault();
+        const draggedId = e.dataTransfer.getData("text/storymaker-block-id");
+        if (draggedId && draggedId !== block.id) {
+          onReorder(draggedId, block.id, dragOver || "after");
+        }
+        setDragOver(null);
+      }}
+      style={{
       marginBottom: 16,
       padding: "14px 16px",
       background: "var(--card-soft)",
       border: "1px solid var(--line)",
       borderLeft: "3px solid var(--coral)",
       borderRadius: 10,
+      cursor: onReorder ? "grab" : "default",
+      borderTop: dragOver === "before" ? "3px solid var(--coral)" : "1px solid var(--line)",
+      borderBottom: dragOver === "after" ? "3px solid var(--coral)" : "1px solid var(--line)",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: "var(--coral)", letterSpacing: "0.05em" }}>

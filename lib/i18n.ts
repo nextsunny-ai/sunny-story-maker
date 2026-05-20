@@ -51,6 +51,17 @@ const STRINGS: Record<Locale, Record<string, string>> = {
     "취소": "Cancel",
     "다시 시도": "Retry",
 
+    // V3.1 — WriteWorkbook 한국어 → 영어 (중복 키 제거)
+    "디렉션·메모": "Directions·Notes",
+    "+ 디렉션 추가 (예: 회상은 1인칭)": "+ Add direction (e.g., flashback in 1st person)",
+    "대화에서 자동으로 추가되거나 직접 입력": "Auto-added from chat or enter manually",
+    "AI 작업 흐름": "AI Workflow",
+    "디렉션·수정·자료조사·이름 추천 — 무엇이든. AI가 본문에 반영하거나 채팅으로 답합니다.":
+      "Directions, edits, research, name suggestions — anything. AI reflects in body or replies in chat.",
+    "이 단계로 진행 →": "Go to this step →",
+    "AI 코멘트": "AI Comments",
+    "답하기": "Reply",
+
     // 매체·장르
     "TV 드라마": "TV Drama",
     "영화": "Film",

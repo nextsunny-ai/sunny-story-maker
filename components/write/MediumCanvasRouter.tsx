@@ -26,6 +26,8 @@ export interface MediumCanvasRouterProps {
   onColumnAdd?: (label: string) => void;
   /** ★ V3.1 B5 — CUESHEET 컬럼 삭제 */
   onColumnRemove?: (key: string) => void;
+  /** ★ V3.1 B4 진짜 drag-drop — 작가가 컷 카드를 다른 카드 위로 drag·drop = 한 번에 그 위치로 */
+  onBlockReorder?: (draggedId: string, targetId: string, position: "before" | "after") => void;
 }
 
 export function MediumCanvasRouter(props: MediumCanvasRouterProps) {

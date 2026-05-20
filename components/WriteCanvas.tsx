@@ -51,6 +51,8 @@ interface WriteCanvasProps {
   // ★ V3.1 B5 — CUESHEET 컬럼 추가·삭제
   onColumnAdd?: (label: string) => void;
   onColumnRemove?: (key: string) => void;
+  // ★ V3.1 B4 진짜 drag-drop
+  onBlockReorder?: (draggedId: string, targetId: string, position: "before" | "after") => void;
   bookOpen: boolean;
   onBookToggle: () => void;
   notesCount: number;
@@ -59,7 +61,7 @@ interface WriteCanvasProps {
 
 export function WriteCanvas({
   work, paras, doc, paused, onPauseToggle, onRewrite, onEdit, onEditAll, onContinue, onImport, onDownload,
-  onBlockEdit, onBlockRewrite, onBlockContinue, onAddHeader, onBlockDelete, onBlockMove, onColumnAdd, onColumnRemove,
+  onBlockEdit, onBlockRewrite, onBlockContinue, onAddHeader, onBlockDelete, onBlockMove, onColumnAdd, onColumnRemove, onBlockReorder,
   bookOpen, onBookToggle, notesCount, aiBusy,
 }: WriteCanvasProps) {
   const I = ICONS;
@@ -449,6 +451,7 @@ export function WriteCanvas({
                   onBlockMove={onBlockMove}
                   onColumnAdd={onColumnAdd}
                   onColumnRemove={onColumnRemove}
+                  onBlockReorder={onBlockReorder}
                 />
               ) : (
                 paras.map((p, i) => (

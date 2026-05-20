@@ -1379,6 +1379,22 @@ function WriteMain() {
     });
   };
 
+  // ★ V3.1 B4 진짜 drag-drop — 작가가 컷 카드를 다른 위치로 = 한 번에 그 위치로
+  const onBlockReorder = (draggedId: string, targetId: string, position: "before" | "after") => {
+    setParas(prev => {
+      const draggedIdx = prev.findIndex(p => p.id === draggedId);
+      const targetIdx = prev.findIndex(p => p.id === targetId);
+      if (draggedIdx === -1 || targetIdx === -1 || draggedIdx === targetIdx) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(draggedIdx, 1);
+      // splice 후 = targetIdx 위치 조정
+      const adjustedTarget = draggedIdx < targetIdx ? targetIdx - 1 : targetIdx;
+      const insertAt = position === "before" ? adjustedTarget : adjustedTarget + 1;
+      next.splice(insertAt, 0, moved);
+      return next.map((p, i) => ({ ...p, n: i + 1 }));
+    });
+  };
+
   // 더 쓰기 — 이 단락 다음에 빈 단락 추가. 작가가 직접 쓰거나(✍️ 직접 쓰기),
   // 우측 채팅에서 "이어서 써줘"로 AI에게 맡길 수 있음 (pending = 작가·AI 둘 다 가능).
   const onContinuePara = (id: string) => {
@@ -1809,6 +1825,7 @@ function WriteMain() {
           onBlockMove={onBlockMove}
           onColumnAdd={onColumnAdd}
           onColumnRemove={onColumnRemove}
+          onBlockReorder={onBlockReorder}
           paused={paused}
           onPauseToggle={() => {
             // 🛑 중지 — AI streaming 즉시 abort + 현재 streaming 단락을 done으로

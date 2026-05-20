@@ -121,7 +121,11 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "업로드 처리 실패";
-    return new Response(JSON.stringify({ error: msg }), {
+    // ★ V3.1 D3 — server log
+    console.error("[/api/upload] 실패:", msg);
+    return new Response(JSON.stringify({
+      error: `파일 업로드 중 오류: ${msg}\n\n파일 형식이 지원되지 X 또는 = 파일이 너무 클 수 있습니다 (최대 20MB).\n해결: 본문을 복사해서 직접 붙여넣기 또는 = .docx·.pdf·.txt로 변환 후 재시도.`
+    }), {
       status: 500, headers: { "content-type": "application/json" },
     });
   }

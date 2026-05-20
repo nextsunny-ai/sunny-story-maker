@@ -73,7 +73,7 @@ function DesktopCallbackInner() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#f8f6f2",
+        background: "var(--bg, #f8f6f2)",
         padding: 24,
         fontFamily: "'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif",
       }}
