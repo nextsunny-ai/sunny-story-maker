@@ -7,8 +7,12 @@
 //   작가는 admin에서 작업별로 직접 바꿀 수 있음.
 
 import { KEY, loadJSON } from "@/lib/persist";
+// ★ V2.14.7 — MODEL_IDS·resolveModelId·ModelChoice는 server-safe lib/storymaker/model-ids.ts로 이전.
+//   server route(agent/stream·build-prompt)는 model-ids.ts를 import. 이 파일은 client 전용(persist·useState 의존).
+import type { ModelChoice } from "./model-ids";
+export type { ModelChoice } from "./model-ids";
+export { MODEL_IDS, resolveModelId } from "./model-ids";
 
-export type ModelChoice = "haiku" | "sonnet" | "opus";
 export type TaskKind = "develop" | "write" | "adapt" | "review" | "osmu" | "chat";
 
 export interface ModelPrefs {
@@ -39,20 +43,7 @@ export const MODEL_LABELS: Record<ModelChoice, string> = {
   opus: "Opus (깊이 · 최고 품질)",
 };
 
-// ★ 모델 ID 매핑 — 단축어 → 최신 full ID. 한 곳에서만 관리 (옛엔 agent/stream + build-prompt 2곳 중복).
-//   새 모델 나오면 여기만 갱신.
-export const MODEL_IDS: Record<ModelChoice, string> = {
-  haiku: "claude-haiku-4-5-20251001",
-  sonnet: "claude-sonnet-4-6",
-  opus: "claude-opus-4-7",
-};
-
-/** 모델 단축어 또는 full ID를 받아 최종 full ID로 정규화. */
-export function resolveModelId(model: string | undefined, fastFallback = false): string {
-  const raw = (model || (fastFallback ? "haiku" : "opus")).trim();
-  if (raw in MODEL_IDS) return MODEL_IDS[raw as ModelChoice];
-  return raw; // 이미 full ID면 그대로
-}
+// (MODEL_IDS·resolveModelId는 model-ids.ts에서 re-export — 중복 정의 제거 V2.14.7)
 
 export function loadModelPrefs(): ModelPrefs {
   const saved = loadJSON<Partial<ModelPrefs> | null>(KEY.adminModelPrefs, null);

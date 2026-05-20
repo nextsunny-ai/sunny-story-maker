@@ -377,8 +377,8 @@ export async function POST(req: NextRequest) {
   try {
     const userMessage = buildUserPrompt(body);
     const systemPrompt = getSystemPrompt();
-    // ★ V2.14.1 — 모델 ID 매핑은 lib/storymaker/model-prefs.ts 한 곳에서 관리 (옛 2곳 중복 정리).
-    const { resolveModelId } = await import("@/lib/storymaker/model-prefs");
+    // ★ V2.14.7 — 모델 ID는 server-safe lib/storymaker/model-ids.ts에서 (persist·useState 의존 X).
+    const { resolveModelId } = await import("@/lib/storymaker/model-ids");
     const model = resolveModelId(body.model, body.fast === true);
 
     return new Response(
