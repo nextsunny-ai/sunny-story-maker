@@ -8,8 +8,11 @@ import { updateSession } from "@/lib/supabase/middleware";
 // 인증 없이 접근 가능한 경로 (정확한 경로 또는 prefix 매칭)
 const PUBLIC_PATHS: readonly string[] = [
   "/login",
+  "/signup", // ★ V3.1 (2026-05-20) — /login에서 모드 toggle이지만 외부 link 호환
   "/auth/callback",
   "/auth/desktop-callback", // ★ V2.12.2 = 데스크탑 OAuth callback (= 비인증 접근 = code exchange + deep link redirect)
+  "/reset", // ★ V3.1 (2026-05-20) — 비밀번호 찾기 메일 클릭 = 비인증 도달 필요
+  "/reset-password", // ★ V3.1 (2026-05-20) — 비밀번호 재설정 = 토큰 검증 후 인증
   "/download",
   // 정책·약관·릴리스 정보·사용 가이드 (= 가입 전·외부 누구나 OK)
   "/privacy",

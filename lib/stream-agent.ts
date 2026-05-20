@@ -389,11 +389,27 @@ export async function streamAgent(opts: StreamAgentOptions): Promise<string> {
 
   if (!res.ok) {
     let rawErr = "";
+    let errCode = "";
     try {
       const j = await res.json();
       if (j?.error) rawErr = String(j.error);
+      if (j?.code) errCode = String(j.code);
     } catch {
       // ignore
+    }
+    // ★ V3.1 (대표님 명시 2026-05-20) — web에서 AI 호출 시도 = 친절 안내 + 다운로드 페이지로
+    if (errCode === "DESKTOP_REQUIRED") {
+      const msg = "🖥️ Story Maker는 데스크탑 앱에서 작동합니다.\n\nClaude Pro 구독($20/월)만 있으면 = 추가 비용 0원 = 무제한.\n\n[다운로드 페이지로 이동] 클릭 = 받아서 설치하시면 됩니다.";
+      onError?.(msg);
+      // 작가 친화 = 자동 redirect (브라우저 새 창)
+      if (typeof window !== "undefined") {
+        setTimeout(() => {
+          if (confirm("데스크탑 앱이 필요합니다.\n다운로드 페이지로 이동할까요?")) {
+            window.location.href = "/download";
+          }
+        }, 500);
+      }
+      throw new Error(msg);
     }
     const errMsg = humanizeStreamError(rawErr || `HTTP ${res.status}`, { status: res.status });
     onError?.(errMsg);
