@@ -209,7 +209,7 @@ ${content}
   if (prior) {
     priorStr = "\n\n## 이전 단계 결과\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v}`).join("\n\n");
   }
-  const inputs = Object.entries(userInput).filter(([, v]) => v).map(([k, v]) => `- **${k}**: ${v}`).join("\n");
+  const inputs = Object.entries(userInput).filter(([, v]) => v).map(([k, v]) => `- **${k}**: ${v.slice(0, 300)}`).join("\n");
   return `# 작업 요청: 공동 집필 모드 — ${stage} 단계
 
 ## 작가 입력
@@ -696,7 +696,7 @@ ${targets.length}명 평균 = PASS / CONSIDER / RECOMMEND 중 하나 + 근거 1�
 
 function commonBrief(idea: string, genre: Genre, userInput?: Record<string, string>): string {
   const fields = userInput
-    ? Object.entries(userInput).filter(([, v]) => v).map(([k, v]) => `- **${k}**: ${v}`).join("\n")
+    ? Object.entries(userInput).filter(([, v]) => v).map(([k, v]) => `- **${k}**: ${v.slice(0, 300)}`).join("\n")
     : "";
   const deep = dramaMovieDeepAddendum(genre, userInput);
   return `## 작품 기본 정보
@@ -786,7 +786,7 @@ function dramaMovieDeepAddendum(genre: Genre, userInput?: Record<string, string>
 
 export function buildTitlePrompt(idea: string, genre: Genre, userInput?: Record<string, string>): string {
   const fields = userInput
-    ? Object.entries(userInput).filter(([, v]) => v).map(([k, v]) => `- **${k}**: ${v}`).join("\n")
+    ? Object.entries(userInput).filter(([, v]) => v).map(([k, v]) => `- **${k}**: ${v.slice(0, 300)}`).join("\n")
     : "";
   return `# 작업 요청: 제목 후보 (작품 제목만)
 
@@ -819,7 +819,7 @@ ${fields}
 
 export function buildThemePrompt(idea: string, genre: Genre, userInput?: Record<string, string>): string {
   const fields = userInput
-    ? Object.entries(userInput).filter(([, v]) => v).map(([k, v]) => `- **${k}**: ${v}`).join("\n")
+    ? Object.entries(userInput).filter(([, v]) => v).map(([k, v]) => `- **${k}**: ${v.slice(0, 300)}`).join("\n")
     : "";
   return `# 작업 요청: 주제 (작품의 핵심 메시지·질문)
 
@@ -885,7 +885,7 @@ ${commonBrief(idea, genre, userInput)}
 
 export function buildSynopsisPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
-    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1000)}`).join("\n\n")
+    ? "\n\n## 이미 작성된 자료 (최근 핵심)\n" + Object.entries(prior).slice(-3).map(([k, v]) => `### ${k}\n${v.slice(0, 500)}`).join("\n\n")
     : "";
 
   return `# 작업 요청: 시놉시스 (A4 1쪽)
@@ -913,7 +913,7 @@ ${priorPart}
 
 export function buildTreatmentPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
-    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1000)}`).join("\n\n")
+    ? "\n\n## 이미 작성된 자료 (최근 핵심)\n" + Object.entries(prior).slice(-3).map(([k, v]) => `### ${k}\n${v.slice(0, 500)}`).join("\n\n")
     : "";
 
   return `# 작업 요청: 트리트먼트 (A4 3~5쪽)
@@ -953,7 +953,7 @@ ${priorPart}
 
 export function buildCharactersPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
-    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1000)}`).join("\n\n")
+    ? "\n\n## 이미 작성된 자료 (최근 핵심)\n" + Object.entries(prior).slice(-3).map(([k, v]) => `### ${k}\n${v.slice(0, 500)}`).join("\n\n")
     : "";
 
   const protagonistCount = userInput?.protagonist_count || "1인 단독 (원톱)";
@@ -1056,7 +1056,7 @@ ${priorPart}
 
 export function buildEpisodesPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
-    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1000)}`).join("\n\n")
+    ? "\n\n## 이미 작성된 자료 (최근 핵심)\n" + Object.entries(prior).slice(-3).map(([k, v]) => `### ${k}\n${v.slice(0, 500)}`).join("\n\n")
     : "";
 
   const episodes = userInput?.episodes || userInput?.total_episodes || "12부";
@@ -1105,7 +1105,7 @@ ${priorPart}
 
 export function buildProposalPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
-    ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 1000)}`).join("\n\n")
+    ? "\n\n## 이미 작성된 자료 (최근 핵심)\n" + Object.entries(prior).slice(-3).map(([k, v]) => `### ${k}\n${v.slice(0, 500)}`).join("\n\n")
     : "";
 
   return `# 작업 요청: 기획안 (제출용)
