@@ -17,6 +17,7 @@ import { streamFetch } from "@/lib/stream-agent";
 import { getModelChoice } from "@/lib/storymaker/model-prefs";
 import { getWorkflow, QUICK_ACTIONS } from "@/lib/workflows";
 import { useKeyboard } from "@/lib/use-keyboard";
+import { autoBackupDocx } from "@/lib/storymaker/auto-backup";
 import {
   MediumFieldRenderer,
   buildDefaultValues,
@@ -1536,6 +1537,27 @@ function WriteMain() {
       </main>
     );
   }
+
+  // ★ V3.1 #13+#7 — Tauri 자동 .docx 백업 (60초 + 본문 변화 감지).
+  //   ~/Documents/StoryMaker/{작품명}/{YYYY-MM-DD}_{HHMM}.docx
+  //   웹 = skipped: "not-tauri" (= 자동저장은 localStorage + Supabase 본문 그대로)
+  useEffect(() => {
+    if (isDemo) return;
+    const tick = () => {
+      const title = (work.title || ideaParam || "").trim();
+      if (!title) return;
+      const body = paras
+        .filter(p => p.text && p.text.trim())
+        .map(p => p.text)
+        .join("\n\n");
+      if (!body.trim()) return;
+      void autoBackupDocx(title, body); // fire-and-forget — 실패 silent
+    };
+    // 첫 호출 = 30초 후 1회 (= 작가가 글 좀 쓴 후) → 이후 60초마다
+    const initial = setTimeout(tick, 30_000);
+    const interval = setInterval(tick, 60_000);
+    return () => { clearTimeout(initial); clearInterval(interval); };
+  }, [isDemo, work.title, ideaParam, paras]);
 
   // ★ V3.1 #16 — 단축키. Ctrl+S 수동저장 · Ctrl+E 워크북 토글 · Ctrl+D 다운로드 · Ctrl+B 워크북 · Esc는 EditableSpan에서 직접
   useKeyboard({
