@@ -313,6 +313,7 @@ interface PersistedProject {
   flow: FlowItem[];
   paras: Para[];           // V2 호환 — 옛 작품 그대로 보존 (롤백 안전망, 글로벌 룰 17)
   doc?: WriteDocV3;        // ★ V3.0 — 새 본문 모델. 단계 1+에서 paras와 함께 저장 (paras는 평탄화 거울)
+  headerBlocks?: HeaderBlockV3[]; // ★ V3.1 #9 보강 — 회차/장 헤더 영속화 (옛엔 page reload 시 사라지는 사고)
   chat: ChatMsg[];
   mediumFields?: FieldValues;
   briefDone?: boolean;
@@ -606,6 +607,7 @@ function WriteMain() {
     // (1) localStorage 즉시 저장 (= 본 PC 안전)
     const snapshot: PersistedProject = {
       work, notes, flow, paras, chat,
+      headerBlocks,        // ★ V3.1 #9 — 회차/장 헤더 영속화
       mediumFields,
       briefDone,
       updatedAt: new Date().toISOString(),
@@ -1181,7 +1183,12 @@ function WriteMain() {
   // ★ V3.0 단계 1 — paras → doc useMemo. paras가 single source, doc은 computed view.
   //   단계 2+에서 doc이 source가 될 예정. 지금은 PROSE 그룹에서만 doc 우선 렌더.
   //   추가 HeaderBlock(회차/장)은 별도 state로 paras에 부수.
-  const [headerBlocks, setHeaderBlocks] = useState<HeaderBlockV3[]>([]);
+  //   ★ V3.1 #9 — localStorage 복원 (옛엔 새로고침 시 헤더 사라지는 사고)
+  const [headerBlocks, setHeaderBlocks] = useState<HeaderBlockV3[]>(() => {
+    if (isDemo || !storageKey) return [];
+    const saved = loadJSON<PersistedProject | null>(storageKey, null);
+    return saved?.headerBlocks ?? [];
+  });
   const doc = useMemo<WriteDocV3>(() => {
     const base = migrateParasToDoc(paras as Array<{id:string;text:string;status:"done"|"streaming"|"pending";label?:string;notes?:string}>, genreParam);
     if (headerBlocks.length === 0) return base;
