@@ -27,6 +27,12 @@ function parseText(buf: ArrayBuffer): string {
   return new TextDecoder("utf-8").decode(buf);
 }
 
+// V3.1 #8 — .hwpx 파서 (zip+XML). hwp(바이너리)는 변환 안내 throw.
+async function parseHwpxFile(buf: ArrayBuffer): Promise<string> {
+  const { parseHwpx } = await import("@/lib/storymaker/hwp-parser");
+  return parseHwpx(buf);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
@@ -63,9 +69,13 @@ export async function POST(req: NextRequest) {
         return new Response(JSON.stringify({
           error: "이미지 파일은 곧 지원 예정입니다. 지금은 PDF/Word(.docx)/텍스트 파일을 사용해주세요.",
         }), { status: 415, headers: { "content-type": "application/json" } });
-      } else if (name.endsWith(".hwp") || name.endsWith(".hwpx")) {
+      } else if (name.endsWith(".hwpx")) {
+        // V3.1 #8 — .hwpx 진짜 파싱 (zip+XML)
+        text = await parseHwpxFile(buf);
+      } else if (name.endsWith(".hwp")) {
+        // 구버전 .hwp 바이너리 = 친절 변환 안내
         return new Response(JSON.stringify({
-          error: "한글(.hwp/.hwpx) 파일은 PDF로 변환해서 올려주세요.\n\n[변환 3단계]\n1) 한컴에서 파일 열기\n2) [파일] → [다른 이름으로 저장] → 파일 형식: PDF (.pdf)\n3) 저장한 PDF를 여기 업로드\n\n또는 한글 본문을 복사해서 아래 텍스트 칸에 붙여넣으셔도 됩니다.",
+          error: "구버전 한글(.hwp) 파일은 자동 변환이 불안정합니다.\n\n[변환 3단계]\n1) 한컴 오피스에서 파일 열기\n2) [파일] → [다른 이름으로 저장] → 파일 형식: HWPX(.hwpx) 또는 PDF(.pdf)\n3) 변환한 파일을 다시 업로드\n\n또는 본문을 복사해서 아래 텍스트 칸에 붙여넣어 주세요.",
         }), { status: 415, headers: { "content-type": "application/json" } });
       } else {
         return new Response(JSON.stringify({
