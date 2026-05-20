@@ -261,8 +261,9 @@ export default function DownloadPage() {
           </div>
 
           <div style={{ marginTop: 22, paddingTop: 20, borderTop: "1px solid var(--line)", fontSize: 11, color: "var(--ink-5)", lineHeight: 1.7 }}>
-            ※ Windows .exe = V3.0.0 (NSIS 자동 설치 · 자동 업데이터).<br />
-            ※ macOS .dmg = V3.0.0 (Apple Silicon aarch64 · 자동 업데이터).<br />
+            ※ Windows .exe = V3.0.0 (NSIS 자동 설치 · 자동 업데이터). <strong>Windows 10·11 (64bit)</strong> 권장.<br />
+            ※ macOS .dmg = V3.0.0 (Apple Silicon aarch64 · 자동 업데이터). <strong>macOS 12 Monterey 이상</strong>.<br />
+            ※ 메모리 권장 4GB+ · 디스크 200MB · 인터넷 필요 (Claude API).<br />
             ※ V3.0 신기능 = 16매체별 양식 틀 + 대사 인라인 수정 + 채팅 정밀 patch.<br />
             ※ iOS·Android = 다음 단계.
           </div>
