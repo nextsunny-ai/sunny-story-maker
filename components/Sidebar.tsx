@@ -39,7 +39,24 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
   const router = useRouter();
   const pathname = usePathname();
   const active = PATH_TO_NAV[pathname] ?? "home";
-  const onNav = (id: string) => {
+  const onNav = async (id: string) => {
+    // ★ V3.1 — .smkr 프로젝트 파일 열기 (특수 메뉴 — 모든 페이지에서 1클릭)
+    if (id === "open-smkr") {
+      const { openSmkrFile } = await import("@/lib/storymaker/project-file");
+      const result = await openSmkrFile();
+      if (!result.ok) {
+        if (result.error !== "취소됨") alert(`파일 열기 실패: ${result.error}`);
+        return;
+      }
+      // localStorage temp + /write redirect
+      try {
+        window.localStorage.setItem("sunny.storymaker.openSmkr", JSON.stringify(result.file));
+        router.push("/write?mode=continue&from=smkr");
+      } catch (e) {
+        alert(`파일 열기 실패: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      return;
+    }
     const path = NAV_TO_PATH[id];
     if (path) router.push(path);
   };
@@ -136,7 +153,10 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
   // DEFAULT MODE — 공통 메뉴
   // ============================================================
   const links = [
-    { section: "WORKSPACE", items: [{ id: "home", label: "Home", icon: I.home }] },
+    { section: "WORKSPACE", items: [
+      { id: "home", label: "Home", icon: I.home },
+      { id: "open-smkr", label: "📂 프로젝트 열기", icon: I.download || I.home },
+    ]},
     { section: "CREATE", items: [
       { id: "develop", label: "Develop", icon: I.pitch },
       { id: "write",   label: "Write",   icon: I.write },

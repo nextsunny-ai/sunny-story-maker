@@ -73,6 +73,47 @@ function HomeMain() {
   const G = GENRES;
   const [idea, setIdea] = usePersistedState<string>(KEY.homeIdea, "");
 
+  // ★ V3.1 — 최근 .smkr 프로젝트 (Tauri 데스크탑) — 최대 3개
+  const [recentSmkr, setRecentSmkr] = useState<Array<{ filename: string; fullPath: string; title: string; genreLetter: string; updatedAt: string }>>([]);
+  useEffect(() => {
+    if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+      import("@/lib/storymaker/project-file").then(async ({ listProjectFolder }) => {
+        const files = await listProjectFolder();
+        setRecentSmkr(files.slice(0, 3));
+      });
+    }
+  }, []);
+
+  const handleOpenSmkrPicker = async () => {
+    const { openSmkrFile } = await import("@/lib/storymaker/project-file");
+    const result = await openSmkrFile();
+    if (!result.ok) {
+      if (result.error !== "취소됨") alert(`파일 열기 실패: ${result.error}`);
+      return;
+    }
+    try {
+      window.localStorage.setItem("sunny.storymaker.openSmkr", JSON.stringify(result.file));
+      router.push("/write?mode=continue&from=smkr");
+    } catch (e) {
+      alert(`파일 열기 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const handleOpenRecentSmkr = async (fullPath: string) => {
+    const { loadSmkrFromPath } = await import("@/lib/storymaker/project-file");
+    const res = await loadSmkrFromPath(fullPath);
+    if (!res.ok) {
+      alert(`파일 열기 실패: ${res.error}`);
+      return;
+    }
+    try {
+      window.localStorage.setItem("sunny.storymaker.openSmkr", JSON.stringify(res.file));
+      router.push("/write?mode=continue&from=smkr");
+    } catch (e) {
+      alert(`파일 열기 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   // 매체: localStorage homeMediumOverride > adminPrimaryMedium > "A"
   // 진입 시 초기값 결정 (SSR-safe). 카드 클릭 시 즉시 setMedium + override 저장.
   const [medium, setMedium] = useState<string>("A");
@@ -193,6 +234,46 @@ function HomeMain() {
         title='Good <em style="font-style:italic">morning</em>, 작가님<span class="dot">.</span>'
         sub="머릿속 한 문장이면 충분합니다. SUNNY가 로그라인부터 첫 부분 샘플까지 만들어 드려요."
       />
+
+      {/* ★ V3.1 — 최근 .smkr 프로젝트 (Tauri 데스크탑) + [📂 다른 프로젝트 열기] */}
+      {recentSmkr.length > 0 && (
+        <div style={{ marginBottom: 28, padding: "18px 22px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-3)", letterSpacing: "0.05em" }}>
+              📂 최근 작업한 프로젝트
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenSmkrPicker}
+              style={{ padding: "6px 14px", fontSize: 12, fontWeight: 600, background: "var(--coral)", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}
+            >
+              다른 .smkr 열기 →
+            </button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+            {recentSmkr.map(f => (
+              <button
+                key={f.fullPath}
+                type="button"
+                onClick={() => handleOpenRecentSmkr(f.fullPath)}
+                style={{
+                  textAlign: "left", padding: "12px 14px",
+                  background: "var(--card)", border: "1px solid var(--line)", borderRadius: 8,
+                  cursor: "pointer", display: "flex", flexDirection: "column", gap: 4,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--coral)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--line)"; }}
+              >
+                <div style={{ fontSize: 11, color: "var(--coral)", fontWeight: 700 }}>{f.genreLetter}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink-1)" }}>{f.title}</div>
+                <div style={{ fontSize: 10.5, color: "var(--ink-5)" }}>
+                  {f.updatedAt ? new Date(f.updatedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* HERO — 매체 어댑티브 single-input */}
       <div className="home-hero">
