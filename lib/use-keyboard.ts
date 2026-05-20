@@ -13,6 +13,8 @@ type Handlers = {
   onDownload?: () => void;      // Ctrl+D
   onEscape?: () => void;        // Esc
   onTogglePanel?: () => void;   // Ctrl+B (workbook 토글)
+  onUndo?: () => void;          // Ctrl+Z (V3.1 D1)
+  onRedo?: () => void;          // Ctrl+Shift+Z / Ctrl+Y
   enabled?: boolean;
 };
 
@@ -22,6 +24,8 @@ export function useKeyboard({
   onDownload,
   onEscape,
   onTogglePanel,
+  onUndo,
+  onRedo,
   enabled = true,
 }: Handlers): void {
   useEffect(() => {
@@ -51,6 +55,21 @@ export function useKeyboard({
           e.preventDefault();
           onSave();
         }
+        return;
+      }
+
+      // Ctrl+Z / Ctrl+Shift+Z — input 내부에서는 OS 기본 (텍스트 undo) 보존
+      // 본문 단락 차원의 undo는 input 밖에서만
+      if ((e.key === "z" || e.key === "Z") && !isEditable) {
+        if (e.shiftKey) {
+          if (onRedo) { e.preventDefault(); onRedo(); }
+        } else {
+          if (onUndo) { e.preventDefault(); onUndo(); }
+        }
+        return;
+      }
+      if ((e.key === "y" || e.key === "Y") && !isEditable) {
+        if (onRedo) { e.preventDefault(); onRedo(); }
         return;
       }
 
@@ -87,5 +106,5 @@ export function useKeyboard({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onSave, onToggleEdit, onDownload, onEscape, onTogglePanel, enabled]);
+  }, [onSave, onToggleEdit, onDownload, onEscape, onTogglePanel, onUndo, onRedo, enabled]);
 }

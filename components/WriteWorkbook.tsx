@@ -329,6 +329,67 @@ export function WriteWorkbook({
                     textWithoutMarkers = m.text.replace(PATCH_RE, "").trim();
                   }
 
+                  // ★ V3.1 C2 — [[의견/질문/평가:N:내용]] 마커 파싱 (본문 patch X · 채팅 도구)
+                  const TOOL_RE = /\[\[(의견|질문|평가):(\d+)(?::([\s\S]*?))?\]\]/g;
+                  type ToolKind = "의견" | "질문" | "평가";
+                  const tools: Array<{ kind: ToolKind; n: number; content?: string }> = [];
+                  let tm: RegExpExecArray | null;
+                  while ((tm = TOOL_RE.exec(textWithoutMarkers)) !== null) {
+                    tools.push({
+                      kind: tm[1] as ToolKind,
+                      n: parseInt(tm[2], 10),
+                      content: tm[3] !== undefined ? tm[3].trim() : undefined,
+                    });
+                  }
+                  if (tools.length > 0) {
+                    textWithoutMarkers = textWithoutMarkers.replace(TOOL_RE, "").trim();
+                  }
+                  // 채팅 도구 카드 렌더링 (의견·질문·평가)
+                  const TOOL_EMOJI: Record<ToolKind, string> = { "의견": "💡", "질문": "❓", "평가": "🎯" };
+                  const TOOL_COLOR: Record<ToolKind, string> = { "의견": "#f59e0b", "질문": "#3b82f6", "평가": "#10b981" };
+                  const ToolsBlock = tools.length > 0 ? (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--line)", display: "flex", flexDirection: "column", gap: 5 }}>
+                      <div style={{ fontSize: 10.5, color: "var(--ink-4)", fontWeight: 700, letterSpacing: "0.05em" }}>
+                        AI 코멘트 ({tools.length}개)
+                      </div>
+                      {tools.map((tl, ti) => (
+                        <div key={ti} style={{
+                          fontSize: 11.5, padding: "5px 10px",
+                          background: "transparent",
+                          borderLeft: `3px solid ${TOOL_COLOR[tl.kind]}`,
+                          paddingLeft: 10, lineHeight: 1.5, color: "var(--ink-2)",
+                        }}>
+                          <span style={{ fontWeight: 700, color: TOOL_COLOR[tl.kind] }}>
+                            {TOOL_EMOJI[tl.kind]} {tl.kind} · {tl.n}번
+                          </span>
+                          {tl.content && <span style={{ marginLeft: 6 }}>{tl.content}</span>}
+                          {tl.kind === "질문" && (
+                            <button
+                              type="button"
+                              onClick={() => onInputChange((tl.content || "") + " — 답: ")}
+                              style={{
+                                marginLeft: 6, fontSize: 10.5, padding: "1px 7px",
+                                background: TOOL_COLOR.질문, color: "#fff",
+                                border: "none", borderRadius: 4, cursor: "pointer",
+                              }}
+                            >답하기</button>
+                          )}
+                          {tl.kind === "의견" && tl.content && (
+                            <button
+                              type="button"
+                              onClick={() => onAddNote(`[${tl.n}번 의견] ${tl.content}`)}
+                              style={{
+                                marginLeft: 6, fontSize: 10.5, padding: "1px 7px",
+                                background: TOOL_COLOR.의견, color: "#fff",
+                                border: "none", borderRadius: 4, cursor: "pointer",
+                              }}
+                            >노트 추가</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null;
+
                   // ===CHOICES=== 마커 분리 — chip 버튼 (사장님 명시: 작가 채팅 적게 치고 빠른 결정)
                   const idx = textWithoutMarkers.indexOf("===CHOICES===");
                   if (idx === -1) {
@@ -364,6 +425,7 @@ export function WriteWorkbook({
                             ))}
                           </div>
                         )}
+                        {ToolsBlock}
                       </>
                     );
                   }
@@ -450,6 +512,7 @@ export function WriteWorkbook({
                           ))}
                         </div>
                       )}
+                      {ToolsBlock}
                     </>
                   );
                 })()}

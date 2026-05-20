@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Symbol } from "@/components/Symbol";
 import { createClient } from "@/lib/supabase/client";
+import { STORYMAKER_VERSION } from "@/lib/storymaker/version";
 
 type DownloadType = "windows-exe" | "windows" | "mac";
 
+// V3.1 E5 — 버전 정보 = lib/storymaker/version.ts 단일 소스
+const V = STORYMAKER_VERSION;
 const DOWNLOAD_OPTIONS: {
   id: DownloadType;
   emoji: string;
@@ -14,9 +17,9 @@ const DOWNLOAD_OPTIONS: {
   hint: string;
   recommended?: boolean;
 }[] = [
-  { id: "windows-exe", emoji: "⊞", label: "Windows 데스크탑 앱 (.exe)", hint: "4.5MB · 더블클릭 = 자동 설치 · 추천 ★", recommended: true },
+  { id: "windows-exe", emoji: "⊞", label: `Windows 데스크탑 앱 (.exe · v${V.version})`, hint: `${V.sizes["windows-exe"]} · 더블클릭 = 자동 설치 · 추천 ★`, recommended: true },
   { id: "windows", emoji: "⊞", label: "Windows 자동 설치 ZIP", hint: "PowerShell 스크립트로 자동 설치 (Node.js·Claude Code 자동)" },
-  { id: "mac", emoji: "🍎", label: "Mac 데스크탑 앱 (.dmg)", hint: "Apple Silicon · 7.7MB · 마운트 → 앱 폴더 드래그 · 첫 실행은 우클릭→열기" },
+  { id: "mac", emoji: "🍎", label: `Mac 데스크탑 앱 (.dmg · v${V.version})`, hint: `Apple Silicon · ${V.sizes["mac-dmg"]} · 마운트 → 앱 폴더 드래그 · 첫 실행은 우클릭→열기` },
 ];
 
 export default function DownloadPage() {
@@ -261,9 +264,9 @@ export default function DownloadPage() {
           </div>
 
           <div style={{ marginTop: 22, paddingTop: 20, borderTop: "1px solid var(--line)", fontSize: 11, color: "var(--ink-5)", lineHeight: 1.7 }}>
-            ※ Windows .exe = V3.0.0 (NSIS 자동 설치 · 자동 업데이터). <strong>Windows 10·11 (64bit)</strong> 권장.<br />
-            ※ macOS .dmg = V3.0.0 (Apple Silicon aarch64 · 자동 업데이터). <strong>macOS 12 Monterey 이상</strong>.<br />
-            ※ 메모리 권장 4GB+ · 디스크 200MB · 인터넷 필요 (Claude API).<br />
+            ※ Windows .exe = V{V.version} (NSIS 자동 설치 · 자동 업데이터). <strong>{V.requirements.windows}</strong> 권장.<br />
+            ※ macOS .dmg = V{V.version} (Apple Silicon aarch64 · 자동 업데이터). <strong>{V.requirements.macos}</strong>.<br />
+            ※ 메모리 {V.requirements.memory} · 디스크 {V.requirements.disk} · {V.requirements.network}.<br />
             ※ V3.0 신기능 = 16매체별 양식 틀 + 대사 인라인 수정 + 채팅 정밀 patch.<br />
             ※ iOS·Android = 다음 단계.
           </div>
@@ -271,7 +274,7 @@ export default function DownloadPage() {
       </div>
 
       <footer style={{ padding: "20px 32px", borderTop: "1px solid var(--line)", display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--ink-5)" }}>
-        <span>SUNNY Story Maker · V3.0.0 · 2026-05-20</span>
+        <span>SUNNY Story Maker · V{V.version} · {V.releaseDate.slice(0, 10)}</span>
         <div style={{ display: "flex", gap: 16 }}>
           <a href="/guide" style={{ color: "var(--ink-4)", textDecoration: "none" }}>가이드</a>
           <a href="/changelog" style={{ color: "var(--ink-4)", textDecoration: "none" }}>변경 이력</a>

@@ -37,7 +37,7 @@ interface WriteCanvasProps {
   onEditAll?: (fullText: string) => void;                // ★ 본문 전체를 한 번에 수정
   onContinue?: (id: string) => void;                     // 이 단락 다음에 이어쓰기
   onImport?: (text: string) => void;                     // ★ V2.13.4 — 쓰던 원고(파일·붙여넣기)를 본문으로 가져옴
-  onDownload?: (format: "docx" | "txt") => void;        // 본문 다운로드 (워드/텍스트)
+  onDownload?: (format: "docx" | "txt" | "fountain" | "pdf") => void;        // 본문 다운로드 (워드·텍스트·Fountain·PDF · V3.1 D4)
   // ★ V3.0 단계 1+ Block 콜백 (doc 모드)
   onBlockEdit?: (blockId: string, patch: Partial<import("@/lib/storymaker/write-doc").Block>) => void;
   onBlockRewrite?: (blockId: string) => void;
@@ -262,15 +262,25 @@ export function WriteCanvas({
                 <span className="wcanvas-book-toggle-icon">{I.download}</span>
                 <span>TXT</span>
               </button>
-              {/* ★ V2.13.4 — 프린트 (작가들이 프린트해 많이 읽음). @media print가 본문만 출력. */}
+              {/* ★ V3.1 D4 — Fountain (시나리오 표준 plain text) */}
               <button
                 type="button"
                 className="wcanvas-book-toggle"
-                onClick={() => window.print()}
-                title="본문 프린트 / PDF로 저장"
+                onClick={() => onDownload("fountain")}
+                title="Fountain (시나리오 표준 평문) — Highland·Final Draft 호환"
               >
-                <span className="wcanvas-book-toggle-icon">🖨</span>
-                <span>프린트</span>
+                <span className="wcanvas-book-toggle-icon">📜</span>
+                <span>Fountain</span>
+              </button>
+              {/* ★ V3.1 D4 — PDF (브라우저 인쇄 → PDF로 저장) */}
+              <button
+                type="button"
+                className="wcanvas-book-toggle"
+                onClick={() => onDownload("pdf")}
+                title="PDF — 새 창에서 인쇄 → PDF로 저장"
+              >
+                <span className="wcanvas-book-toggle-icon">📄</span>
+                <span>PDF</span>
               </button>
               {/* ★ V2.14.5 — 데스크탑 작가만: 워드/TXT 받은 다운로드 폴더 바로 열기 */}
               {isTauriEnv && (

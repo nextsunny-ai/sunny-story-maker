@@ -350,10 +350,161 @@ function mdToPlain(md: string): string {
     .replace(/^[-=*]{3,}$/gm, "─".repeat(40)); // 구분선
 }
 
+// ─── V3.1 D4 — Fountain (시나리오 표준 plain text format) ───
+// http://fountain.io — 평문이지만 변환기에 넣으면 표준 시나리오 양식 자동 생성.
+// 룰:
+//   - INT./EXT./EST. 시작 = scene heading (대문자)
+//   - 캐릭터 이름 = 모두 대문자 + 그 다음 줄 = 대사
+//   - (괄호) = 인물 지시
+//   - >제목< = 센터
+//   - !지문 = 강제 action
+
+/**
+ * 본문 markdown / 평문 → Fountain 변환 (best effort).
+ * 한국어 시나리오 패턴 (S#1. / 캐릭터: 대사) → Fountain 표준.
+ */
+export function toFountain(md: string, title?: string): string {
+  const lines = md.split("\n");
+  const out: string[] = [];
+
+  // 메타데이터 (= Title Page)
+  if (title) {
+    out.push(`Title: ${title}`);
+    out.push(`Credit: Written by`);
+    out.push(`Author: ${title}`);
+    out.push(`Source: SUNNY Story Maker`);
+    out.push("");
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (!line.trim()) { out.push(""); continue; }
+
+    // 마크다운 헤더 = Fountain section heading (`# ` → `# `)
+    if (/^#{1,6}\s/.test(line)) { out.push(line); continue; }
+
+    // S#1. 장소 - 시간 → INT./EXT. 형식 그대로 (Fountain은 INT./EXT./EST.로 시작하면 scene heading)
+    const sceneKR = /^S#\d+/.exec(line);
+    if (sceneKR) {
+      // 한국어 씬 = scene heading 그대로 (Fountain은 .을 앞에 박으면 강제 scene)
+      out.push("." + line);
+      continue;
+    }
+    if (/^(INT\.|EXT\.|EST\.|INT\/EXT)/.test(line)) {
+      out.push(line.toUpperCase());
+      continue;
+    }
+
+    // 캐릭터: 대사 패턴
+    const dialogMatch = /^([가-힣A-Za-z][가-힣A-Za-z0-9\s]{0,30}):\s*(.+)$/.exec(line);
+    if (dialogMatch) {
+      const charName = dialogMatch[1].trim().toUpperCase();
+      const dialog = dialogMatch[2].trim();
+      // 괄호 안 = 인물 지시
+      out.push("");
+      out.push(charName);
+      out.push(dialog);
+      continue;
+    }
+
+    // 일반 지문 = 그대로 (= action)
+    out.push(line);
+  }
+
+  return out.join("\n");
+}
+
+/**
+ * Fountain (.fountain) 다운로드
+ */
+export function downloadFountain(md: string, filename: string): void {
+  const title = filename.replace(/\.(docx|md|txt|fountain|fdx|pdf)$/i, "");
+  const fountain = toFountain(md, title);
+  const blob = new Blob([fountain], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename.endsWith(".fountain") ? filename : `${title}.fountain`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * PDF 다운로드 — markdownToDocx 결과를 docx → PDF 변환 X (= 클라이언트 무거움).
+ * 대신 = 브라우저 print → "PDF로 저장" 흐름. (window.print + dedicated CSS)
+ * 작가는 가장 익숙한 path = OS 기본 PDF 저장.
+ */
+export function downloadPdfViaPrint(md: string, filename: string): void {
+  const title = filename.replace(/\.(docx|md|txt|pdf)$/i, "");
+  const lines = md.split("\n").filter(l => l.trim() || true);
+
+  const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <style>
+    @page { size: A4; margin: 25mm 20mm; }
+    @media print {
+      body { font-family: "맑은 고딕", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; font-size: 11pt; line-height: 1.6; color: #222; }
+      h1 { font-size: 18pt; font-weight: 700; text-align: center; margin: 0 0 32px; page-break-after: avoid; }
+      h2 { font-size: 14pt; font-weight: 700; margin: 24px 0 12px; page-break-after: avoid; }
+      h3 { font-size: 12pt; font-weight: 600; margin: 18px 0 10px; }
+      p { margin: 0 0 10px; orphans: 3; widows: 3; }
+      .scene { font-weight: 700; margin-top: 18px; }
+      .dialogue { padding-left: 80px; margin: 6px 0; }
+      .character { padding-left: 140px; font-weight: 700; margin: 12px 0 2px; }
+    }
+    body { font-family: "맑은 고딕", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; padding: 40px; max-width: 700px; margin: 0 auto; }
+    .print-hint { background: #fffbeb; border: 1px solid #fbbf24; padding: 12px 16px; border-radius: 8px; margin-bottom: 24px; font-size: 12px; color: #92400e; }
+    @media print { .print-hint, .print-btn { display: none; } }
+    .print-btn { padding: 8px 18px; background: #ff6b53; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="print-hint">
+    💡 <strong>브라우저 인쇄 (Ctrl+P)</strong> → 대상: "PDF로 저장" 선택 → 저장하기.<br />
+    또는 아래 버튼 → 같은 인쇄 화면 열림.
+  </div>
+  <button class="print-btn" onclick="window.print()">📄 PDF로 저장 (인쇄)</button>
+  <h1>${title}</h1>
+  ${lines.map(l => {
+    const t = l.trim();
+    if (!t) return "<p>&nbsp;</p>";
+    const h3 = /^###\s+(.+)/.exec(t);
+    const h2 = /^##\s+(.+)/.exec(t);
+    if (h2) return `<h2>${h2[1]}</h2>`;
+    if (h3) return `<h3>${h3[1]}</h3>`;
+    if (/^S#\d+/.test(t)) return `<p class="scene">${escapeHtml(t)}</p>`;
+    return `<p>${escapeHtml(t)}</p>`;
+  }).join("\n  ")}
+</body>
+</html>`;
+
+  const win = window.open("", "_blank", "width=900,height=700");
+  if (!win) {
+    alert("팝업이 차단됐습니다. 팝업 차단을 풀고 다시 시도하시거나 = .docx로 받아 워드에서 PDF 저장해주세요.");
+    return;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 // ─── 다운로드 옵션 묶음 ───
-export type ExportFormat = "docx" | "txt";
+export type ExportFormat = "docx" | "txt" | "fountain" | "pdf";
 
 export async function exportDocument(md: string, baseFilename: string, format: ExportFormat): Promise<void> {
   if (format === "docx") return downloadDocx(md, baseFilename);
+  if (format === "fountain") return downloadFountain(md, baseFilename);
+  if (format === "pdf") return downloadPdfViaPrint(md, baseFilename);
   return downloadTxt(md, baseFilename);
 }

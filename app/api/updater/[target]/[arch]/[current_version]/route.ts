@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import { STORYMAKER_VERSION } from "@/lib/storymaker/version";
 
 /**
  * Tauri 2.0 Updater Endpoint — V2.12.0 (2026-05-13) 활성화 완료
@@ -23,12 +24,11 @@ import path from "node:path";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// 현재 라이브 버전 (= 매 릴리스 시 갱신)
+// V3.1 E5 — version 정보 = lib/storymaker/version.ts 단일 소스
 const LATEST = {
-  version: "3.0.0",
-  pub_date: "2026-05-20T15:00:00Z",
-  notes:
-    "V3.0: 본문 모델 재설계 — 16매체별 양식 틀 + 대사 인라인 수정 + 채팅 정밀 patch. (1) 매체별 입력 UI — 시나리오(씬헤딩·지문·대사)·웹툰(컷 카드)·예능 큐시트(시간축 표)·소설(회차/장)·전시(Zone 카드)·게임(대사 데이터 표). (2) ★ 대사 인라인 수정 — 캐릭터·대사 각각 클릭 즉시 편집 (ContentEditable). (3) 채팅 [[수정/추가/삭제:N:내용]] 마커 + [📥 patch] 1클릭. (4) 시나리오 자동 파싱 (한국+영어 표준). (5) 옛 작품 무손실 마이그레이션. (6) 매체 변경 시 텍스트 보존. + V2.14 모든 기능 유지.",
+  version: STORYMAKER_VERSION.version,
+  pub_date: STORYMAKER_VERSION.releaseDate,
+  notes: STORYMAKER_VERSION.notes,
 };
 
 /**

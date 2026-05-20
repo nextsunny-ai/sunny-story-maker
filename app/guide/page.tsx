@@ -347,6 +347,72 @@ export default function GuidePage() {
           </details>
         </section>
 
+        {/* ★ V3.0 신기능 안내 (V3.1에서 추가) */}
+        <section style={{ marginBottom: 60 }}>
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 14px", letterSpacing: "-0.015em" }}>
+            V3.0 신기능<span style={{ color: "var(--coral)" }}>.</span>
+          </h2>
+          <p style={{ fontSize: 14, color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 18 }}>
+            본문 모델 재설계 + 16매체별 양식 틀 + 인라인 수정 + 채팅 정밀 patch.
+          </p>
+          <div style={{ display: "grid", gap: 14 }}>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>📝 매체별 본문 캔버스</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                시나리오 = S#·INT./EXT.·캐릭터 대사 / 웹툰 = 컷 카드 / 큐시트 = 진짜 표 / 소설 = 회차·장 / 전시 = Zone / 게임 = 대사 데이터 표.
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>✏️ 대사 인라인 수정</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                캐릭터·대사 클릭 = 그 자리에서 바로 편집 (ContentEditable). Esc = 취소, Enter = 확정.
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>📥 채팅 → 본문 정밀 적용</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                AI가 본문 수정·추가 제안 = <strong>[📥 N번째 수정]</strong> 버튼 1클릭 = 정확히 그 위치만. 작가가 다시 손볼 필요 X.
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>🔄 매체 변경 시 텍스트 보존</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                옛 작품 무손실 마이그레이션. 영화 → 웹툰 전환해도 본문 그대로.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ★ 단축키 + 자동 백업 위치 (V3.1) */}
+        <section style={{ marginBottom: 60 }}>
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 14px", letterSpacing: "-0.015em" }}>
+            단축키 & 자동 백업<span style={{ color: "var(--coral)" }}>.</span>
+          </h2>
+          <div style={{ padding: "16px 20px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10, marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: "var(--ink-1)" }}>⌨️ 키보드 단축키</div>
+            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 16px", fontSize: 13, color: "var(--ink-2)" }}>
+              <kbd style={{ padding: "2px 8px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>Ctrl+S</kbd>
+              <span>수동 저장 (자동저장과 별개)</span>
+              <kbd style={{ padding: "2px 8px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>Ctrl+D</kbd>
+              <span>본문 다운로드 (.docx)</span>
+              <kbd style={{ padding: "2px 8px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>Ctrl+B</kbd>
+              <span>오른쪽 채팅 워크북 토글</span>
+              <kbd style={{ padding: "2px 8px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>Esc</kbd>
+              <span>현재 편집 취소·blur</span>
+            </div>
+          </div>
+          <div style={{ padding: "16px 20px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: "var(--ink-1)" }}>💾 자동 백업 (데스크탑 앱)</div>
+            <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+              매 60초마다 본문이 바뀌면 = <code style={{ padding: "1px 6px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>~/Documents/StoryMaker/{"{"}작품명{"}"}/</code>에 .docx 자동 저장.
+              <br />
+              작품당 최근 50개 보존. 옛 거 = <code style={{ padding: "1px 6px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>_archive/</code> 자동 이동 (= 삭제 X).
+              <br />
+              <span style={{ fontSize: 12, color: "var(--ink-4)" }}>* 웹 = localStorage + Supabase 자동저장. 데스크탑 = 추가로 PC 폴더에도.</span>
+            </div>
+          </div>
+        </section>
+
         {/* FAQ */}
         <section style={{ marginBottom: 60 }}>
           <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 24px", letterSpacing: "-0.015em" }}>

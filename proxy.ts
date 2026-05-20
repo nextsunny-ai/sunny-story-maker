@@ -1,3 +1,7 @@
+// V3.1 G2 (2026-05-20) — Next.js 16 = middleware → proxy 컨벤션.
+// 옛 `middleware.ts` deprecated. 함수명도 `middleware` → `proxy`.
+// 로직은 그대로 (Supabase 세션 + public path + login redirect).
+
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
@@ -17,6 +21,7 @@ const PUBLIC_PATHS: readonly string[] = [
   "/api/upload",
   "/api/download",
   "/api/health", // status 페이지가 호출
+  "/api/log",    // ★ V3.1 #14 — 클라이언트 에러 로그 (비로그인 작가도 OK)
   "/api/updater", // 스토리메이커 Tauri auto-updater
   "/api/updater-download", // ★ V2.12 = 스토리메이커 .exe 다운로드
   "/api/agent-updater", // ★ V1.0 = SUNNY Agent Pro auto-updater
@@ -28,7 +33,7 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(p => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { response, user } = await updateSession(request);
   const { pathname, search } = request.nextUrl;
 

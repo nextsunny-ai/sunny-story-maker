@@ -10,7 +10,7 @@ import { WriteWorkbook, type Note, type FlowItem, type ChatMsg } from "@/compone
 import { Btn } from "@/components/ui";
 import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
 import { appendTurns } from "@/lib/storymaker/work-id";
-import { downloadDocx, downloadTxt } from "@/lib/storymaker/export";
+import { downloadDocx, downloadTxt, downloadFountain, downloadPdfViaPrint } from "@/lib/storymaker/export";
 import type { WriteDoc as WriteDocV3, Block as BlockV3, ProseBlock as ProseBlockV3, HeaderBlock as HeaderBlockV3 } from "@/lib/storymaker/write-doc";
 import { migrateParasToDoc } from "@/lib/storymaker/block-convert";
 import { streamFetch } from "@/lib/stream-agent";
@@ -18,6 +18,7 @@ import { getModelChoice } from "@/lib/storymaker/model-prefs";
 import { getWorkflow, QUICK_ACTIONS } from "@/lib/workflows";
 import { useKeyboard } from "@/lib/use-keyboard";
 import { autoBackupDocx } from "@/lib/storymaker/auto-backup";
+import { createSnapshot } from "@/lib/storymaker/snapshots";
 import {
   MediumFieldRenderer,
   buildDefaultValues,
@@ -576,6 +577,44 @@ function WriteMain() {
   const [notes, setNotes] = useState<Note[]>(initial.notes);
   const [flow, setFlow] = useState<FlowItem[]>(initial.flow);
   const [paras, setParas] = useState<Para[]>(initial.paras);
+
+  // ★ V3.1 D1 — Undo/Redo paras history stack (최대 50개, debounce 500ms)
+  const parasHistoryRef = useRef<{ stack: Para[][]; index: number }>({ stack: [initial.paras], index: 0 });
+  const parasDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pushParasHistory = useCallback((next: Para[]) => {
+    const h = parasHistoryRef.current;
+    h.stack.splice(h.index + 1);
+    h.stack.push(next);
+    if (h.stack.length > 50) h.stack.shift();
+    h.index = h.stack.length - 1;
+  }, []);
+  // paras 변경 = 자동 debounce push (= 키 입력마다 X)
+  useEffect(() => {
+    if (parasDebounceRef.current) clearTimeout(parasDebounceRef.current);
+    parasDebounceRef.current = setTimeout(() => {
+      const h = parasHistoryRef.current;
+      // 가장 최근 history와 동일하면 skip
+      const last = h.stack[h.index];
+      if (last !== paras && JSON.stringify(last) !== JSON.stringify(paras)) {
+        pushParasHistory(paras);
+      }
+    }, 500);
+    return () => {
+      if (parasDebounceRef.current) clearTimeout(parasDebounceRef.current);
+    };
+  }, [paras, pushParasHistory]);
+  const undoParas = useCallback(() => {
+    const h = parasHistoryRef.current;
+    if (h.index <= 0) return;
+    h.index -= 1;
+    setParas(h.stack[h.index]);
+  }, []);
+  const redoParas = useCallback(() => {
+    const h = parasHistoryRef.current;
+    if (h.index >= h.stack.length - 1) return;
+    h.index += 1;
+    setParas(h.stack[h.index]);
+  }, []);
   const [chat, setChat] = useState<ChatMsg[]>(initial.chat);
   const [paused, setPaused] = useState(false);
   const [input, setInput] = useState("");
@@ -1166,7 +1205,7 @@ function WriteMain() {
   // 본문 다운로드 (워드/텍스트) — 단락 라벨 X, 본문만 자연스러운 흐름.
   // (라벨 "S#1"/"지문"/"대사"는 UI 표시용 — 다운로드 결과물엔 노출 X.
   //  본문 안에 박힌 매체별 표준 헤더 — S#1/[컷1]/[1막 1장] 등 — 만 그대로 흐름.)
-  const onDownloadScript = (format: "docx" | "txt") => {
+  const onDownloadScript = (format: "docx" | "txt" | "fountain" | "pdf") => {
     const body = paras
       .filter(p => p.text && p.text.trim())
       .map(p => p.text)
@@ -1177,6 +1216,8 @@ function WriteMain() {
     }
     const filename = (work.title || "대본") + "_" + new Date().toISOString().slice(0, 10);
     if (format === "docx") downloadDocx(body, filename);
+    else if (format === "fountain") downloadFountain(body, filename);
+    else if (format === "pdf") downloadPdfViaPrint(body, filename);
     else downloadTxt(body, filename);
   };
 
@@ -1589,7 +1630,33 @@ function WriteMain() {
     return () => { clearTimeout(initial); clearInterval(interval); };
   }, [isDemo, work.title, ideaParam, paras]);
 
-  // ★ V3.1 #16 — 단축키. Ctrl+S 수동저장 · Ctrl+E 워크북 토글 · Ctrl+D 다운로드 · Ctrl+B 워크북 · Esc는 EditableSpan에서 직접
+  // ★ V3.1 D2 — Supabase work_snapshots (5분마다 본문 변화 시 1행).
+  //   작가가 "옛 버전으로 돌리기" = 사용 가능.
+  useEffect(() => {
+    if (isDemo || !persistKey) return;
+    const tick = () => {
+      const body = paras
+        .filter(p => p.text && p.text.trim())
+        .map(p => p.text)
+        .join("\n\n");
+      if (!body.trim()) return;
+      const notesText = notes.filter(n => n.label).map(n => `- ${n.label}`).join("\n");
+      void createSnapshot({
+        workId: persistKey,
+        title: work.title,
+        body,
+        notesText,
+        blockCount: paras.filter(p => p.text && p.text.trim()).length,
+        source: "auto",
+      });
+    };
+    // 첫 5분 후 + 5분 주기
+    const interval = setInterval(tick, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isDemo, persistKey, work.title, paras, notes]);
+
+  // ★ V3.1 #16 — 단축키. Ctrl+S 수동저장 · Ctrl+E 워크북 토글 · Ctrl+D 다운로드 · Ctrl+B 워크북
+  // ★ V3.1 D1 — Ctrl+Z / Ctrl+Y · Ctrl+Shift+Z (단락 차원 undo)
   useKeyboard({
     onSave: () => {
       if (!isDemo) saveSnapshot("manual", { force: true });
@@ -1597,6 +1664,8 @@ function WriteMain() {
     onToggleEdit: () => setBookOpen(v => !v),
     onTogglePanel: () => setBookOpen(v => !v),
     onDownload: () => onDownloadScript("docx"),
+    onUndo: undoParas,
+    onRedo: redoParas,
     enabled: !isDemo && !needsRedirect && !showNoProjectGate,
   });
 

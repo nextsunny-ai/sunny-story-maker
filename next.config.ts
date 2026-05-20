@@ -18,15 +18,16 @@ const nextConfig: NextConfig = {
 
 // Sentry — DSN/AUTH_TOKEN 환경변수 없으면 자동 skip (source map upload는 SENTRY_AUTH_TOKEN 있을 때만 자동)
 // 활성화: https://sentry.io 가입 → SENTRY_ORG, SENTRY_PROJECT, SENTRY_AUTH_TOKEN, NEXT_PUBLIC_SENTRY_DSN 환경변수 추가
+//
+// ★ V3.1 G1 (2026-05-20) — disableLogger·reactComponentAnnotation deprecated 제거.
+//   둘 다 default = false이라 명시 X로도 같은 효과. deprecation warning 사라짐.
 export default withSentryConfig(nextConfig, {
   silent: true,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   authToken: process.env.SENTRY_AUTH_TOKEN,
   widenClientFileUpload: true,
-  reactComponentAnnotation: { enabled: false },
   tunnelRoute: "/monitoring",
-  disableLogger: true,
   sourcemaps: {
     deleteSourcemapsAfterUpload: true,
   },
