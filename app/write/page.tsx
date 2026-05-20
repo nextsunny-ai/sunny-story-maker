@@ -11,7 +11,8 @@ import { Btn } from "@/components/ui";
 import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
 import { appendTurns } from "@/lib/storymaker/work-id";
 import { downloadDocx, downloadTxt } from "@/lib/storymaker/export";
-import type { WriteDoc as WriteDocV3 } from "@/lib/storymaker/write-doc";
+import type { WriteDoc as WriteDocV3, Block as BlockV3, ProseBlock as ProseBlockV3, HeaderBlock as HeaderBlockV3 } from "@/lib/storymaker/write-doc";
+import { migrateParasToDoc } from "@/lib/storymaker/block-convert";
 import { streamFetch } from "@/lib/stream-agent";
 import { getModelChoice } from "@/lib/storymaker/model-prefs";
 import { getWorkflow, QUICK_ACTIONS } from "@/lib/workflows";
@@ -1175,6 +1176,44 @@ function WriteMain() {
     else downloadTxt(body, filename);
   };
 
+  // ★ V3.0 단계 1 — paras → doc useMemo. paras가 single source, doc은 computed view.
+  //   단계 2+에서 doc이 source가 될 예정. 지금은 PROSE 그룹에서만 doc 우선 렌더.
+  //   추가 HeaderBlock(회차/장)은 별도 state로 paras에 부수.
+  const [headerBlocks, setHeaderBlocks] = useState<HeaderBlockV3[]>([]);
+  const doc = useMemo<WriteDocV3>(() => {
+    const base = migrateParasToDoc(paras as Array<{id:string;text:string;status:"done"|"streaming"|"pending";label?:string;notes?:string}>, genreParam);
+    if (headerBlocks.length === 0) return base;
+    // HeaderBlock을 ProseBlock 앞에 끼움 (간단히 맨 위에 모음 — 정밀 위치는 단계 2+)
+    return { ...base, blocks: [...headerBlocks, ...base.blocks] };
+  }, [paras, genreParam, headerBlocks]);
+
+  const onBlockEdit = (blockId: string, patch: Partial<BlockV3>) => {
+    // HeaderBlock 수정 = headerBlocks state 직접
+    const isHeader = headerBlocks.some(h => h.id === blockId);
+    if (isHeader) {
+      setHeaderBlocks(prev => prev.map(h => h.id === blockId ? { ...h, ...(patch as Partial<HeaderBlockV3>) } : h));
+      return;
+    }
+    // ProseBlock 수정 = paras에 위임 (id 동일)
+    const proseText = "text" in patch ? (patch as { text?: string }).text : undefined;
+    if (proseText !== undefined) onEditPara(blockId, proseText);
+  };
+
+  const onBlockRewrite = (blockId: string) => onRewrite(blockId);
+  const onBlockContinue = (afterBlockId: string) => onContinuePara(afterBlockId);
+
+  const onAddHeader = (level: "episode" | "chapter", title: string, number?: string) => {
+    const newHeader: HeaderBlockV3 = {
+      id: `h_${Date.now()}`,
+      kind: "header",
+      level,
+      title,
+      number,
+      status: "done",
+    };
+    setHeaderBlocks(prev => [...prev, newHeader]);
+  };
+
   // 더 쓰기 — 이 단락 다음에 빈 단락 추가. 작가가 직접 쓰거나(✍️ 직접 쓰기),
   // 우측 채팅에서 "이어서 써줘"로 AI에게 맡길 수 있음 (pending = 작가·AI 둘 다 가능).
   const onContinuePara = (id: string) => {
@@ -1526,6 +1565,11 @@ function WriteMain() {
         <WriteCanvas
           work={work}
           paras={paras}
+          doc={doc}
+          onBlockEdit={onBlockEdit}
+          onBlockRewrite={onBlockRewrite}
+          onBlockContinue={onBlockContinue}
+          onAddHeader={onAddHeader}
           paused={paused}
           onPauseToggle={() => {
             // 🛑 중지 — AI streaming 즉시 abort + 현재 streaming 단락을 done으로

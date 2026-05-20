@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
 import { KEY, loadJSON } from "@/lib/persist";
 import { GENRES } from "@/lib/genres";
+import { MediumCanvasRouter } from "@/components/write/MediumCanvasRouter";
 import { Markdown } from "@/components/Markdown";
 import { LibraryPicker } from "@/components/LibraryPicker";
 
@@ -28,6 +29,7 @@ export interface Para {
 interface WriteCanvasProps {
   work: WorkInfo;
   paras: Para[];
+  doc?: import("@/lib/storymaker/write-doc").WriteDoc;    // ★ V3.0 — 새 본문 모델 (단계 1+ 점진 도입)
   paused: boolean;
   onPauseToggle: () => void;
   onRewrite: (id: string) => void;
@@ -36,6 +38,11 @@ interface WriteCanvasProps {
   onContinue?: (id: string) => void;                     // 이 단락 다음에 이어쓰기
   onImport?: (text: string) => void;                     // ★ V2.13.4 — 쓰던 원고(파일·붙여넣기)를 본문으로 가져옴
   onDownload?: (format: "docx" | "txt") => void;        // 본문 다운로드 (워드/텍스트)
+  // ★ V3.0 단계 1+ Block 콜백 (doc 모드)
+  onBlockEdit?: (blockId: string, patch: Partial<import("@/lib/storymaker/write-doc").Block>) => void;
+  onBlockRewrite?: (blockId: string) => void;
+  onBlockContinue?: (afterBlockId: string) => void;
+  onAddHeader?: (level: "episode" | "chapter", title: string, number?: string) => void;
   bookOpen: boolean;
   onBookToggle: () => void;
   notesCount: number;
@@ -43,7 +50,9 @@ interface WriteCanvasProps {
 }
 
 export function WriteCanvas({
-  work, paras, paused, onPauseToggle, onRewrite, onEdit, onEditAll, onContinue, onImport, onDownload, bookOpen, onBookToggle, notesCount, aiBusy,
+  work, paras, doc, paused, onPauseToggle, onRewrite, onEdit, onEditAll, onContinue, onImport, onDownload,
+  onBlockEdit, onBlockRewrite, onBlockContinue, onAddHeader,
+  bookOpen, onBookToggle, notesCount, aiBusy,
 }: WriteCanvasProps) {
   const I = ICONS;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -407,17 +416,30 @@ export function WriteCanvas({
               {onImport && showImport && (
                 <ImportPanel onImport={(text) => { onImport(text); setShowImport(false); }} hasContent={paras.some(p => p.text && p.text.trim())} />
               )}
-              {paras.map((p, i) => (
-                <Paragraph
-                  key={p.id}
-                  p={p}
-                  i={i}
-                  onRewrite={() => onRewrite(p.id)}
-                  onEdit={onEdit ? (newText) => onEdit(p.id, newText) : undefined}
-                  onContinue={onContinue ? () => onContinue(p.id) : undefined}
+
+              {/* ★ V3.0 단계 1+ — doc가 있고 그룹이 PROSE면 MediumCanvasRouter로. 그 외엔 옛 Paragraph 폴백. */}
+              {doc && doc.group === "PROSE" ? (
+                <MediumCanvasRouter
+                  doc={doc}
                   paused={paused}
+                  onBlockEdit={onBlockEdit}
+                  onBlockRewrite={onBlockRewrite}
+                  onBlockContinue={onBlockContinue}
+                  onAddHeader={onAddHeader}
                 />
-              ))}
+              ) : (
+                paras.map((p, i) => (
+                  <Paragraph
+                    key={p.id}
+                    p={p}
+                    i={i}
+                    onRewrite={() => onRewrite(p.id)}
+                    onEdit={onEdit ? (newText) => onEdit(p.id, newText) : undefined}
+                    onContinue={onContinue ? () => onContinue(p.id) : undefined}
+                    paused={paused}
+                  />
+                ))
+              )}
 
               {paras.every(p => p.status !== "streaming") &&
                paras.every(p => p.status !== "pending") &&
