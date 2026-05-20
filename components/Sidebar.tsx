@@ -151,34 +151,34 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
   }
 
   // ============================================================
-  // DEFAULT MODE — 공통 메뉴 (★ V3.1.1 — 작가 사용 흐름 기반 정리)
+  // DEFAULT MODE — 공통 메뉴 (★ V3.1.1 — 영어 메뉴 = 대표님 명시 2026-05-20)
   // ============================================================
-  // 흐름: 시작 → 만들기 → 다듬기 → 자료 → 설정
   const links = [
-    { section: "시작", items: [
-      { id: "home", label: "홈", icon: I.home },
-      { id: "open-smkr", label: "📂 프로젝트 열기", icon: I.download || I.home },
+    { section: "WORKSPACE", items: [
+      { id: "home", label: "Home", icon: I.home },
+      { id: "open-smkr", label: "Open Project", icon: I.download || I.home },
     ]},
-    { section: "만들기", items: [
-      { id: "develop", label: "기획",       icon: I.pitch },   // 트리트먼트·시놉·캐릭터
-      { id: "write",   label: "본문 쓰기",   icon: I.write },   // 핵심 본문 작성·이어쓰기
-      { id: "adapt",   label: "매체 변환",   icon: I.adapt },   // 영화→웹툰 등 + 같은 매체 다시쓰기
+    { section: "CREATE", items: [
+      { id: "develop", label: "Develop", icon: I.pitch },
+      { id: "write",   label: "Write",   icon: I.write },
+      { id: "adapt",   label: "Adapt",   icon: I.adapt },
     ]},
-    { section: "다듬기", items: [
-      { id: "review",  label: "AI 검토",     icon: I.review },  // AI 평가·피드백
-      { id: "chat",    label: "자유 채팅",   icon: I.chat },    // 단독 대화
-      // ★ V3.1.1 — Plan Package·OSMU·지원사업 = 토큰 한계 = V3.2 보류 (대표님 명시 2026-05-20).
-      // 한 호출에 여러 산출물 (트리트먼트+시놉+캐릭터+...) 동시 = AI 출력 한도 + 한도 즉시 도달.
-      // 코드 한 줄도 안 지움 (글로벌 룰 17 = 옛 작업 보존). URL 직접 진입 가능. 작가 메뉴에서만 숨김.
+    { section: "TOOLS", items: [
+      { id: "review",  label: "Review",   icon: I.review },
+      { id: "chat",    label: "Co-Writer", icon: I.chat },
+      // ★ V3.1.1 — OSMU 재활성 (대표님 명시 2026-05-20). depth A 매트릭스만 = "장르별 의견만"
+      // = 어디 적합한지 추천. depth B·C = osmu/page.tsx 안에서 = 비활성 박혀있음 (옛 commit a36ed27).
+      { id: "osmu",    label: "OSMU",     icon: I.osmu },
+      // ★ V3.1.1 — Plan Package·지원사업 = 토큰 한계 = V3.2 보류 (Haiku 2단계 path로 살릴 예정).
+      // 코드 한 줄도 안 지움 (글로벌 룰 17). URL 직접 진입 가능. 작가 메뉴에서만 숨김.
       // { id: "package", label: "Plan Package", icon: I.package },
-      // { id: "osmu",    label: "OSMU",         icon: I.osmu },
-      // { id: "grant",   label: "지원사업 신청서", icon: I.book || I.package },
+      // { id: "grant",   label: "Grant",         icon: I.book || I.package },
     ]},
-    { section: "자료", items: [
-      { id: "library",   label: "내 작품",     icon: I.library },
-      { id: "resources", label: "참고 자료",   icon: I.book || I.library },
+    { section: "LIBRARY", items: [
+      { id: "library",   label: "My Works", icon: I.library },
+      { id: "resources", label: "Library",  icon: I.book || I.library },
     ]},
-    { section: "설정", items: [{ id: "admin", label: "관리", icon: I.settings }] },
+    { section: "ACCOUNT", items: [{ id: "admin", label: "Admin", icon: I.settings }] },
   ];
 
   return (
