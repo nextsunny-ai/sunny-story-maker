@@ -139,13 +139,33 @@ function OsmuMain() {
     if (!file) return;
     e.target.value = "";
 
-    // PDF/DOCX/TXT/MD 모두 지원 — /api/upload route가 파싱 (unpdf, mammoth)
+    // ★ V3.1.1 — Vercel 4.5MB 사전 차단 + 친절 안내
+    const VERCEL_MAX = 4.5 * 1024 * 1024;
+    if (file.size > VERCEL_MAX) {
+      alert(`파일이 너무 큽니다 (${(file.size / 1024 / 1024).toFixed(1)}MB / 최대 4.5MB).\n\n해결: 본문만 복사해서 아래 텍스트 칸에 붙여넣기 (크기 제한 X, 100% 작동).`);
+      return;
+    }
+
+    // PDF/DOCX/HWPX/TXT/MD 모두 지원 — /api/upload route가 파싱 (unpdf, mammoth, hwp-parser)
     const ext = (file.name.split(".").pop() || "").toLowerCase();
-    if (["pdf", "docx", "doc"].includes(ext)) {
+    if (["pdf", "docx", "doc", "hwpx"].includes(ext)) {
       try {
         const fd = new FormData();
         fd.append("file", file);
         const res = await fetch("/api/upload", { method: "POST", body: fd });
+
+        // content-type 검증 = Vercel 413 평문 응답 = JSON.parse 실패 방지
+        const ct = res.headers.get("content-type") || "";
+        if (!ct.includes("application/json")) {
+          const raw = await res.text();
+          alert(
+            res.status === 413 || /entity\s*too\s*large/i.test(raw)
+              ? "파일이 서버 제한(4.5MB)을 초과합니다.\n\n해결: 본문만 복사해서 아래 텍스트 칸에 붙여넣기."
+              : `서버 오류 (${res.status}). 본문 붙여넣기 권장.`
+          );
+          return;
+        }
+
         const json = await res.json();
         if (!res.ok) {
           alert("업로드 실패: " + (json.error || res.status));
@@ -154,7 +174,7 @@ function OsmuMain() {
         setBody(String(json.text || "").slice(0, 50_000));
         if (!title) setTitle(file.name.replace(/\.[^.]+$/, ""));
       } catch (err) {
-        alert("업로드 오류: " + (err instanceof Error ? err.message : String(err)));
+        alert("업로드 오류: " + (err instanceof Error ? err.message : String(err)) + "\n\n본문을 직접 붙여넣기 권장.");
       }
       return;
     }
@@ -212,7 +232,7 @@ function OsmuMain() {
               rows={4}
               value={body}
               onChange={e => setBody(e.target.value)}
-              placeholder="시놉시스 또는 1화 본문 — 자유롭게 붙여넣기"
+              placeholder="시놉시스 또는 1화 본문 — 자유롭게 붙여넣기 (★ 큰 시나리오 = 파일 업로드 또는 본문 복사. 4.5MB 초과 파일 = 본문 붙여넣기 권장)"
             />
             <div className="osmu-input-source-actions">
               <button

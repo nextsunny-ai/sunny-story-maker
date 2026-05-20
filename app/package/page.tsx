@@ -267,11 +267,34 @@ function PackageMain() {
       id, text: "", filename: file.name, status: "loading",
       message: `${file.name} 분석 중…`,
     };
+    // ★ V3.1.1 — Vercel 4.5MB 사전 차단 + 친절 안내
+    const VERCEL_MAX = 4.5 * 1024 * 1024;
+    if (file.size > VERCEL_MAX) {
+      setter(prev => [...prev, {
+        id, text: "", filename: file.name, status: "error",
+        message: `파일이 너무 큽니다 (${(file.size / 1024 / 1024).toFixed(1)}MB / 최대 4.5MB). 본문만 복사해서 텍스트 칸에 붙여넣기 권장.`,
+      }]);
+      return;
+    }
     setter(prev => [...prev, loadingFile]);
     try {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
+
+      // content-type 검증 = Vercel 413 평문 = JSON.parse 실패 방지
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        const raw = await res.text();
+        const msg = res.status === 413 || /entity\s*too\s*large/i.test(raw)
+          ? "파일이 서버 제한(4.5MB)을 초과합니다. 본문 붙여넣기 권장."
+          : `서버 오류 (${res.status})`;
+        setter(prev => prev.map(f => f.id === id
+          ? { ...f, status: "error", message: msg }
+          : f));
+        return;
+      }
+
       const json = await res.json();
       if (!res.ok) {
         setter(prev => prev.map(f => f.id === id
@@ -386,11 +409,36 @@ function PackageMain() {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+
+    // ★ V3.1.1 — Vercel 4.5MB 사전 차단 + 친절 안내
+    const VERCEL_MAX = 4.5 * 1024 * 1024;
+    if (file.size > VERCEL_MAX) {
+      setUploadStatus({
+        kind: "error",
+        message: `파일이 너무 큽니다 (${(file.size / 1024 / 1024).toFixed(1)}MB / 최대 4.5MB). 본문만 복사해서 텍스트 칸에 붙여넣기 권장 (크기 제한 X).`,
+      });
+      return;
+    }
+
     setUploadStatus({ kind: "loading", message: `${file.name} 분석 중…` });
     try {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
+
+      // content-type 검증 = Vercel 413 평문 = JSON.parse 실패 방지
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        const raw = await res.text();
+        setUploadStatus({
+          kind: "error",
+          message: res.status === 413 || /entity\s*too\s*large/i.test(raw)
+            ? "파일이 서버 제한(4.5MB)을 초과합니다. 본문 붙여넣기 권장."
+            : `서버 오류 (${res.status})`,
+        });
+        return;
+      }
+
       const json = await res.json();
       if (!res.ok) {
         setUploadStatus({ kind: "error", message: json.error || "업로드 실패" });
