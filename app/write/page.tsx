@@ -20,7 +20,7 @@ import { useKeyboard } from "@/lib/use-keyboard";
 import { autoBackupDocx } from "@/lib/storymaker/auto-backup";
 import { createSnapshot } from "@/lib/storymaker/snapshots";
 import { SnapshotHistory } from "@/components/SnapshotHistory";
-import { downloadSmkr, openSmkrFile } from "@/lib/storymaker/project-file";
+import { saveSmkrToProjectFolder, openSmkrFile } from "@/lib/storymaker/project-file";
 import {
   MediumFieldRenderer,
   buildDefaultValues,
@@ -620,6 +620,25 @@ function WriteMain() {
   const [chat, setChat] = useState<ChatMsg[]>(initial.chat);
   const [paused, setPaused] = useState(false);
   const [input, setInput] = useState("");
+
+  // ★ V3.1 — 라이브러리에서 .smkr 열기 = localStorage temp → state 복원
+  useEffect(() => {
+    if (searchParams.get("from") !== "smkr") return;
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("sunny.storymaker.openSmkr");
+      if (!raw) return;
+      const f = JSON.parse(raw);
+      if (Array.isArray(f.paras)) setParas(f.paras);
+      if (Array.isArray(f.notes)) setNotes(f.notes);
+      if (Array.isArray(f.flow)) setFlow(f.flow);
+      if (Array.isArray(f.chat)) setChat(f.chat);
+      window.localStorage.removeItem("sunny.storymaker.openSmkr");
+    } catch (e) {
+      console.warn("[write] .smkr temp read 실패:", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // ★ AI streaming abort용 — ⏸ 잠깐 버튼이 진짜 abort 호출하도록.
   const aiAbortRef = useRef<AbortController | null>(null);
   // ★ AI 호출 진행 중 표시 — 스탑 버튼 노출 통제.
@@ -1238,12 +1257,14 @@ function WriteMain() {
   };
 
   // ★ V3.1 — .smkr 프로젝트 파일 저장 (= 작품 전체 = 본문·노트·매체·채팅 다)
-  const onSaveProjectFile = () => {
+  //   Tauri 데스크탑 = ~/Documents/StoryMaker/프로젝트/{작품명}.smkr (= 작가 라이브러리)
+  //   웹 = 브라우저 다운로드 폴더 (fallback)
+  const onSaveProjectFile = async () => {
     if (!paras.some(p => p.text && p.text.trim()) && !work.title) {
       alert("아직 작성된 내용이 없습니다. 본문을 박힌 후 다시 시도해주세요.");
       return;
     }
-    downloadSmkr({
+    const savedPath = await saveSmkrToProjectFolder({
       work,
       genreLetter: genreParam,
       paras,
@@ -1254,6 +1275,11 @@ function WriteMain() {
       mediumFields,
       briefDone,
     });
+    if (savedPath) {
+      alert(`✓ 프로젝트 파일 저장됨:\n\n${savedPath}\n\n(작가 라이브러리에서 = 더블클릭으로 다시 열기)`);
+    } else {
+      alert(`✓ ${work.title || "작품"}.smkr 다운로드 폴더에 저장됐어요.`);
+    }
   };
 
   // ★ V3.1 — .smkr 프로젝트 파일 열기 = state 전체 복원

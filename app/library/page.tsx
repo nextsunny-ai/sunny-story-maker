@@ -68,6 +68,42 @@ function LibraryMain() {
   const [worksLocal] = usePersistedState<LibraryWork[]>(KEY.libraryWorks, []);
   const [personas, setPersonas] = usePersistedState<LibraryPersona[]>(KEY.libraryPersonas, []);
 
+  // ★ V3.1 — Tauri 데스크탑 = ~/Documents/StoryMaker/프로젝트/*.smkr listing
+  const [smkrFiles, setSmkrFiles] = useState<Array<{ filename: string; fullPath: string; title: string; genreLetter: string; paraCount: number; noteCount: number; updatedAt: string; sizeKb: number }>>([]);
+  const [smkrFolderPath, setSmkrFolderPath] = useState<string>("");
+  const [isTauriEnv, setIsTauriEnv] = useState(false);
+  useEffect(() => {
+    setIsTauriEnv(typeof window !== "undefined" && "__TAURI_INTERNALS__" in window);
+    if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+      import("@/lib/storymaker/project-file").then(async ({ listProjectFolder }) => {
+        const files = await listProjectFolder();
+        setSmkrFiles(files);
+        if (files[0]?.fullPath) {
+          const idx = files[0].fullPath.lastIndexOf("\\") !== -1
+            ? files[0].fullPath.lastIndexOf("\\")
+            : files[0].fullPath.lastIndexOf("/");
+          setSmkrFolderPath(files[0].fullPath.slice(0, idx));
+        }
+      });
+    }
+  }, []);
+
+  const handleOpenSmkr = async (fullPath: string) => {
+    const { loadSmkrFromPath } = await import("@/lib/storymaker/project-file");
+    const res = await loadSmkrFromPath(fullPath);
+    if (!res.ok) {
+      alert(`파일 열기 실패: ${res.error}`);
+      return;
+    }
+    // localStorage에 임시 저장 → write 페이지가 read
+    try {
+      window.localStorage.setItem("sunny.storymaker.openSmkr", JSON.stringify(res.file));
+      router.push("/write?mode=continue&from=smkr");
+    } catch (e) {
+      alert(`파일 열기 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   // ★ Supabase works 테이블 + localStorage 통합 (사장님 명시 2026-05-04)
   const [apiWorks, setApiWorks] = useState<ApiWorkInfo[]>([]);
   const [worksDir, setWorksDir] = useState<string>("");
@@ -236,7 +272,58 @@ function LibraryMain() {
         </div>
       </div>
 
-      <SectionHead num={1} title="작품" sub={`${works.length}편`} />
+      {/* ★ V3.1 — Tauri 데스크탑: 프로젝트 폴더 .smkr 파일 listing (= 작가 라이브러리) */}
+      {isTauriEnv && smkrFiles.length > 0 && (
+        <section style={{ marginBottom: 36 }}>
+          <SectionHead num={1} title="📁 프로젝트 파일" sub={`${smkrFiles.length}개 · ${smkrFolderPath || "~/Documents/StoryMaker/프로젝트"}`} />
+          <div className="lib-grid" style={{ marginTop: 16 }}>
+            {smkrFiles.map(f => (
+              <button
+                key={f.fullPath}
+                type="button"
+                onClick={() => handleOpenSmkr(f.fullPath)}
+                style={{
+                  textAlign: "left",
+                  padding: "16px 18px",
+                  background: "var(--card)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 10,
+                  cursor: "pointer",
+                  display: "flex", flexDirection: "column", gap: 6,
+                  transition: "border-color 0.15s, transform 0.15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--coral)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--line)"; e.currentTarget.style.transform = "translateY(0)"; }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "var(--coral)", fontWeight: 700, letterSpacing: "0.04em" }}>
+                  <span>📁 {f.genreLetter}.</span>
+                  <span style={{ color: "var(--ink-4)" }}>.smkr</span>
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: "var(--ink-1)", lineHeight: 1.4 }}>
+                  {f.title}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--ink-4)", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <span>{f.paraCount}단락</span>
+                  <span>·</span>
+                  <span>{f.noteCount}노트</span>
+                  <span>·</span>
+                  <span>{f.sizeKb}KB</span>
+                </div>
+                {f.updatedAt && (
+                  <div style={{ fontSize: 10.5, color: "var(--ink-5)" }}>
+                    {new Date(f.updatedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11, color: "var(--ink-5)" }}>
+            💡 작가가 [💾 프로젝트] 누르면 = 이 폴더에 저장됩니다.
+          </div>
+        </section>
+      )}
+
+      <SectionHead num={isTauriEnv && smkrFiles.length > 0 ? 2 : 1} title="작품" sub={`${works.length}편`} />
 
       {/* ★ 클라우드 연결 상태 — 작가가 "보이는 작품이 다인가?" 헷갈리지 않게 (2026-05-14) */}
       {!apiLoading && cloudStatus !== "ok" && (
