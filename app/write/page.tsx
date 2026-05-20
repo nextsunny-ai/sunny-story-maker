@@ -20,6 +20,7 @@ import { useKeyboard } from "@/lib/use-keyboard";
 import { autoBackupDocx } from "@/lib/storymaker/auto-backup";
 import { createSnapshot } from "@/lib/storymaker/snapshots";
 import { SnapshotHistory } from "@/components/SnapshotHistory";
+import { downloadSmkr, openSmkrFile } from "@/lib/storymaker/project-file";
 import {
   MediumFieldRenderer,
   buildDefaultValues,
@@ -1236,6 +1237,51 @@ function WriteMain() {
     else downloadTxt(body, filename);
   };
 
+  // ★ V3.1 — .smkr 프로젝트 파일 저장 (= 작품 전체 = 본문·노트·매체·채팅 다)
+  const onSaveProjectFile = () => {
+    if (!paras.some(p => p.text && p.text.trim()) && !work.title) {
+      alert("아직 작성된 내용이 없습니다. 본문을 박힌 후 다시 시도해주세요.");
+      return;
+    }
+    downloadSmkr({
+      work,
+      genreLetter: genreParam,
+      paras,
+      headerBlocks,
+      notes,
+      flow,
+      chat,
+      mediumFields,
+      briefDone,
+    });
+  };
+
+  // ★ V3.1 — .smkr 프로젝트 파일 열기 = state 전체 복원
+  const onOpenProjectFile = async () => {
+    const result = await openSmkrFile();
+    if (!result.ok) {
+      if (result.error !== "취소됨") alert(`프로젝트 열기 실패:\n${result.error}`);
+      return;
+    }
+    const f = result.file;
+    // 작가 확인 — 현재 작업 덮어쓰기 위험 안내
+    const currentHasWork = paras.some(p => p.text && p.text.trim());
+    if (currentHasWork) {
+      if (!confirm(`현재 작업 중인 본문이 있습니다.\n\n"${f.work.title || "(제목 없음)"}" 작품을 열면 = 현재 본문이 덮어쓰여집니다.\n(자동저장에 옛 본문은 박혀있으니 = 옛 버전 복원 가능)\n\n계속할까요?`)) {
+        return;
+      }
+    }
+    // state 복원
+    setParas(f.paras);
+    setNotes(f.notes);
+    setFlow(f.flow);
+    setChat(f.chat);
+    setHeaderBlocks(f.headerBlocks || []);
+    if (f.mediumFields) setMediumFields(f.mediumFields);
+    if (typeof f.briefDone === "boolean") setBriefDone(f.briefDone);
+    alert(`✓ "${f.work.title}" 작품을 열었습니다.\n${f.paras.length}개 단락 · ${f.notes.length}개 노트 복원.`);
+  };
+
   // ★ V3.0 단계 1 — paras → doc useMemo. paras가 single source, doc은 computed view.
   //   단계 2+에서 doc이 source가 될 예정. 지금은 PROSE 그룹에서만 doc 우선 렌더.
   //   추가 HeaderBlock(회차/장)은 별도 state로 paras에 부수.
@@ -1839,6 +1885,8 @@ function WriteMain() {
           onColumnRemove={onColumnRemove}
           onBlockReorder={onBlockReorder}
           onOpenSnapshots={() => setSnapshotOpen(true)}
+          onSaveProjectFile={onSaveProjectFile}
+          onOpenProjectFile={onOpenProjectFile}
           paused={paused}
           onPauseToggle={() => {
             // 🛑 중지 — AI streaming 즉시 abort + 현재 streaming 단락을 done으로

@@ -55,6 +55,9 @@ interface WriteCanvasProps {
   onBlockReorder?: (draggedId: string, targetId: string, position: "before" | "after") => void;
   // ★ V3.1 — 옛 버전 복원 모달 열기 (Supabase work_snapshots)
   onOpenSnapshots?: () => void;
+  // ★ V3.1 — 작품 프로젝트 파일 (.smkr) 저장·열기
+  onSaveProjectFile?: () => void;
+  onOpenProjectFile?: () => void;
   bookOpen: boolean;
   onBookToggle: () => void;
   notesCount: number;
@@ -63,7 +66,7 @@ interface WriteCanvasProps {
 
 export function WriteCanvas({
   work, paras, doc, paused, onPauseToggle, onRewrite, onEdit, onEditAll, onContinue, onImport, onDownload,
-  onBlockEdit, onBlockRewrite, onBlockContinue, onAddHeader, onBlockDelete, onBlockMove, onColumnAdd, onColumnRemove, onBlockReorder, onOpenSnapshots,
+  onBlockEdit, onBlockRewrite, onBlockContinue, onAddHeader, onBlockDelete, onBlockMove, onColumnAdd, onColumnRemove, onBlockReorder, onOpenSnapshots, onSaveProjectFile, onOpenProjectFile,
   bookOpen, onBookToggle, notesCount, aiBusy,
 }: WriteCanvasProps) {
   const I = ICONS;
@@ -319,7 +322,32 @@ export function WriteCanvas({
                   <span>옛 버전</span>
                 </button>
               )}
+              {/* ★ V3.1 — 작품 프로젝트 파일 저장 (.smkr) — 옛 편집 프로그램의 프로젝트 파일 */}
+              {onSaveProjectFile && (
+                <button
+                  type="button"
+                  className="wcanvas-book-toggle"
+                  onClick={onSaveProjectFile}
+                  title="작품 전체를 .smkr 파일로 저장 (= 본문·노트·매체·채팅 다 들어있음 = USB·이메일·드라이브로 옮기기 가능)"
+                >
+                  <span className="wcanvas-book-toggle-icon">💾</span>
+                  <span>프로젝트</span>
+                </button>
+              )}
             </>
+          )}
+          {/* ★ V3.1 — .smkr 프로젝트 파일 열기 (항상 표시 = 작업 중에도 다른 작품 열 수 있게) */}
+          {onOpenProjectFile && (
+            <button
+              type="button"
+              className="wcanvas-book-toggle"
+              onClick={onOpenProjectFile}
+              title="다른 PC에서 작업하던 .smkr 파일 열기"
+              style={{ background: "transparent", border: "1px solid var(--line)" }}
+            >
+              <span className="wcanvas-book-toggle-icon">📂</span>
+              <span>.smkr 열기</span>
+            </button>
           )}
           <button
             type="button"
