@@ -52,6 +52,10 @@ export function WriteCanvas({
   // 작품 변경 모달 — 사장님 명시: 작업실에서 다른 작품 불러오기
   const [showProjectPicker, setShowProjectPicker] = useState(false);
 
+  // ★ ImportPanel 노출 토글 — 빈 작업실에서는 자동 노출, 본문 있어도 헤더 버튼으로 다시 켤 수 있음.
+  //   (옛엔 본문 비었을 때만 = 작가가 중간에 원고 추가 가져오기가 막혔던 사고)
+  const [showImport, setShowImport] = useState<boolean>(() => paras.every(p => !p.text || !p.text.trim()));
+
   // 새 빈 작품 시작 (현재 작업실에서 = 새 작품으로 전환)
   const startNewBlank = () => {
     const blankIdea = `새 작품 ${new Date().toLocaleDateString("ko-KR")}`;
@@ -263,6 +267,18 @@ export function WriteCanvas({
             <span className="wcanvas-book-toggle-icon">+</span>
             <span>새 작품</span>
           </button>
+          {onImport && (
+            <button
+              type="button"
+              className="wcanvas-book-toggle"
+              onClick={() => setShowImport(s => !s)}
+              title="기존 원고 가져오기 (워드·PDF·텍스트·붙여넣기)"
+              style={{ background: showImport ? "rgba(255,107,107,0.08)" : "transparent", border: `1px solid ${showImport ? "var(--coral)" : "var(--line)"}` }}
+            >
+              <span className="wcanvas-book-toggle-icon">📥</span>
+              <span>원고 가져오기</span>
+            </button>
+          )}
           {!bookOpen && (
             <button
               type="button"
@@ -357,9 +373,9 @@ export function WriteCanvas({
             </div>
           ) : (
             <>
-              {/* ★ V2.13.4 — 빈 작업실 = 쓰던 원고 가져오기 (작가는 백지 X, 이미 쓰던 글 많음) */}
-              {onImport && paras.every(p => !p.text || !p.text.trim()) && (
-                <ImportPanel onImport={onImport} />
+              {/* ★ V2.14 — 헤더 [📥 원고 가져오기] 토글로 노출. 빈 작업실은 자동 노출(state initial), 본문 있어도 헤더 버튼으로 다시 켜기 가능. */}
+              {onImport && showImport && (
+                <ImportPanel onImport={(text) => { onImport(text); setShowImport(false); }} hasContent={paras.some(p => p.text && p.text.trim())} />
               )}
               {paras.map((p, i) => (
                 <Paragraph
@@ -403,7 +419,7 @@ export function WriteCanvas({
 
 // ★ V2.13.4 — 빈 작업실에서 쓰던 원고를 가져오는 패널 (파일 업로드 / 붙여넣기).
 //   작가는 백지에서 시작하지 X — 이미 쓰던 원고를 Write로 바로 가져와 이어쓰기.
-function ImportPanel({ onImport }: { onImport: (text: string) => void }) {
+function ImportPanel({ onImport, hasContent }: { onImport: (text: string) => void; hasContent?: boolean }) {
   const [text, setText] = useState("");
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState("");
@@ -442,6 +458,16 @@ function ImportPanel({ onImport }: { onImport: (text: string) => void }) {
       <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.5 }}>
         이미 쓴 원고를 가져와 이어쓸 수 있습니다. 파일을 올리거나 본문을 붙여넣으세요.
       </div>
+      {hasContent && (
+        <div style={{
+          padding: "10px 12px",
+          background: "rgba(255, 180, 162, 0.18)",
+          border: "1px solid rgba(255, 107, 83, 0.4)",
+          borderRadius: 8, fontSize: 12, color: "var(--ink-2)", lineHeight: 1.55,
+        }}>
+          ⚠ <strong>현재 본문이 가져온 원고로 교체됩니다.</strong> 이어쓰기는 가능하지만, 기존 본문을 보존하려면 가져오기 전에 <strong>워드/TXT로 다운로드</strong>하세요.
+        </div>
+      )}
       <input
         ref={fileRef}
         type="file"

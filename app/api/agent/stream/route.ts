@@ -274,6 +274,7 @@ function getClaudeOAuthToken(): string | null {
 }
 
 // haiku 모델 ID — opus·sonnet이 구독 한도(429)로 막힐 때 자동 fallback 대상.
+// ★ V2.14.1 — lib/storymaker/model-prefs.ts의 MODEL_IDS.haiku와 같은 값 (직접 import은 함수 클로저 깊이라 const 유지).
 const HAIKU_MODEL_ID = "claude-haiku-4-5-20251001";
 
 function streamViaOAuth(systemPrompt: string, messages: ConversationMessage[], model: string, token: string): ReadableStream {
@@ -550,6 +551,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ★ V2.14.1 — license banned 체크 (옛엔 banned 작가도 호출 가능 = 라이선스 시스템이 장식)
+  try {
+    const { createClient: createSupabaseServer } = await import("@/lib/supabase/server");
+    const supabase = await createSupabaseServer();
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData.user) {
+      const { data: licenseRow } = await supabase
+        .from("licenses")
+        .select("plan, status")
+        .eq("user_id", authData.user.id)
+        .maybeSingle();
+      if (licenseRow?.plan === "banned" || licenseRow?.status === "suspended") {
+        return new Response(
+          JSON.stringify({
+            error: "계정이 정지되었습니다. 지원팀(support@sunnytoon.com)에 문의해주세요.",
+            code: "BANNED",
+          }),
+          { status: 403, headers: { "content-type": "application/json" } }
+        );
+      }
+    }
+  } catch {
+    // license 조회 실패 = 무시 (= 라이선스 없는 옛 작가 호환 + Supabase 다운 시 작품 작업 보호)
+  }
+
   // ★ 2026-05-05: 작품 누적 메모리 = Supabase에서 fetch (= 옛 _works/ 폴더 read 대체).
   // RLS = auth.uid() 본인 작품만 = 안전.
   if (body.workId && !body.priorFiles) {
@@ -595,17 +621,9 @@ export async function POST(req: NextRequest) {
     { role: "user", content: finalUserMessage },
   ];
 
-  // ★ V2.13.4 — body.model(haiku/sonnet/opus) 우선. 없으면 옛 fast로 fallback.
-  let model = (body.model || (body.fast ? "haiku" : "opus")).trim();
-
-  // 모델 단축어 → 최신 full ID 매핑.
-  // ★ V2.13.4 — 옛 코드는 Opus 4.1·Sonnet 4(1년 묵음)로 다운그레이드했음 → 최신으로 정정.
-  const MODEL_MAP: Record<string, string> = {
-    haiku: "claude-haiku-4-5-20251001",
-    sonnet: "claude-sonnet-4-6",
-    opus: "claude-opus-4-7",
-  };
-  if (MODEL_MAP[model]) model = MODEL_MAP[model];
+  // ★ V2.14.1 — 모델 ID 매핑은 lib/storymaker/model-prefs.ts 한 곳에서 관리 (옛 2곳 중복 정리).
+  const { resolveModelId } = await import("@/lib/storymaker/model-prefs");
+  let model = resolveModelId(body.model, body.fast === true);
 
   // LOCAL: 사장님 Pro/Max 구독 사용
   // 우선순위 1) OAuth 직접 호출 (한글 100% — Windows claude.exe 인코딩 우회)

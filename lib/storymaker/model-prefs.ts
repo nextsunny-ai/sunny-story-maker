@@ -39,6 +39,21 @@ export const MODEL_LABELS: Record<ModelChoice, string> = {
   opus: "Opus (깊이 · 최고 품질)",
 };
 
+// ★ 모델 ID 매핑 — 단축어 → 최신 full ID. 한 곳에서만 관리 (옛엔 agent/stream + build-prompt 2곳 중복).
+//   새 모델 나오면 여기만 갱신.
+export const MODEL_IDS: Record<ModelChoice, string> = {
+  haiku: "claude-haiku-4-5-20251001",
+  sonnet: "claude-sonnet-4-6",
+  opus: "claude-opus-4-7",
+};
+
+/** 모델 단축어 또는 full ID를 받아 최종 full ID로 정규화. */
+export function resolveModelId(model: string | undefined, fastFallback = false): string {
+  const raw = (model || (fastFallback ? "haiku" : "opus")).trim();
+  if (raw in MODEL_IDS) return MODEL_IDS[raw as ModelChoice];
+  return raw; // 이미 full ID면 그대로
+}
+
 export function loadModelPrefs(): ModelPrefs {
   const saved = loadJSON<Partial<ModelPrefs> | null>(KEY.adminModelPrefs, null);
   return { ...DEFAULT_MODEL_PREFS, ...(saved ?? {}) };

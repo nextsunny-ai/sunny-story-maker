@@ -71,6 +71,7 @@ interface RequestBody {
   profile?: Record<string, unknown> | null;
   lessons?: string;
   fast?: boolean;
+  model?: string;  // ★ V2.13.4 — "haiku"|"sonnet"|"opus" (있으면 우선)
   mediumFields?: Record<string, string | string[] | number>;
   writerLearning?: WriterLearningEntry[];
   workId?: string;
@@ -267,10 +268,19 @@ function buildCardChatPrompt(b: RequestBody): string {
 
 ## 응답 형식
 - 짧게 (2~5문장 권장). 평어체 또는 작가 호칭.
-- 인사·자기소개·"다음 단계 안내" 자동 박지 X = 작가 메시지에 곧바로 답.${ideaPart}${priorPart}
+- 인사·자기소개·"다음 단계 안내" 자동 박지 X = 작가 메시지에 곧바로 답.
+
+## ★★★ 확정 마커 (작가가 결정하면 = 반드시 출력)
+작가가 「${cardLabel}」을 확정·결정하는 의사를 보이면 (예: "이걸로 가자", "OOO로 할게", "1번", "그래 그거", "확정"):
+1. 먼저 대화 응답을 자연스럽게 쓰고,
+2. **응답 맨 마지막 줄에 정확히 이 형식 한 줄**을 추가한다:
+   [[확정:확정된 「${cardLabel}」 내용만]]
+- 내용만 넣는다 — 「」·번호·설명·잡담 다 빼고 순수 결과만. (예: \`[[확정:미래의 아이]]\`)
+- 작가가 아직 확정 안 함 (디렉션·질문·고민 중) = 이 줄 출력 X.
+- 이 줄은 작가 화면엔 안 보이고 = 카드 확정란에 자동 반영되는 신호다.${ideaPart}${priorPart}
 
 ## 출력
-작가 직전 메시지에 맞는 대화 응답.`;
+작가 직전 메시지에 맞는 대화 응답. (작가가 확정했으면 = 맨 마지막 줄에 [[확정:...]])`;
 }
 
 /**
@@ -309,10 +319,39 @@ function buildConversationModePrefix(b: RequestBody): string {
 `;
 }
 
+/**
+ * ★ V2.13.4 (2026-05-19) — 대화 기록을 userMessage에 실제로 박는다.
+ *
+ * 근본 사고: Tauri 데스크탑 path = `claude` CLI subprocess = single prompt만 받음
+ * (멀티턴 args 없음). enrichBody가 conversationMessages를 채우고 build-prompt까지
+ * 전달되지만, buildUserPrompt가 그걸 userMessage에 안 박아서 = claude CLI가
+ * 옛 대화를 볼 방법이 전혀 없었음. buildConversationModePrefix는 "대화 모드"라는
+ * 라벨만 붙이고 실제 turn은 누락 = "작가의 직전 메시지를 읽어라"는 빈 약속.
+ * 증상: 작가가 "1번으로 가자" 해도 1번이 뭔지 모름 = 동문서답 (대표님 지적 2026-05-19).
+ *
+ * 정정: 옛 turn을 "작가:/보조작가:" 텍스트로 포맷해 userMessage에 포함.
+ */
+function formatConversationHistory(msgs?: ConversationMessage[]): string {
+  if (!msgs || msgs.length === 0) return "";
+  const recent = msgs.slice(-20); // 최근 20 turn (work-id.ts appendTurns와 동일 상한)
+  const lines = recent.map(m => {
+    const who = m.role === "user" ? "작가" : "보조작가";
+    return `${who}: ${(m.content || "").slice(0, 3000)}`;
+  });
+  return `## ★★★ 지금까지 나눈 대화 (반드시 이어서 응답)
+
+${lines.join("\n\n")}
+
+위 대화 흐름을 그대로 인지하고, 작가의 마지막 메시지에 이어서 답한다.
+작가가 "1번"·"2번"·"그거"·"방금 말한 거"·"아까 그 제목"이라고 하면 = 위 대화에서 보조작가가 제시한 바로 그 항목을 가리킨다. 절대 새로 지어내지 X.`;
+}
+
 function buildUserPrompt(b: RequestBody): string {
   const learning = formatWriterLearning(b.writerLearning);
   const memory = formatWorkMemoryFromFiles(b.priorFiles);
   const conversationPrefix = buildConversationModePrefix(b);
+  // ★ V2.13.4 — 대화 turn을 실제로 박음 (= 옛 누락 사고 정정)
+  const conversationHistory = formatConversationHistory(b.conversationMessages);
 
   // ★ V2.13.3 — 카드 채팅(isChatMode)이면 stage-builder base 대신 대화 전용 프롬프트.
   //   = prefix("5개 후보 금지")와 stage-builder("5개 후보 강제")의 모순 제거 (대표님 지적 2026-05-18).
@@ -320,7 +359,7 @@ function buildUserPrompt(b: RequestBody): string {
   const isCardChat = b.isChatMode === true && b.mode !== "chat";
   const base = isCardChat ? buildCardChatPrompt(b) : buildBasePrompt(b);
 
-  const parts = [memory, learning, conversationPrefix, base].filter(Boolean);
+  const parts = [memory, learning, conversationPrefix, conversationHistory, base].filter(Boolean);
   return parts.join("\n\n---\n\n");
 }
 
@@ -338,9 +377,9 @@ export async function POST(req: NextRequest) {
   try {
     const userMessage = buildUserPrompt(body);
     const systemPrompt = getSystemPrompt();
-    const model = body.fast
-      ? "claude-haiku-4-5-20251001"
-      : "claude-opus-4-7";
+    // ★ V2.14.1 — 모델 ID 매핑은 lib/storymaker/model-prefs.ts 한 곳에서 관리 (옛 2곳 중복 정리).
+    const { resolveModelId } = await import("@/lib/storymaker/model-prefs");
+    const model = resolveModelId(body.model, body.fast === true);
 
     return new Response(
       JSON.stringify({
