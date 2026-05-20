@@ -52,11 +52,39 @@ function GrantMain() {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+
+    // ★ V3.1 — Vercel 서버 4.5MB 사전 차단 (큰 파일 = "Request Entity Too Large" 평문 응답 = JSON.parse 실패 사고 방지)
+    const VERCEL_MAX = 4.5 * 1024 * 1024;
+    if (file.size > VERCEL_MAX) {
+      setter({
+        text: "", filename: file.name, status: "error",
+        message: `파일이 너무 큽니다 (${(file.size / 1024 / 1024).toFixed(1)}MB / 최대 4.5MB).\n\n해결:\n1) 워드·PDF에서 이미지 압축·제거 후 재업로드\n2) [다른 이름 저장] → .txt 또는 = 본문만 복사해서 아래 텍스트 칸에 붙여넣기`,
+      });
+      return;
+    }
+
     setter({ text: "", filename: file.name, status: "loading", message: `${file.name} 분석 중…` });
     try {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
+
+      // ★ V3.1 — content-type 검증 (= Vercel platform 413 응답이 평문이라 JSON.parse 실패 방지)
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        const raw = await res.text();
+        let msg = `서버 응답 오류 (${res.status})`;
+        if (res.status === 413 || /entity\s*too\s*large/i.test(raw)) {
+          msg = `파일이 서버 제한(4.5MB)을 초과합니다.\n\n해결: 본문만 복사해서 아래 텍스트 칸에 붙여넣기 (= 100% 작동, 크기 제한 X).`;
+        } else if (res.status >= 500) {
+          msg = `서버 오류 (${res.status}). 잠시 후 재시도 또는 = 본문 직접 붙여넣기.`;
+        } else {
+          msg = `${msg}: ${raw.slice(0, 150)}`;
+        }
+        setter({ text: "", filename: file.name, status: "error", message: msg });
+        return;
+      }
+
       const json = await res.json();
       if (!res.ok) {
         setter({ text: "", filename: file.name, status: "error", message: json.error || "업로드 실패" });

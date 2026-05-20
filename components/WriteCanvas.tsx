@@ -586,10 +586,34 @@ function ImportPanel({ onImport, hasContent }: { onImport: (text: string) => voi
   const handleFile = async (file: File) => {
     setUploading(true);
     setErr("");
+
+    // ★ V3.1 — Vercel 4.5MB 사전 차단 (= "Request Entity Too Large" 평문 응답 = JSON.parse 실패 사고 방지)
+    const VERCEL_MAX = 4.5 * 1024 * 1024;
+    if (file.size > VERCEL_MAX) {
+      setErr(`파일이 너무 큽니다 (${(file.size / 1024 / 1024).toFixed(1)}MB / 최대 4.5MB). 본문만 복사해서 아래 텍스트 칸에 붙여넣어 주세요 (= 크기 제한 X).`);
+      setUploading(false);
+      return;
+    }
+
     try {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
+
+      // ★ V3.1 — content-type 검증 (= Vercel platform 413 응답 = 평문 = JSON.parse 실패 방지)
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        const raw = await res.text();
+        let msg = `서버 응답 오류 (${res.status})`;
+        if (res.status === 413 || /entity\s*too\s*large/i.test(raw)) {
+          msg = `파일이 서버 제한(4.5MB)을 초과합니다. 본문을 직접 붙여넣기로 시도해주세요.`;
+        } else if (res.status >= 500) {
+          msg = `서버 오류 (${res.status}). 잠시 후 재시도 또는 = 본문 붙여넣기.`;
+        }
+        setErr(msg);
+        return;
+      }
+
       const json = await res.json();
       if (!res.ok || json.error) {
         setErr(json.error || "업로드 실패");
