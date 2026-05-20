@@ -136,18 +136,209 @@ function blockToText(b: Block): string {
 }
 
 // ─── 평탄 텍스트 → Block[] (그룹별 파싱) ───
-// 단계 0 = 모든 그룹 PROSE 폴백 (빈 줄 split). 단계 1~6에서 그룹별 정밀 파서 점진 추가.
+// 단계 1 = PROSE. 단계 2 = SCREENPLAY+STAGE. 그 외 그룹 PROSE 폴백 (단계 3~6에서 점진 추가).
 export function plainTextToBlocks(group: MediumGroup, text: string, _letter?: string): Block[] {
   if (!text || !text.trim()) return [];
 
-  // 단계 1+: PROSE는 빈 줄 단락 split이 정공법
+  if (group === "SCREENPLAY" || group === "STAGE") {
+    return parseScreenplay(text, group === "STAGE");
+  }
   if (group === "PROSE") {
     return splitProseBlocks(text);
   }
-
-  // 단계 2~6에서 그룹별 정밀 파서를 여기 추가 예정.
-  // 현재(단계 0) = 모든 그룹 PROSE 폴백 (텍스트 손실 0, 단 그룹별 정밀 양식은 미적용).
   return splitProseBlocks(text);
+}
+
+// ─── SCREENPLAY + STAGE 파서 (V3.0 단계 2) ───
+// 라인 단위로 분석 + 정규식 매칭. 매칭 실패한 줄은 ActionBlock 폴백 (텍스트 손실 0).
+function parseScreenplay(text: string, stage: boolean): Block[] {
+  const blocks: Block[] = [];
+  const lines = text.split("\n");
+  let i = 0;
+  let blockSeq = 0;
+  const nextId = () => `b_${Date.now()}_${blockSeq++}`;
+
+  // 정규식 — 한국 + 영어 시나리오 표준
+  const RE_SCENE = /^\s*(?:#+\s*)?(?:S#\s*(\d+)|씬\s*(\d+)|장면\s*(\d+))[\.\s:]*\s*(.*)$/i;
+  const RE_INTEXT = /^\s*(?:#+\s*)?(INT|EXT|INT\/EXT|실내|실외)[\.:\s]+(.+?)(?:[-—]\s*(.+))?$/i;
+  const RE_HEADING_MIX = /^\s*(?:#+\s*)?(?:S#\s*(\d+))[\s\.]*\s*(INT|EXT)[\.:\s]+(.+?)(?:[-—]\s*(.+))?$/i;
+  const RE_FADE = /^\s*(?:FADE\s*(?:IN|OUT)|페이드\s*(?:인|아웃)).*$/i;
+  const RE_MUSIC = /^\s*♪\s*(?:#?(\d+))?\s*[.\s]*\s*(.+)$/;
+  const RE_ACT = /^\s*(?:제)?\s*(\d+)\s*막(?:\s*[:.\s]\s*(.+))?$/;
+  const RE_SCENE_HEADER = /^\s*(?:제)?\s*(\d+)\s*장(?:\s*[:.\s]\s*(.+))?$/;
+  const RE_DIALOGUE_COLON = /^\s*([가-힣A-Za-z][가-힣A-Za-z0-9·\s]{0,12})\s*:\s*(.+)$/;
+  const RE_DIALOGUE_INDENT = /^\s{4,}([가-힣A-Za-z][가-힣A-Za-z0-9·\s]{0,12})\s*(?:\(([^)]+)\))?\s*$/;
+  const RE_PAREN_LINE = /^\s*\(([^)]+)\)\s*$/;
+  const RE_NARRATION_QUOTE = /^\s*["「『](.+)["」』]\s*$/;
+
+  while (i < lines.length) {
+    const raw = lines[i];
+    const line = raw.trim();
+
+    if (!line) { i++; continue; }
+
+    // 페이드인/아웃 = 단순 ActionBlock
+    if (RE_FADE.test(line)) {
+      blocks.push({ id: nextId(), kind: "action", text: line, status: "done" });
+      i++; continue;
+    }
+
+    // STAGE: 막
+    if (stage) {
+      const m = line.match(RE_ACT);
+      if (m) {
+        blocks.push({
+          id: nextId(), kind: "header", level: "act",
+          number: m[1], title: m[2] || "", status: "done",
+        });
+        i++; continue;
+      }
+      const sm = line.match(RE_SCENE_HEADER);
+      if (sm) {
+        blocks.push({
+          id: nextId(), kind: "header", level: "scene-group",
+          number: sm[1], title: sm[2] || "", status: "done",
+        });
+        i++; continue;
+      }
+      // 뮤지컬 ♪넘버
+      const mn = line.match(RE_MUSIC);
+      if (mn) {
+        const lyrics: string[] = [];
+        i++;
+        while (i < lines.length && lines[i].trim() && !RE_MUSIC.test(lines[i]) && !RE_SCENE.test(lines[i]) && !RE_INTEXT.test(lines[i])) {
+          lyrics.push(lines[i]); i++;
+        }
+        blocks.push({
+          id: nextId(), kind: "music-number",
+          numberNo: mn[1], numberTitle: mn[2] || "",
+          lyrics: lyrics.join("\n"),
+          status: "done",
+        });
+        continue;
+      }
+    }
+
+    // 씬 + INT/EXT 결합
+    const hm = line.match(RE_HEADING_MIX);
+    if (hm) {
+      blocks.push({
+        id: nextId(), kind: "scene-heading",
+        sceneNo: hm[1],
+        intExt: (hm[2].toUpperCase() as "INT" | "EXT"),
+        place: hm[3], time: hm[4] || undefined,
+        status: "done",
+      });
+      i++; continue;
+    }
+    // 씬 헤딩 단독
+    const sm = line.match(RE_SCENE);
+    if (sm) {
+      const sceneNo = sm[1] || sm[2] || sm[3];
+      const rest = (sm[4] || "").trim();
+      // rest에 INT./EXT.가 있을 수도
+      const ie = rest.match(/^(INT|EXT|INT\/EXT|실내|실외)[\.:\s]+(.+?)(?:[-—]\s*(.+))?$/i);
+      if (ie) {
+        blocks.push({
+          id: nextId(), kind: "scene-heading", sceneNo,
+          intExt: ie[1].toUpperCase().startsWith("INT") ? "INT" : ie[1].toUpperCase().startsWith("EXT") ? "EXT" : undefined,
+          place: ie[2], time: ie[3] || undefined,
+          status: "done",
+        });
+      } else {
+        blocks.push({
+          id: nextId(), kind: "scene-heading", sceneNo,
+          place: rest || "장소", status: "done",
+        });
+      }
+      i++; continue;
+    }
+    // INT/EXT 단독
+    const ie = line.match(RE_INTEXT);
+    if (ie) {
+      blocks.push({
+        id: nextId(), kind: "scene-heading",
+        intExt: ie[1].toUpperCase().startsWith("INT") ? "INT" : "EXT",
+        place: ie[2], time: ie[3] || undefined,
+        status: "done",
+      });
+      i++; continue;
+    }
+
+    // 대사 — "캐릭터: 대사" 한 줄 형태
+    const dc = line.match(RE_DIALOGUE_COLON);
+    if (dc) {
+      blocks.push({
+        id: nextId(), kind: "dialogue",
+        character: dc[1].trim(), text: dc[2].trim(),
+        status: "done",
+      });
+      i++; continue;
+    }
+
+    // 대사 — 들여쓰기 캐릭터 + 다음 줄에 (지문)·대사
+    const di = raw.match(RE_DIALOGUE_INDENT);
+    if (di) {
+      const character = di[1].trim();
+      const effect = !!di[2] && /e/i.test(di[2]);
+      let parenthetical: string | undefined;
+      let dialogueLine = "";
+      i++;
+      // 다음 줄: (지문) 또는 대사
+      if (i < lines.length) {
+        const pm = lines[i].trim().match(RE_PAREN_LINE);
+        if (pm) {
+          parenthetical = pm[1];
+          i++;
+        }
+      }
+      if (i < lines.length && lines[i].trim()) {
+        dialogueLine = lines[i].trim();
+        i++;
+      }
+      blocks.push({
+        id: nextId(), kind: "dialogue",
+        character, parenthetical, text: dialogueLine, effect: effect || undefined,
+        status: "done",
+      });
+      continue;
+    }
+
+    // 따옴표 한 줄 = 대사 (캐릭터 미상 — 직전 캐릭터 이어쓰기 또는 폴백)
+    const nq = line.match(RE_NARRATION_QUOTE);
+    if (nq) {
+      const last = blocks[blocks.length - 1];
+      if (last && last.kind === "dialogue") {
+        // 이어진 대사 — text에 줄바꿈 추가
+        (last as { text: string }).text = last.text + "\n" + nq[1];
+      } else {
+        blocks.push({
+          id: nextId(), kind: "dialogue",
+          character: "", text: nq[1], status: "done",
+        });
+      }
+      i++; continue;
+    }
+
+    // 그 외 = 지문(Action) 단락. 빈 줄 만날 때까지 모음
+    const actionLines = [line];
+    i++;
+    while (i < lines.length && lines[i].trim()
+      && !RE_SCENE.test(lines[i]) && !RE_INTEXT.test(lines[i]) && !RE_HEADING_MIX.test(lines[i])
+      && !RE_DIALOGUE_COLON.test(lines[i]) && !RE_DIALOGUE_INDENT.test(lines[i])
+      && !RE_FADE.test(lines[i]) && !RE_MUSIC.test(lines[i])
+      && (!stage || (!RE_ACT.test(lines[i]) && !RE_SCENE_HEADER.test(lines[i])))) {
+      actionLines.push(lines[i].trim());
+      i++;
+    }
+    blocks.push({
+      id: nextId(), kind: "action",
+      text: actionLines.join(" "),
+      status: "done",
+    });
+  }
+
+  return blocks;
 }
 
 function splitProseBlocks(text: string): Block[] {

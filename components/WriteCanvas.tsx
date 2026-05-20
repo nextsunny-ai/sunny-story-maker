@@ -417,8 +417,8 @@ export function WriteCanvas({
                 <ImportPanel onImport={(text) => { onImport(text); setShowImport(false); }} hasContent={paras.some(p => p.text && p.text.trim())} />
               )}
 
-              {/* ★ V3.0 단계 1+ — doc가 있고 그룹이 PROSE면 MediumCanvasRouter로. 그 외엔 옛 Paragraph 폴백. */}
-              {doc && doc.group === "PROSE" ? (
+              {/* ★ V3.0 단계 1·2 — PROSE/SCREENPLAY/STAGE는 MediumCanvasRouter로. 단계 3~6에서 PANEL·CUESHEET·STRUCTURED 추가. */}
+              {doc && (doc.group === "PROSE" || doc.group === "SCREENPLAY" || doc.group === "STAGE") ? (
                 <MediumCanvasRouter
                   doc={doc}
                   paused={paused}
