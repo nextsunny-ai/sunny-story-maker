@@ -56,6 +56,24 @@ export function WriteCanvas({
   //   (옛엔 본문 비었을 때만 = 작가가 중간에 원고 추가 가져오기가 막혔던 사고)
   const [showImport, setShowImport] = useState<boolean>(() => paras.every(p => !p.text || !p.text.trim()));
 
+  // ★ V2.14.5 — 데스크탑(Tauri) 환경 = 다운로드 폴더 바로 열기 버튼 노출
+  //   (대표님 명시: 작가가 자기 작품 저장된 폴더를 폴더 클릭으로 바로 열 수 있게)
+  const [isTauriEnv, setIsTauriEnv] = useState(false);
+  useEffect(() => {
+    setIsTauriEnv(typeof window !== "undefined" && "__TAURI_INTERNALS__" in window);
+  }, []);
+
+  const openDownloadsFolder = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-shell");
+      const { downloadDir } = await import("@tauri-apps/api/path");
+      const dir = await downloadDir();
+      await open(dir);
+    } catch (err) {
+      alert(`폴더 열기 실패. 데스크탑 앱에서만 동작합니다. (${err instanceof Error ? err.message : String(err)})`);
+    }
+  };
+
   // 새 빈 작품 시작 (현재 작업실에서 = 새 작품으로 전환)
   const startNewBlank = () => {
     const blankIdea = `새 작품 ${new Date().toLocaleDateString("ko-KR")}`;
@@ -245,6 +263,18 @@ export function WriteCanvas({
                 <span className="wcanvas-book-toggle-icon">🖨</span>
                 <span>프린트</span>
               </button>
+              {/* ★ V2.14.5 — 데스크탑 작가만: 워드/TXT 받은 다운로드 폴더 바로 열기 */}
+              {isTauriEnv && (
+                <button
+                  type="button"
+                  className="wcanvas-book-toggle"
+                  onClick={openDownloadsFolder}
+                  title="작품 파일(워드·TXT)이 저장된 다운로드 폴더를 엽니다"
+                >
+                  <span className="wcanvas-book-toggle-icon">📂</span>
+                  <span>폴더 열기</span>
+                </button>
+              )}
             </>
           )}
           <button
