@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { buildFeedbackMailto, buildGmailComposeUrl, FEEDBACK_TO_EMAIL } from "@/lib/email";
 
 type Category = "bug" | "feature" | "praise" | "question" | "other";
 
@@ -40,7 +41,9 @@ export function FeedbackWidget() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  async function handleSubmit(): Promise<void> {
+  // ★ V3.1 (2026-05-20 대표님 명시) — 작가 본인 메일 앱에서 발송
+  //   path: (1) DB 저장 (백업·검색용) + (2) 본인 메일 앱 열기 (= 작가가 [보내기])
+  async function handleSubmit(mode: "mailto" | "gmail" = "mailto"): Promise<void> {
     setError(null);
     setInfo(null);
     const trimmed = message.trim();
@@ -49,31 +52,45 @@ export function FeedbackWidget() {
       return;
     }
     setSubmitting(true);
+    const pageUrl = typeof window !== "undefined" ? window.location.pathname + window.location.search : null;
     try {
-      const res = await fetch("/api/feedback", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          category,
-          message: trimmed,
-          pageUrl: typeof window !== "undefined" ? window.location.pathname + window.location.search : null,
-          userAgent: typeof navigator !== "undefined" ? navigator.userAgent : null,
-          appVersion: APP_VERSION,
-        }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        setError(j.error ?? `전송 실패 (HTTP ${res.status})`);
-        return;
+      // (1) DB 저장 (= 백업) — 실패해도 메일 발송은 진행
+      try {
+        await fetch("/api/feedback", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            category,
+            message: trimmed,
+            pageUrl,
+            userAgent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+            appVersion: APP_VERSION,
+          }),
+        });
+      } catch { /* DB 저장 실패 = silent. 메일 발송은 그대로 진행 */ }
+
+      // (2) 본인 메일 앱 열기
+      const mailInput = {
+        category,
+        message: trimmed,
+        pageUrl,
+        appVersion: APP_VERSION,
+      };
+      const url = mode === "gmail" ? buildGmailComposeUrl(mailInput) : buildFeedbackMailto(mailInput);
+      if (mode === "gmail") {
+        window.open(url, "_blank", "noopener");
+      } else {
+        window.location.href = url;
       }
-      setInfo("의견 잘 받았습니다 ✓\n답신은 sunny@sunnyent.co.kr에서 가입한 이메일로 보내드립니다.");
+
+      setInfo(`메일 앱이 열렸어요. [보내기] 누르시면 ${FEEDBACK_TO_EMAIL}로 전송됩니다 ✓`);
       setMessage("");
       setTimeout(() => {
         setOpen(false);
         setInfo(null);
-      }, 3000);
+      }, 4000);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "네트워크 오류");
+      setError(e instanceof Error ? e.message : "메일 앱 열기 실패");
     } finally {
       setSubmitting(false);
     }
@@ -217,25 +234,48 @@ export function FeedbackWidget() {
               </div>
             )}
 
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !message.trim()}
-              style={{
-                width: "100%",
-                marginTop: 14,
-                padding: "12px 18px",
-                fontSize: 13,
-                fontWeight: 600,
-                color: "white",
-                background: "var(--coral, #ff6b6b)",
-                border: "none",
-                borderRadius: 8,
-                cursor: submitting || !message.trim() ? "not-allowed" : "pointer",
-                opacity: submitting || !message.trim() ? 0.5 : 1,
-              }}
-            >
-              {submitting ? "전송 중..." : "의견 보내기"}
-            </button>
+            {/* V3.1 (2026-05-20 대표님 명시) — 작가 본인 메일 앱에서 발송 */}
+            <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+              <button
+                onClick={() => handleSubmit("mailto")}
+                disabled={submitting || !message.trim()}
+                style={{
+                  width: "100%",
+                  padding: "12px 18px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: "white",
+                  background: "var(--coral, #ff6b6b)",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: submitting || !message.trim() ? "not-allowed" : "pointer",
+                  opacity: submitting || !message.trim() ? 0.5 : 1,
+                }}
+              >
+                {submitting ? "메일 앱 여는 중..." : `📧 내 메일 앱에서 ${FEEDBACK_TO_EMAIL}로 보내기`}
+              </button>
+              <button
+                onClick={() => handleSubmit("gmail")}
+                disabled={submitting || !message.trim()}
+                style={{
+                  width: "100%",
+                  padding: "10px 18px",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: "rgba(255,255,255,0.85)",
+                  background: "transparent",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  borderRadius: 8,
+                  cursor: submitting || !message.trim() ? "not-allowed" : "pointer",
+                  opacity: submitting || !message.trim() ? 0.5 : 1,
+                }}
+              >
+                또는 Gmail 웹에서 보내기
+              </button>
+              <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.5, textAlign: "center" }}>
+                작가님 본인 이메일에서 발송됩니다 — 답신도 같은 thread로 받아보실 수 있어요.
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -1,33 +1,19 @@
-// V3.1 — 이메일 발송 헬퍼 (Resend REST API 직접).
-// 대표님 명시 (2026-05-20): "프로그램 개선사항이랑 컴플레인은 이메일로만 받아. sunny@sunnyent.co.kr"
+// V3.1 — mailto: 양식 빌더 (작가 본인 이메일에서 발송).
+// 대표님 명시 (2026-05-20): "자기 이메일로 보내면 안되거? 본인들 이메일"
 //
-// 환경변수 (Vercel):
-//   RESEND_API_KEY            — Resend 가입 시 발급 (필수)
-//   RESEND_FROM_EMAIL         — 발신 주소. 디폴트 = "Story Maker <onboarding@resend.dev>"
-//                                 (sunnytoon.com 도메인 인증 시 = "Story Maker <noreply@sunnytoon.com>")
-//   FEEDBACK_TO_EMAIL         — 수신 주소. 디폴트 = "sunny@sunnyent.co.kr"
+// path:
+//   1. 작가가 💬 위젯에서 카테고리·메시지 작성
+//   2. [메일로 보내기] 클릭 = mailto: 링크 자동 열림 (또는 Gmail compose)
+//   3. 작가 본인 메일 앱 (Gmail·아웃룩·Mac Mail 등)에서 양식 자동 채워짐
+//   4. 작가 [보내기] 클릭 = 본인 이메일에서 발송 = sunny@sunnyent.co.kr 수신
+//   5. 사장님이 답장 = 일반 메일 thread = 작가에게 바로
 //
-// 룰:
-//   - RESEND_API_KEY 없으면 = silent skip (= 환경변수 안 박혀있으면 0건 발송)
-//   - 폭주 위험 X: 피드백·컴플레인 = 작가가 적극 보낼 때만 = 빈도 매우 낮음
-//   - 에러 자동 알림 = 박지 X (= 글로벌 룰 2)
+// 장점:
+//   - 사장님 비용 0 (Resend·도메인 인증 X)
+//   - 작가 본인 이메일에서 발송 = 신뢰·답장 자연
+//   - DB는 그대로 저장 (= /admin/dashboard에서 백업)
 
-interface SendResult {
-  ok: boolean;
-  skipped?: "no-api-key";
-  status?: number;
-  error?: string;
-  id?: string;
-}
-
-interface FeedbackEmailInput {
-  writerEmail: string | null;
-  writerId: string;
-  category: string;
-  message: string;
-  pageUrl?: string | null;
-  appVersion?: string | null;
-}
+export const FEEDBACK_TO_EMAIL = "sunny@sunnyent.co.kr";
 
 const CATEGORY_KO: Record<string, string> = {
   bug: "🐛 버그·오류",
@@ -37,119 +23,70 @@ const CATEGORY_KO: Record<string, string> = {
   other: "📝 기타",
 };
 
+export interface FeedbackMailInput {
+  category: string;
+  message: string;
+  writerEmail?: string | null;
+  pageUrl?: string | null;
+  appVersion?: string | null;
+}
+
 /**
- * 작가 피드백·컴플레인을 사장님 이메일로 전송.
- * fire-and-forget — 응답 대기 X. 실패해도 작가 응답에 영향 X.
- *
- * @returns 결과 (보통 await 안 함)
+ * 작가 피드백·컴플레인 → mailto: 링크 빌드.
+ * 작가가 클릭하면 = 본인 메일 앱 열림 + 양식 자동 채워짐.
  */
-export async function sendFeedbackEmail(input: FeedbackEmailInput): Promise<SendResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return { ok: false, skipped: "no-api-key" };
-
-  const from = process.env.RESEND_FROM_EMAIL || "Story Maker <onboarding@resend.dev>";
-  const to = process.env.FEEDBACK_TO_EMAIL || "sunny@sunnyent.co.kr";
-
+export function buildFeedbackMailto(input: FeedbackMailInput): string {
   const categoryLabel = CATEGORY_KO[input.category] || input.category;
-  const writerLabel = input.writerEmail || `(이메일 비공개 · ID ${input.writerId.slice(0, 8)})`;
-
-  // 답신 가능 = reply-to에 작가 이메일 박음 (이메일 비공개 시 = 디폴트)
-  const replyTo = input.writerEmail || undefined;
-
   const subject = `[Story Maker] ${categoryLabel} — ${input.message.slice(0, 40)}${input.message.length > 40 ? "…" : ""}`;
 
-  const html = `
-<div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; max-width: 640px; margin: 0 auto; padding: 24px; color: #2a2f3a;">
-  <div style="border-bottom: 2px solid #ff6b53; padding-bottom: 12px; margin-bottom: 20px;">
-    <div style="font-size: 11px; color: #999; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px;">SUNNY Story Maker</div>
-    <h1 style="font-size: 20px; margin: 0; color: #1a1a1a;">${categoryLabel}</h1>
-  </div>
-
-  <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px;">
-    <tr>
-      <td style="padding: 6px 0; color: #888; width: 100px;">작가</td>
-      <td style="padding: 6px 0; color: #2a2f3a;">${escapeHtml(writerLabel)}</td>
-    </tr>
-    <tr>
-      <td style="padding: 6px 0; color: #888;">페이지</td>
-      <td style="padding: 6px 0; color: #2a2f3a; font-family: monospace; font-size: 12px;">${escapeHtml(input.pageUrl || "(없음)")}</td>
-    </tr>
-    <tr>
-      <td style="padding: 6px 0; color: #888;">버전</td>
-      <td style="padding: 6px 0; color: #2a2f3a;">${escapeHtml(input.appVersion || "?")}</td>
-    </tr>
-  </table>
-
-  <div style="background: #faf9f6; border-left: 3px solid #ff6b53; padding: 16px 20px; border-radius: 4px; margin-bottom: 24px;">
-    <div style="font-size: 11px; color: #ff6b53; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px;">메시지</div>
-    <div style="font-size: 14px; line-height: 1.7; color: #1a1a1a; white-space: pre-wrap;">${escapeHtml(input.message)}</div>
-  </div>
-
-  <div style="font-size: 12px; color: #999; padding-top: 16px; border-top: 1px solid #eee;">
-    답신 = 이 이메일에 답장하시면 작가에게 바로 전달됩니다 (reply-to 박힘).<br />
-    운영 대시보드 = <a href="https://story.sunnytoon.com/admin/dashboard" style="color: #ff6b53;">story.sunnytoon.com/admin/dashboard</a>
-  </div>
-</div>
-  `.trim();
-
-  const text = [
-    `[Story Maker] ${categoryLabel}`,
-    "",
-    `작가: ${writerLabel}`,
-    `페이지: ${input.pageUrl || "(없음)"}`,
-    `버전: ${input.appVersion || "?"}`,
-    "",
-    "메시지:",
+  const bodyLines = [
     input.message,
     "",
     "—",
-    "답신 = 이 이메일에 답장 = 작가에게 바로 전달.",
-    "운영 대시보드: https://story.sunnytoon.com/admin/dashboard",
-  ].join("\n");
+    `카테고리: ${categoryLabel}`,
+    `페이지: ${input.pageUrl || "(없음)"}`,
+    `버전: ${input.appVersion || "?"}`,
+    "",
+    "(이 줄 위에 답신할 내용 박아주세요. 이 메일 그대로 보내시면 됩니다.)",
+  ];
+  const body = bodyLines.join("\n");
 
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to,
-        subject,
-        html,
-        text,
-        ...(replyTo ? { reply_to: replyTo } : {}),
-        tags: [
-          { name: "category", value: input.category },
-          { name: "source", value: "feedback" },
-        ],
-      }),
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      return { ok: false, status: res.status, error: errText.slice(0, 300) };
-    }
-    const data = await res.json().catch(() => ({}));
-    return { ok: true, status: res.status, id: (data as { id?: string }).id };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
-  }
+  // mailto:는 RFC 6068 — encodeURIComponent로 % 인코딩
+  return `mailto:${FEEDBACK_TO_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 /**
- * fire-and-forget 헬퍼.
+ * Gmail 웹 작가용 — compose 직링크.
+ * Gmail 로그인 안 돼있으면 = 로그인 페이지로 redirect됨.
  */
-export function sendFeedbackEmailAsync(input: FeedbackEmailInput): void {
-  sendFeedbackEmail(input).catch(() => { /* silent */ });
+export function buildGmailComposeUrl(input: FeedbackMailInput): string {
+  const categoryLabel = CATEGORY_KO[input.category] || input.category;
+  const subject = `[Story Maker] ${categoryLabel} — ${input.message.slice(0, 40)}${input.message.length > 40 ? "…" : ""}`;
+  const body = [
+    input.message,
+    "",
+    "—",
+    `카테고리: ${categoryLabel}`,
+    `페이지: ${input.pageUrl || "(없음)"}`,
+    `버전: ${input.appVersion || "?"}`,
+  ].join("\n");
+
+  // Gmail web compose URL
+  return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(FEEDBACK_TO_EMAIL)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+/**
+ * 작가 OS·브라우저 감지해 자동으로 mailto: 또는 Gmail compose 열기.
+ * Gmail 사용자가 다수일 가능성 = 두 옵션 제공.
+ */
+export function openFeedbackMail(input: FeedbackMailInput, opts?: { preferGmail?: boolean }): void {
+  if (typeof window === "undefined") return;
+  const url = opts?.preferGmail ? buildGmailComposeUrl(input) : buildFeedbackMailto(input);
+  // 새 창 = 작가가 작업 중인 본 페이지 안 끊김
+  if (opts?.preferGmail) {
+    window.open(url, "_blank", "noopener");
+  } else {
+    // mailto: = location.href로 = OS 기본 메일 앱
+    window.location.href = url;
+  }
 }
