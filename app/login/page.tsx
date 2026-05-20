@@ -118,8 +118,10 @@ function LoginPageInner() {
       router.push(redirectTo);
       router.refresh();
     } catch (err) {
+      // ★ V3.1 D3 완전 — 로그인 실패 = 작가 0% = 사장님 대시보드에서 즉시 인지
       const message = err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.";
-      setError(message);
+      setError(`로그인 처리 중 오류: ${message}\n\n잠시 후 다시 시도하시거나 = 우측 하단 💬 위젯으로 알려주세요.`);
+      import("@/lib/log").then(({ logError }) => logError(err, `login:${mode}`, { email })).catch(() => {});
       setLoading(false);
     }
   }
@@ -199,7 +201,10 @@ function LoginPageInner() {
         });
         return;
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        // ★ V3.1 D3 완전 — OAuth 실패 = 작가 0% = logError 박힘
+        const message = e instanceof Error ? e.message : String(e);
+        setError(`Google 로그인 실패: ${message}\n\n다시 시도하시거나 = 이메일·비밀번호로 로그인 해주세요.`);
+        import("@/lib/log").then(({ logError }) => logError(e, "login:google-oauth-tauri")).catch(() => {});
         setLoading(false);
         return;
       }

@@ -217,12 +217,13 @@ function parseExhibition(text: string): Block[] {
 
     for (const line of lines) {
       if (!line) continue;
-      const am = line.match(/^(?:면적|Area)\s*[:：]\s*(.+)$/i);
-      const fm = line.match(/^(?:동선|Flow)\s*[:：]\s*(.+)$/i);
-      const om = line.match(/^(?:오브제|Objects?)\s*[:：]\s*(.+)$/i);
-      const im = line.match(/^(?:인터랙티브|Interactive)\s*[:：]\s*(.+)$/i);
-      const dm = line.match(/^(?:도슨트|Docent)\s*[:：]\s*(.+)$/i);
-      if (am) area = am[1];
+      // ★ V3.1 B1 보강 — 작가가 쓰는 다양한 키워드 다 인식
+      const am = line.match(/^(?:면적|공간|규모|크기|Area|Space|Size)\s*[:：]\s*(.+)$/i);
+      const fm = line.match(/^(?:동선|흐름|루트|경로|Flow|Route|Path)\s*[:：]\s*(.+)$/i);
+      const om = line.match(/^(?:오브제|작품|전시물|구조물|Objects?|Items?|Exhibits?)\s*[:：]\s*(.+)$/i);
+      const im = line.match(/^(?:인터랙티브|체험|상호작용|Interactive|Experience)\s*[:：]\s*(.+)$/i);
+      const dm = line.match(/^(?:도슨트|해설|설명|음성안내|Docent|Narration|Guide)\s*[:：]\s*(.+)$/i);
+      if (am) area = (area ? `${area}; ${am[1]}` : am[1]);
       else if (fm) flow = fm[1];
       else if (om) objects = om[1];
       else if (im) interactive = im[1];

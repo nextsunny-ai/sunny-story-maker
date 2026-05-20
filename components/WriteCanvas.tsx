@@ -9,6 +9,7 @@ import { MediumCanvasRouter } from "@/components/write/MediumCanvasRouter";
 import { Markdown } from "@/components/Markdown";
 import { LibraryPicker } from "@/components/LibraryPicker";
 import { TypingIndicator } from "@/components/TypingIndicator";
+import { t, useLocale } from "@/lib/i18n";
 
 export interface WorkInfo {
   title: string;
@@ -64,6 +65,7 @@ export function WriteCanvas({
   const I = ICONS;
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  useLocale(); // ★ V3.1 i18n — locale 변경 시 re-render 트리거
 
   // 작품 변경 모달 — 사장님 명시: 작업실에서 다른 작품 불러오기
   const [showProjectPicker, setShowProjectPicker] = useState(false);
@@ -255,19 +257,19 @@ export function WriteCanvas({
                 type="button"
                 className="wcanvas-book-toggle"
                 onClick={() => onDownload("docx")}
-                title="본문을 워드(.docx)로 다운로드"
+                title={t("워드(.docx)")}
               >
                 <span className="wcanvas-book-toggle-icon">{I.download}</span>
-                <span>워드</span>
+                <span>{t("워드(.docx)")}</span>
               </button>
               <button
                 type="button"
                 className="wcanvas-book-toggle"
                 onClick={() => onDownload("txt")}
-                title="본문을 텍스트(.txt)로 다운로드"
+                title={t("텍스트(.txt)")}
               >
                 <span className="wcanvas-book-toggle-icon">{I.download}</span>
-                <span>TXT</span>
+                <span>{t("텍스트(.txt)")}</span>
               </button>
               {/* ★ V3.1 D4 — Fountain (시나리오 표준 plain text) */}
               <button
