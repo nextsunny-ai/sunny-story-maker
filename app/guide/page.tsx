@@ -429,25 +429,23 @@ export default function GuidePage() {
           </p>
 
           <div style={{ display: "grid", gap: 14 }}>
-            {/* 본문 쓰기 */}
+            {/* 본문 쓰기 — 자동 처리 강조 */}
             <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>📝 본문 쓰기 (Write)</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-                ✅ <strong>한 단락 / 한 씬 / 5~10페이지씩</strong> = AI 정확 작성. 작가 검토·수정 후 다음 단위로.<br />
-                ✅ 옛 시나리오 = <strong>📥 원고 가져오기</strong>로 통째 박기 (= 4.5MB 이내). 큰 시나리오는 자동 5구간 발췌 (앞·1/4·중반·3/4·결말 다 보존).<br />
-                ⚠️ <strong>한 번에 100p 다 써줘</strong> = AI 출력 한도 (~1.5만자) 초과 = X. 단계별로.<br />
-                ★ <strong>권장 발화</strong> = "1막 1씬부터 써줘" / "다음 씬 이어줘" / "이 분위기로 5p 더"
+                ✅ <strong>옛 시나리오 = 📥 원고 가져오기로 통째 박기.</strong> 큰 시나리오 (영화 1편 등) = 자동 5구간 발췌 (앞·1/4·중반·3/4·결말) = 작가가 신경 쓸 부분 X.<br />
+                ✅ <strong>AI가 알아서 한 단위씩 출력 + 자동 멈춤</strong> = 작가가 매번 분량 지정 X. 자연 발화 = 자연 작업 흐름.<br />
+                ★ <strong>자연 발화 예시</strong>: "1막 1씬부터 써줘" / "다음 씬 이어줘" / "이 분위기로 더" / "이 씬 다시 써줘"
               </div>
             </div>
 
-            {/* 매체 변환 */}
+            {/* 매체 변환 — 자동 처리 */}
             <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>🔄 매체 변환 (Adapt)</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-                ✅ 영화 1편(5만자) → 웹툰 1화 / 드라마 1회 / 숏폼 1편 = <strong>1회씩 단계별</strong> 변환.<br />
-                ✅ "영화 → 웹툰 50화" = <strong>(1) outline → (2) 1~3화 → (3) 4~6화 ...</strong> 누적.<br />
-                ⚠️ "영화 → 50화 한 번에" = AI 출력 한도 초과 = X.<br />
-                ★ <strong>권장 발화</strong> = "이 영화 → 웹툰 1화부터 시작해줘" → 다음 호출 = "2화 이어줘"
+                ✅ 영화 1편 (몇만자) → 웹툰·드라마·숏폼 등 어떤 매체로도 변환 가능. 큰 시나리오 = 자동 5구간 발췌.<br />
+                ✅ <strong>AI가 알아서 1 단위씩</strong> 변환 = 작가는 자연 발화. "영화 → 웹툰으로 가자" → AI가 1화부터 출력 → "다음 이어줘" 누적.<br />
+                ★ <strong>자연 발화 예시</strong>: "이 영화를 웹툰으로" / "이 분위기로 다음 회" / "더 짧게" / "더 강한 후크"
               </div>
             </div>
 
@@ -455,10 +453,9 @@ export default function GuidePage() {
             <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>🔍 AI 검토 (Review)</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-                ✅ 본문 단락·씬 1개씩 = 정밀 검토 (= humanizer + 한국 시나리오 표준 체크).<br />
-                ✅ 5만자 본문 = 자동 5구간 발췌 검토 (= 핵심 다 다룸).<br />
-                ⚠️ 10만자+ 본문 = 발췌만 = 부분 검토. 핵심 씬은 별도 검토 권장.<br />
-                ★ <strong>권장 발화</strong> = "3번 단락 평가해줘" / "이 씬에서 캐릭터 화법 차별 됐어?"
+                ✅ 본문 단락·씬 별 정밀 검토 (= humanizer + 한국 시나리오 표준 체크). 30년 CD 페르소나.<br />
+                ✅ 큰 본문 = 자동 5구간 발췌 검토 (= 핵심 다 다룸).<br />
+                ★ <strong>자연 발화 예시</strong>: "3번 단락 평가해줘" / "이 씬에서 캐릭터 화법 차별 됐어?" / "AI 티 나는 부분 짚어줘"
               </div>
             </div>
 
@@ -467,39 +464,20 @@ export default function GuidePage() {
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>📂 자료 가져오기 (= 본문·기획안 업로드)</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
                 ✅ <strong>지원 포맷</strong>: PDF · 워드(.docx) · 한글 신버전(.hwpx) · 텍스트(.txt·.md·.fountain).<br />
-                ❌ <strong>비지원</strong>: 옛 워드(.doc) → .docx로 변환 / 옛 한글(.hwp) → .hwpx 또는 PDF로 변환.<br />
-                ⚠️ <strong>크기 4.5MB 이내</strong> (Vercel 서버 제한). 초과 시 = 작가가 받는 메시지 = "본문만 복사 → 텍스트 칸 붙여넣기 권장".<br />
-                ⚠️ <strong>이미지 많은 PDF</strong>: 텍스트만 추출됨. <strong>스캔 PDF</strong> (= OCR 필요) = 텍스트 추출 X = OCR 도구로 변환 후.
-              </div>
-            </div>
-
-            {/* 매체별 권장 분량 단위 */}
-            <div style={{ padding: "18px 22px", background: "rgba(255, 107, 107, 0.06)", border: "1px solid rgba(255, 107, 107, 0.2)", borderRadius: 12 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>📐 매체별 권장 분량 단위 (= 한 호출에 박을 양)</div>
-              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "8px 16px", fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6 }}>
-                <strong>시나리오 (영화·드라마)</strong><span>한 씬 또는 5~10페이지 단위</span>
-                <strong>숏드라마 (C)</strong><span>1~3 EP 단위 (회당 1~2분)</span>
-                <strong>웹툰 (F)</strong><span>1화 또는 5~15컷 단위</span>
-                <strong>웹소설 (H)</strong><span>1~2화 단위 (회당 5,000자)</span>
-                <strong>다큐·예능 큐시트 (G·M)</strong><span>1 챕터 또는 5~10 행 단위</span>
-                <strong>뮤지컬 (I)</strong><span>1막 또는 1넘버 단위</span>
-                <strong>연극 (N)</strong><span>1장 단위</span>
-                <strong>소설·에세이 (O·P)</strong><span>1 챕터 또는 원고지 10~30매</span>
-                <strong>전시 (K)</strong><span>1 Zone 단위</span>
-                <strong>게임 (L)</strong><span>1 퀘스트 또는 1 분기 단위</span>
-              </div>
-              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,107,107,0.15)", fontSize: 12, color: "var(--ink-3)" }}>
-                💡 <strong>큰 작품 = 단계별 누적</strong>이 정답. "이번엔 1막 1씬", "다음엔 1막 2씬" = 작가가 매번 검토하면서 = 진짜 좋은 작품. AI가 한 번에 100p = 부실 + 한도.
+                ✅ <strong>크기 4.5MB 이내</strong>는 = 통째 박으면 됨. 큰 시나리오도 = 자동 5구간 발췌로 핵심 다 보존.<br />
+                ❌ <strong>비지원 포맷</strong>: 옛 워드(.doc) → .docx로 변환 / 옛 한글(.hwp) → .hwpx 또는 PDF로 변환.<br />
+                ⚠️ <strong>4.5MB 초과 또는 스캔 PDF</strong>: 친절 안내 자동 표시 = "본문만 복사 → 텍스트 칸에 붙여넣기 권장" (= 크기 제한 X).<br />
+                ⚠️ <strong>이미지 많은 PDF</strong>: 텍스트만 자동 추출. 스캔된 PDF (= OCR 필요) = OCR 도구로 텍스트 변환 후 박기.
               </div>
             </div>
 
             {/* 한도 도달 시 */}
-            <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 12 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-1)", marginBottom: 10 }}>⏱ 한도 도달 시 (= 작가 Pro 구독 5시간 한도)</div>
+            <div style={{ padding: "18px 22px", background: "rgba(255, 107, 107, 0.06)", border: "1px solid rgba(255, 107, 107, 0.2)", borderRadius: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-1)", marginBottom: 10 }}>⏱ 한도 도달 시 — 자동 처리 박혀있음</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-                ✅ <strong>자동 Haiku 전환</strong>: Opus/Sonnet 한도 도달 시 = AI가 자동으로 Haiku로 전환 = 작업 끊김 X (quality 약간 낮음).<br />
-                ✅ <strong>5시간 후 자동 회복</strong>: Pro 구독 = 5시간 단위로 한도 갱신.<br />
-                ★ 한도 자주 도달 = 위 권장 단위 따르면 = 같은 작업량에 더 오래 작업 가능.
+                ✅ <strong>자동 Haiku 전환</strong>: 작가 Pro 구독 5시간 한도 도달 시 = AI가 자동으로 Haiku 모델로 전환 = <strong>작업 끊김 X</strong> (quality 약간 낮음, 작업 계속 가능).<br />
+                ✅ <strong>5시간 후 자동 회복</strong>: 한도 = 자동 갱신 = 다시 Opus·Sonnet 풀 quality.<br />
+                ✅ <strong>토스트 알림</strong>: 작가가 알 수 있게 = 화면 상단 토스트 자동 표시.
               </div>
             </div>
           </div>

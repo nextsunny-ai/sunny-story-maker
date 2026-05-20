@@ -640,7 +640,7 @@ function ImportPanel({ onImport, hasContent }: { onImport: (text: string) => voi
       <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.5 }}>
         이미 쓴 원고를 가져와 이어쓸 수 있습니다. 파일을 올리거나 본문을 붙여넣으세요.<br />
         <strong style={{ color: "var(--coral-deep)" }}>지원 = .pdf · .docx · .hwpx · .txt</strong> (최대 4.5MB). 옛 .doc / .hwp = 변환 후. 큰 파일 = 본문만 복사·붙여넣기 권장.<br />
-        <span style={{ color: "var(--ink-4)", fontSize: 11.5 }}>★ 큰 시나리오(영화 1편 등) = 통째 박아도 OK = 자동 5구간 발췌 (앞·1/4·중반·3/4·결말). 작가가 한 번에 너무 큰 수정 요청 = AI 한도. 권장 = 한 씬·5~10p씩 단계별.</span>
+        <span style={{ color: "var(--ink-4)", fontSize: 11.5 }}>★ 큰 시나리오 (영화 1편 등) = <strong>통째 박아도 OK</strong>. 자동 5구간 발췌 (앞·1/4·중반·3/4·결말 다 보존) = 작가는 분량 신경 X. AI가 한 단위씩 자동 출력·멈춤.</span>
       </div>
       {hasContent && (
         <div style={{
