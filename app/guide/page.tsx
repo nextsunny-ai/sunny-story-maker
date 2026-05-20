@@ -433,40 +433,8 @@ export default function GuidePage() {
           </div>
         </section>
 
-        {/* ★ V3.1 — 지원사업 신청서 자동 작성 안내 */}
-        <section style={{ marginBottom: 60 }}>
-          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 14px", letterSpacing: "-0.015em" }}>
-            지원사업 신청서 자동 작성<span style={{ color: "var(--coral)" }}>.</span>
-          </h2>
-          <p style={{ fontSize: 14, color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 18 }}>
-            공고·신청서 양식·작가 기획안을 업로드하면 = AI가 양식 칸을 빠짐없이 자동 채워서 .docx로 출력. KOFIC·KOCCA·서울문화재단·아르코·CJ 문화재단 등 모든 양식 호환.
-          </p>
-          <div style={{ padding: "20px 24px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, color: "var(--coral-deep, #c84738)" }}>
-              📂 사용 흐름 (= 메인 메뉴 → 지원사업 페이지)
-            </div>
-            <div style={{ display: "grid", gap: 10, fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-              <div>
-                <strong style={{ color: "var(--ink-1)" }}>① 공고 업로드</strong> — 공고 PDF·.docx·.hwpx를 업로드. 텍스트 자동 추출.
-              </div>
-              <div>
-                <strong style={{ color: "var(--ink-1)" }}>② 신청서 양식 업로드</strong> — 공고에 첨부된 신청서 양식 파일 (= 빈 칸들 박힌). AI가 = 채울 항목 자동 인식.
-              </div>
-              <div>
-                <strong style={{ color: "var(--ink-1)" }}>③ 작가 기획안 업로드 (또는 텍스트 직접 입력)</strong> — 이 작품으로 신청. 트리트먼트·시놉시스 등 박힌 자료면 됨.
-              </div>
-              <div>
-                <strong style={{ color: "var(--ink-1)" }}>④ 작품명 + 추가 메모</strong> — 작품명 · 작가가 강조하고 싶은 포인트 (= 사회적 의의·예산 메모 등) 1~2줄.
-              </div>
-              <div>
-                <strong style={{ color: "var(--ink-1)" }}>⑤ "신청서 생성" 클릭</strong> — AI가 양식 칸을 빠짐없이 채움. 미리보기 + .docx 다운로드.
-              </div>
-            </div>
-          </div>
-          <div style={{ padding: "12px 16px", background: "rgba(255, 107, 107, 0.06)", border: "1px solid rgba(255, 107, 107, 0.2)", borderRadius: 10, fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-            💡 <strong>최소 한 개만 박혀도 시작</strong>. 공고만 박으면 = AI가 어떤 항목을 채워야 하는지 추정해서 신청서 초안 작성. 작가 기획안만 박으면 = 기획안을 일반 양식으로 정리.
-          </div>
-        </section>
+        {/* ★ V3.1 지원사업 신청서 섹션 = 토큰 한계로 V3.2 보류 (대표님 명시 2026-05-20).
+            옛 인프라는 보존 (글로벌 룰 17). 작가 안내만 제거. */}
 
         {/* ★ 단축키 + 자동 백업 위치 (V3.1) */}
         <section style={{ marginBottom: 60 }}>
