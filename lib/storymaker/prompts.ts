@@ -306,14 +306,19 @@ ${genrePart}
 }
 
 
-// 긴 원본을 각색용으로 압축 — 앞·뒤를 둘 다 살려 시작·결말 구조를 보존한다.
-// (영화 시나리오 한 편 = 보통 2~4만 자. 앞부분만 자르면 결말을 못 봐 각색이 부실해짐.)
+// 긴 원본을 각색용으로 압축 — 시작·중반(사건)·결말 3구간을 모두 보존한다.
+// (영화 시나리오 한 편 = 보통 2~4만 자. 앞부분만 자르면 결말을 못 보고, 앞·뒤만 자르면 중반 사건을 놓침.)
 function fitSourceText(text: string, limit = 24000): string {
   if (text.length <= limit) return text;
-  const headLen = Math.floor(limit * 0.62);
-  const tailLen = limit - headLen;
+  const headLen = Math.floor(limit * 0.45);
+  const midLen = Math.floor(limit * 0.18);
+  const tailLen = limit - headLen - midLen;
+  const midStart = Math.floor(text.length * 0.5 - midLen / 2);
+  const totalKChar = text.length.toLocaleString();
   return text.slice(0, headLen)
-    + `\n\n…(중략 — 원문 ${text.length.toLocaleString()}자 중 가운데 일부 생략, 앞·뒤는 그대로)…\n\n`
+    + `\n\n…(앞 ${headLen.toLocaleString()}자 끝 — 원문 ${totalKChar}자 중 일부 생략)…\n\n`
+    + text.slice(midStart, midStart + midLen)
+    + `\n\n…(중반 발췌 끝 — 결말부로 점프)…\n\n`
     + text.slice(text.length - tailLen);
 }
 

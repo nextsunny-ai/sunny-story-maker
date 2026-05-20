@@ -63,9 +63,9 @@ export async function POST(req: NextRequest) {
         return new Response(JSON.stringify({
           error: "이미지 파일은 곧 지원 예정입니다. 지금은 PDF/Word(.docx)/텍스트 파일을 사용해주세요.",
         }), { status: 415, headers: { "content-type": "application/json" } });
-      } else if (name.endsWith(".hwp")) {
+      } else if (name.endsWith(".hwp") || name.endsWith(".hwpx")) {
         return new Response(JSON.stringify({
-          error: "한글(.hwp) 파일은 PDF로 내보낸 후 업로드해주세요. (한컴 → 파일 → PDF로 저장)",
+          error: "한글(.hwp/.hwpx) 파일은 PDF로 변환해서 올려주세요.\n\n[변환 3단계]\n1) 한컴에서 파일 열기\n2) [파일] → [다른 이름으로 저장] → 파일 형식: PDF (.pdf)\n3) 저장한 PDF를 여기 업로드\n\n또는 한글 본문을 복사해서 아래 텍스트 칸에 붙여넣으셔도 됩니다.",
         }), { status: 415, headers: { "content-type": "application/json" } });
       } else {
         return new Response(JSON.stringify({

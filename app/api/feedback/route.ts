@@ -95,5 +95,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ★ V2.14.4 — INSERT 성공 후 대표님 텔레그램 알림 (fire-and-forget, 실패는 작가 응답에 영향 X).
+  //   Vercel 환경변수: TELEGRAM_BOT_TOKEN, TELEGRAM_FEEDBACK_CHAT_ID. 없으면 DB만 (알림 silent skip).
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_FEEDBACK_CHAT_ID;
+  if (botToken && chatId) {
+    const lines = [
+      "🛎️ 스토리메이커 — 작가 피드백",
+      "",
+      `👤 ${userData.user.email ?? userData.user.id}`,
+      `📋 카테고리: ${body.category}`,
+      `📍 ${body.pageUrl ?? "(페이지 정보 없음)"}`,
+      `🛠 ${body.appVersion ?? "v2.14"}`,
+      "",
+      message.slice(0, 1500),
+    ];
+    fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: lines.join("\n"),
+        disable_web_page_preview: true,
+      }),
+    }).catch(() => { /* silent — 알림 실패 시 DB 저장은 됐으니 응답엔 영향 X */ });
+  }
+
   return NextResponse.json({ success: true });
 }
