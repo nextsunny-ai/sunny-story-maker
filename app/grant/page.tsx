@@ -129,12 +129,47 @@ function GrantMain() {
     const fullText = userInputBlocks.join("\n\n");
 
     try {
+      // ★ V3.1.1 — 1단계: Haiku로 공고·양식·기획안 풀 컨텍스트 분석 (Pro fair use = 한도 안 차감)
+      let analysis = "";
+      try {
+        const analyzeRes = await streamFetch({
+          mode: "analyze",
+          text: `# 지원사업 자료 통합 분석 요청\n\n${fullText}\n\n## 출력 — 핵심 정리\n1. 사업 핵심 가치·심사 기준 (= 공고에서 추출)\n2. 신청서 양식 필수 항목 list (= 양식에서 추출)\n3. 작가 기획안 강점·차별점 (= 기획안에서 추출)\n4. 매칭 전략 (= 작가 기획안 + 사업 가치 = 어떻게 어필할지)`,
+          fast: true, // Haiku 강제
+        }, { signal: ac.signal });
+        if (analyzeRes.body) {
+          const reader = analyzeRes.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const events = buf.split("\n\n");
+            buf = events.pop() || "";
+            for (const evt of events) {
+              const lines = evt.split("\n");
+              const eventType = lines.find(l => l.startsWith("event:"))?.slice(6).trim();
+              const dataLine = lines.find(l => l.startsWith("data:"))?.slice(5).trim();
+              if (eventType === "delta" && dataLine) {
+                try { const d = JSON.parse(dataLine); if (d.text) analysis += d.text; } catch { /* ignore */ }
+              }
+            }
+          }
+        }
+      } catch { /* 분석 실패 = 옛 path로 fallback */ }
+
+      const analysisPart = analysis
+        ? `\n## ★ 사전 분석 (= Haiku로 통합 분석한 결과)\n${analysis}\n`
+        : "";
+
+      // ★ V3.1.1 — 2단계: Sonnet/Opus로 신청서 본격 작성 (= 분석 결과 활용)
       const res = await streamFetch({
           mode: "review", // review mode 활용 (text 입력 → 분석 출력)
           text: `# 작업 요청: 정부/문화재단 지원사업 신청서 작성
 
 ${fullText}
-
+${analysisPart}
 ## 출력 룰 (★ 절대 준수)
 
 1. **양식이 있으면** — 양식의 모든 항목을 빠짐없이 그대로 사용. 항목 순서·번호 그대로. 작가가 그대로 제출 가능한 수준으로 채워라.
