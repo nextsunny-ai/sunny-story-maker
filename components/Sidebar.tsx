@@ -166,13 +166,11 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
     { section: "TOOLS", items: [
       { id: "review",  label: "Review",   icon: I.review },
       { id: "chat",    label: "Co-Writer", icon: I.chat },
-      // ★ V3.1.1 — OSMU 재활성 (대표님 명시 2026-05-20). depth A 매트릭스만 = "장르별 의견만"
-      // = 어디 적합한지 추천. depth B·C = osmu/page.tsx 안에서 = 비활성 박혀있음 (옛 commit a36ed27).
-      { id: "osmu",    label: "OSMU",     icon: I.osmu },
-      // ★ V3.1.1 — Plan Package·지원사업 = 토큰 한계 = V3.2 보류 (Haiku 2단계 path로 살릴 예정).
-      // 코드 한 줄도 안 지움 (글로벌 룰 17). URL 직접 진입 가능. 작가 메뉴에서만 숨김.
-      // { id: "package", label: "Plan Package", icon: I.package },
-      // { id: "grant",   label: "Grant",         icon: I.book || I.package },
+      // ★ V3.1.1 — OSMU·Plan Package·Grant 다 재활성 (대표님 명시 2026-05-21)
+      // 모두 Haiku 2단계 path 박힘 = 풀 컨텍스트 + 토큰 절약.
+      { id: "osmu",    label: "OSMU",          icon: I.osmu },
+      { id: "package", label: "Plan Package",  icon: I.package },
+      { id: "grant",   label: "Grant",         icon: I.book || I.package },
     ]},
     { section: "LIBRARY", items: [
       { id: "library",   label: "My Works", icon: I.library },
