@@ -57,11 +57,39 @@ function AdaptMain() {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
+
+    // ★ V3.1.1 — Vercel 4.5MB 사전 차단 (= 옛 grant·write와 동일 path)
+    const VERCEL_MAX = 4.5 * 1024 * 1024;
+    if (file.size > VERCEL_MAX) {
+      setUploadStatus({
+        kind: "error",
+        message: `파일이 너무 큽니다 (${(file.size / 1024 / 1024).toFixed(1)}MB / 최대 4.5MB).\n\n해결: 본문만 복사해서 아래 텍스트 칸에 붙여넣기 (= 크기 제한 X, 100% 작동).`,
+      });
+      return;
+    }
+
     setUploadStatus({ kind: "loading", message: `${file.name} 분석 중…` });
     try {
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
+
+      // ★ V3.1.1 — content-type 검증 (= Vercel platform 413 응답 = 평문 = JSON.parse 실패 방지)
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        const raw = await res.text();
+        let msg = `서버 응답 오류 (${res.status})`;
+        if (res.status === 413 || /entity\s*too\s*large/i.test(raw)) {
+          msg = `파일이 서버 제한(4.5MB)을 초과합니다.\n\n해결: 본문만 복사해서 아래 텍스트 칸에 붙여넣기.`;
+        } else if (res.status >= 500) {
+          msg = `서버 오류 (${res.status}). 잠시 후 재시도 또는 = 본문 붙여넣기.`;
+        } else {
+          msg = `${msg}: ${raw.slice(0, 150)}`;
+        }
+        setUploadStatus({ kind: "error", message: msg });
+        return;
+      }
+
       const json = await res.json();
       if (!res.ok) {
         setUploadStatus({ kind: "error", message: json.error || "업로드 실패" });
@@ -348,14 +376,61 @@ function AdaptMain() {
         </Field>
       </div>
 
-      <div className="form-grid cols-1">
-        <Field label="원본 본문" help={sourceText ? `${sourceText.length.toLocaleString()}자` : "붙여넣기 또는 파일 업로드"}>
+      <div
+        className="form-grid cols-1"
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={async (e) => {
+          e.preventDefault();
+          const file = e.dataTransfer.files?.[0];
+          if (!file) return;
+          // V3.1.1 — onFileChange와 동일 path = drag-drop도 4.5MB 사전 차단 + 친절 에러
+          const VERCEL_MAX = 4.5 * 1024 * 1024;
+          if (file.size > VERCEL_MAX) {
+            setUploadStatus({
+              kind: "error",
+              message: `파일이 너무 큽니다 (${(file.size / 1024 / 1024).toFixed(1)}MB / 최대 4.5MB).\n\n해결: 본문만 복사해서 아래 텍스트 칸에 붙여넣기.`,
+            });
+            return;
+          }
+          setUploadStatus({ kind: "loading", message: `${file.name} 분석 중…` });
+          try {
+            const fd = new FormData();
+            fd.append("file", file);
+            const res = await fetch("/api/upload", { method: "POST", body: fd });
+            const ct = res.headers.get("content-type") || "";
+            if (!ct.includes("application/json")) {
+              const raw = await res.text();
+              setUploadStatus({
+                kind: "error",
+                message: res.status === 413 || /entity\s*too\s*large/i.test(raw)
+                  ? "파일이 서버 제한(4.5MB)을 초과합니다. 본문을 텍스트 칸에 붙여넣기 권장."
+                  : `서버 오류 (${res.status})`,
+              });
+              return;
+            }
+            const json = await res.json();
+            if (!res.ok) {
+              setUploadStatus({ kind: "error", message: json.error || "업로드 실패" });
+              return;
+            }
+            setSourceText(prev => (prev ? prev + "\n\n" : "") + json.text);
+            if (!sourceTitle) setSourceTitle(file.name.replace(/\.[^.]+$/, ""));
+            setUploadStatus({ kind: "ok", message: `${json.meta.filename} — ${json.meta.chars.toLocaleString()}자 추가됨` });
+          } catch (err) {
+            setUploadStatus({ kind: "error", message: err instanceof Error ? err.message : "네트워크 오류" });
+          }
+        }}
+      >
+        <Field label="원본 본문" help={sourceText ? `${sourceText.length.toLocaleString()}자` : "붙여넣기 또는 파일 끌어다 놓기 또는 = 아래 [파일 업로드] 버튼"}>
           <textarea
             className="field-textarea script"
             rows={6}
             value={sourceText}
             onChange={e => setSourceText(e.target.value)}
-            placeholder="시나리오 전체 또는 일부를 붙여넣어 주세요."
+            placeholder="시나리오를 여기에 붙여넣거나 = 파일을 이 영역에 끌어다 놓으세요 (.pdf · .docx · .hwpx · .txt · 최대 4.5MB)"
           />
         </Field>
       </div>
@@ -363,7 +438,7 @@ function AdaptMain() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.docx,.txt,.md,.fountain,.fdx"
+        accept=".pdf,.docx,.txt,.md,.fountain,.fdx,.hwpx"
         style={{ display: "none" }}
         onChange={onFileChange}
       />
