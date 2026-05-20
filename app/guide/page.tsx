@@ -383,6 +383,128 @@ export default function GuidePage() {
           </div>
         </section>
 
+        {/* ★ V3.1.1 — 작가 사용 흐름 (= 메뉴 순서) */}
+        <section style={{ marginBottom: 60 }}>
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 14px", letterSpacing: "-0.015em" }}>
+            작가 사용 흐름<span style={{ color: "var(--coral)" }}>.</span>
+          </h2>
+          <p style={{ fontSize: 14, color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 18 }}>
+            왼쪽 사이드바 메뉴 = 작가 작업 순서 그대로. 처음부터 끝까지 = 한 작품 끝낼 수 있게 박힘.
+          </p>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>① 시작 — 홈 / 📂 프로젝트 열기</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                <strong>홈</strong>: 새 작품 시작 (매체 선택 → 의뢰서 또는 빈 작업실). <strong>📂 프로젝트 열기</strong>: 옛 .smkr 파일 가져오기 (= 카톡·메일·USB로 받은 작품). 같은 PC 옛 작품 = <strong>내 작품</strong>에서 1클릭.
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>② 만들기 — 기획 / 본문 쓰기 / 매체 변환</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                <strong>기획</strong>: 트리트먼트·시놉시스·캐릭터 등 사전 자료. <strong>본문 쓰기</strong>: 실제 시나리오 본문 (= ★ 가장 많이 쓰는 메뉴). 옛 작품 = <strong>📥 원고 가져오기</strong>로 통째 박고 이어쓰기. <strong>매체 변환</strong>: 영화 → 웹툰 등 또는 같은 매체 다시 쓰기 (v2·v3).
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>③ 다듬기 — AI 검토 / 자유 채팅</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                <strong>AI 검토</strong>: 30년 CD·전문가 페르소나 AI가 본문 평가·피드백. <strong>자유 채팅</strong>: 본문 외 = AI에게 질문·아이디어 브레인스토밍 (= 가벼운 단독 대화 = 토큰 적게).
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>④ 자료 — 내 작품 / 참고 자료</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                <strong>내 작품</strong>: 옛 작품 목록 (localStorage·Supabase 자동 저장). 1클릭 = 본문·인물 노트·history 그대로. <strong>참고 자료</strong>: 작법서·매체별 양식 가이드 등.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ★ V3.1.1 — 현실적 작업 가이드라인 (대표님 명시) */}
+        <section style={{ marginBottom: 60 }}>
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 14px", letterSpacing: "-0.015em" }}>
+            ★ 작업 가능 범위 — 현실적 가이드라인<span style={{ color: "var(--coral)" }}>.</span>
+          </h2>
+          <p style={{ fontSize: 14, color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 18 }}>
+            AI는 = 한 번에 = 너무 큰 작업 X (= 출력 한도 + 작가 Pro 구독 5시간 한도). 그래도 = 단계별로 = 한 작품 끝까지 만들 수 있게 설계. 아래 권장 단위 따르면 = 토큰 막힘 X.
+          </p>
+
+          <div style={{ display: "grid", gap: 14 }}>
+            {/* 본문 쓰기 */}
+            <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>📝 본문 쓰기 (Write)</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                ✅ <strong>한 단락 / 한 씬 / 5~10페이지씩</strong> = AI 정확 작성. 작가 검토·수정 후 다음 단위로.<br />
+                ✅ 옛 시나리오 = <strong>📥 원고 가져오기</strong>로 통째 박기 (= 4.5MB 이내). 큰 시나리오는 자동 5구간 발췌 (앞·1/4·중반·3/4·결말 다 보존).<br />
+                ⚠️ <strong>한 번에 100p 다 써줘</strong> = AI 출력 한도 (~1.5만자) 초과 = X. 단계별로.<br />
+                ★ <strong>권장 발화</strong> = "1막 1씬부터 써줘" / "다음 씬 이어줘" / "이 분위기로 5p 더"
+              </div>
+            </div>
+
+            {/* 매체 변환 */}
+            <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>🔄 매체 변환 (Adapt)</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                ✅ 영화 1편(5만자) → 웹툰 1화 / 드라마 1회 / 숏폼 1편 = <strong>1회씩 단계별</strong> 변환.<br />
+                ✅ "영화 → 웹툰 50화" = <strong>(1) outline → (2) 1~3화 → (3) 4~6화 ...</strong> 누적.<br />
+                ⚠️ "영화 → 50화 한 번에" = AI 출력 한도 초과 = X.<br />
+                ★ <strong>권장 발화</strong> = "이 영화 → 웹툰 1화부터 시작해줘" → 다음 호출 = "2화 이어줘"
+              </div>
+            </div>
+
+            {/* AI 검토 */}
+            <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>🔍 AI 검토 (Review)</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                ✅ 본문 단락·씬 1개씩 = 정밀 검토 (= humanizer + 한국 시나리오 표준 체크).<br />
+                ✅ 5만자 본문 = 자동 5구간 발췌 검토 (= 핵심 다 다룸).<br />
+                ⚠️ 10만자+ 본문 = 발췌만 = 부분 검토. 핵심 씬은 별도 검토 권장.<br />
+                ★ <strong>권장 발화</strong> = "3번 단락 평가해줘" / "이 씬에서 캐릭터 화법 차별 됐어?"
+              </div>
+            </div>
+
+            {/* 자료 가져오기 */}
+            <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>📂 자료 가져오기 (= 본문·기획안 업로드)</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                ✅ <strong>지원 포맷</strong>: PDF · 워드(.docx) · 한글 신버전(.hwpx) · 텍스트(.txt·.md·.fountain).<br />
+                ❌ <strong>비지원</strong>: 옛 워드(.doc) → .docx로 변환 / 옛 한글(.hwp) → .hwpx 또는 PDF로 변환.<br />
+                ⚠️ <strong>크기 4.5MB 이내</strong> (Vercel 서버 제한). 초과 시 = 작가가 받는 메시지 = "본문만 복사 → 텍스트 칸 붙여넣기 권장".<br />
+                ⚠️ <strong>이미지 많은 PDF</strong>: 텍스트만 추출됨. <strong>스캔 PDF</strong> (= OCR 필요) = 텍스트 추출 X = OCR 도구로 변환 후.
+              </div>
+            </div>
+
+            {/* 매체별 권장 분량 단위 */}
+            <div style={{ padding: "18px 22px", background: "rgba(255, 107, 107, 0.06)", border: "1px solid rgba(255, 107, 107, 0.2)", borderRadius: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>📐 매체별 권장 분량 단위 (= 한 호출에 박을 양)</div>
+              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "8px 16px", fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6 }}>
+                <strong>시나리오 (영화·드라마)</strong><span>한 씬 또는 5~10페이지 단위</span>
+                <strong>숏드라마 (C)</strong><span>1~3 EP 단위 (회당 1~2분)</span>
+                <strong>웹툰 (F)</strong><span>1화 또는 5~15컷 단위</span>
+                <strong>웹소설 (H)</strong><span>1~2화 단위 (회당 5,000자)</span>
+                <strong>다큐·예능 큐시트 (G·M)</strong><span>1 챕터 또는 5~10 행 단위</span>
+                <strong>뮤지컬 (I)</strong><span>1막 또는 1넘버 단위</span>
+                <strong>연극 (N)</strong><span>1장 단위</span>
+                <strong>소설·에세이 (O·P)</strong><span>1 챕터 또는 원고지 10~30매</span>
+                <strong>전시 (K)</strong><span>1 Zone 단위</span>
+                <strong>게임 (L)</strong><span>1 퀘스트 또는 1 분기 단위</span>
+              </div>
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,107,107,0.15)", fontSize: 12, color: "var(--ink-3)" }}>
+                💡 <strong>큰 작품 = 단계별 누적</strong>이 정답. "이번엔 1막 1씬", "다음엔 1막 2씬" = 작가가 매번 검토하면서 = 진짜 좋은 작품. AI가 한 번에 100p = 부실 + 한도.
+              </div>
+            </div>
+
+            {/* 한도 도달 시 */}
+            <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px dashed var(--line)", borderRadius: 12 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-1)", marginBottom: 10 }}>⏱ 한도 도달 시 (= 작가 Pro 구독 5시간 한도)</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                ✅ <strong>자동 Haiku 전환</strong>: Opus/Sonnet 한도 도달 시 = AI가 자동으로 Haiku로 전환 = 작업 끊김 X (quality 약간 낮음).<br />
+                ✅ <strong>5시간 후 자동 회복</strong>: Pro 구독 = 5시간 단위로 한도 갱신.<br />
+                ★ 한도 자주 도달 = 위 권장 단위 따르면 = 같은 작업량에 더 오래 작업 가능.
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* ★ V3.1 — 작가 ↔ AI 교대 쓰기 흐름 (대표님 명시 강조) */}
         <section style={{ marginBottom: 60 }}>
           <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 14px", letterSpacing: "-0.015em" }}>
