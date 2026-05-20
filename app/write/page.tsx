@@ -16,6 +16,7 @@ import { migrateParasToDoc } from "@/lib/storymaker/block-convert";
 import { streamFetch } from "@/lib/stream-agent";
 import { getModelChoice } from "@/lib/storymaker/model-prefs";
 import { getWorkflow, QUICK_ACTIONS } from "@/lib/workflows";
+import { useKeyboard } from "@/lib/use-keyboard";
 import {
   MediumFieldRenderer,
   buildDefaultValues,
@@ -1535,6 +1536,17 @@ function WriteMain() {
       </main>
     );
   }
+
+  // ★ V3.1 #16 — 단축키. Ctrl+S 수동저장 · Ctrl+E 워크북 토글 · Ctrl+D 다운로드 · Ctrl+B 워크북 · Esc는 EditableSpan에서 직접
+  useKeyboard({
+    onSave: () => {
+      if (!isDemo) saveSnapshot("manual", { force: true });
+    },
+    onToggleEdit: () => setBookOpen(v => !v),
+    onTogglePanel: () => setBookOpen(v => !v),
+    onDownload: () => onDownloadScript("docx"),
+    enabled: !isDemo && !needsRedirect && !showNoProjectGate,
+  });
 
   const onResizeStart = (e: React.MouseEvent) => {
     e.preventDefault();
