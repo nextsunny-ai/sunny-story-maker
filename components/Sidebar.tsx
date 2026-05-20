@@ -17,6 +17,7 @@ const PATH_TO_NAV: Record<string, string> = {
   "/review": "review",
   "/osmu": "osmu",
   "/package": "package",
+  "/grant": "grant",
   "/library": "library",
   "/resources": "resources",
   "/admin": "admin",
@@ -167,6 +168,7 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
       { id: "review",  label: "Review",       icon: I.review },
       { id: "osmu",    label: "OSMU",         icon: I.osmu },
       { id: "package", label: "Plan Package", icon: I.package },
+      { id: "grant",   label: "지원사업 신청서", icon: I.book || I.package },
     ]},
     { section: "LIBRARY", items: [
       { id: "library", label: "My Works", icon: I.library },

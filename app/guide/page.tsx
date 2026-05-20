@@ -383,6 +383,83 @@ export default function GuidePage() {
           </div>
         </section>
 
+        {/* ★ V3.1 — 작가 ↔ AI 교대 쓰기 흐름 (대표님 명시 강조) */}
+        <section style={{ marginBottom: 60 }}>
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 14px", letterSpacing: "-0.015em" }}>
+            작가 ↔ AI 교대 쓰기<span style={{ color: "var(--coral)" }}>.</span>
+          </h2>
+          <p style={{ fontSize: 14, color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 18 }}>
+            "작가가 쓰는 종이, AI는 옆에서 거드는 것" — 작가가 쓰다가 AI가 이어쓰고, AI가 쓰다가 작가가 이어받는 흐름. 모든 단락 = 작가·AI 누구든 쓸 수 있습니다.
+          </p>
+          <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>① 빈 작업실 = 작가가 먼저</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                새 작품 = AI가 먼저 안 씁니다. 첫 단락 클릭 → <strong>✍️ 직접 쓰기</strong> 버튼 = textarea 열림 = 작가가 타이핑 → <strong>✓ 저장</strong>. 또는 = 우측 채팅에 "시작해줘"·"1막 써줘" = AI가 첫 단락부터 씁니다.
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>② AI가 쓰는 중 = 작가가 끼어들기</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                AI가 본문을 써내려가는 중 = 상단 <strong>🛑 중지</strong> 버튼 = 즉시 멈춤. 그 단락이 done으로 박힘 → <strong>✎ 수정</strong> 액션 = 작가가 그 자리에서 이어쓰기·수정·다시 쓰기.
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>③ 작가가 쓴 다음 = AI에게 이어쓰기 부탁</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                작가 단락 끝의 <strong>+ 더 쓰기</strong> 버튼 = 빈 단락 추가 = 우측 채팅에 "이어 써줘" 또는 = "이 분위기로 다음 씬" = AI가 이어쓰기. 빈 단락 = <strong>✍️ 직접 쓰기</strong>로 작가가 또 직접 쓸 수도 있음.
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>④ AI가 쓴 단락 = 작가가 다듬기</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                AI가 쓴 단락마다 4개 액션: <strong>↻ 다시 써</strong> (AI에게 재요청) · <strong>✎ 수정</strong> (작가 직접 편집) · <strong>📋 복사</strong> · <strong>+ 더 쓰기</strong>. 자유롭게 섞어서.
+              </div>
+            </div>
+            <div style={{ padding: "16px 20px", background: "rgba(255, 107, 107, 0.06)", border: "1px solid rgba(255, 107, 107, 0.2)", borderRadius: 10 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>💡 정확한 위치 수정 (채팅 패치)</div>
+              <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+                "3번 단락 다시 써", "두 번째 컷 SFX 빼" = AI 응답 끝에 <strong>[📥 N번째 수정]</strong> 버튼이 자동 생김 = 1클릭으로 그 위치만 정확히 교체.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ★ V3.1 — 지원사업 신청서 자동 작성 안내 */}
+        <section style={{ marginBottom: 60 }}>
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 14px", letterSpacing: "-0.015em" }}>
+            지원사업 신청서 자동 작성<span style={{ color: "var(--coral)" }}>.</span>
+          </h2>
+          <p style={{ fontSize: 14, color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 18 }}>
+            공고·신청서 양식·작가 기획안을 업로드하면 = AI가 양식 칸을 빠짐없이 자동 채워서 .docx로 출력. KOFIC·KOCCA·서울문화재단·아르코·CJ 문화재단 등 모든 양식 호환.
+          </p>
+          <div style={{ padding: "20px 24px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12, marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14, color: "var(--coral-deep, #c84738)" }}>
+              📂 사용 흐름 (= 메인 메뉴 → 지원사업 페이지)
+            </div>
+            <div style={{ display: "grid", gap: 10, fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+              <div>
+                <strong style={{ color: "var(--ink-1)" }}>① 공고 업로드</strong> — 공고 PDF·.docx·.hwpx를 업로드. 텍스트 자동 추출.
+              </div>
+              <div>
+                <strong style={{ color: "var(--ink-1)" }}>② 신청서 양식 업로드</strong> — 공고에 첨부된 신청서 양식 파일 (= 빈 칸들 박힌). AI가 = 채울 항목 자동 인식.
+              </div>
+              <div>
+                <strong style={{ color: "var(--ink-1)" }}>③ 작가 기획안 업로드 (또는 텍스트 직접 입력)</strong> — 이 작품으로 신청. 트리트먼트·시놉시스 등 박힌 자료면 됨.
+              </div>
+              <div>
+                <strong style={{ color: "var(--ink-1)" }}>④ 작품명 + 추가 메모</strong> — 작품명 · 작가가 강조하고 싶은 포인트 (= 사회적 의의·예산 메모 등) 1~2줄.
+              </div>
+              <div>
+                <strong style={{ color: "var(--ink-1)" }}>⑤ "신청서 생성" 클릭</strong> — AI가 양식 칸을 빠짐없이 채움. 미리보기 + .docx 다운로드.
+              </div>
+            </div>
+          </div>
+          <div style={{ padding: "12px 16px", background: "rgba(255, 107, 107, 0.06)", border: "1px solid rgba(255, 107, 107, 0.2)", borderRadius: 10, fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
+            💡 <strong>최소 한 개만 박혀도 시작</strong>. 공고만 박으면 = AI가 어떤 항목을 채워야 하는지 추정해서 신청서 초안 작성. 작가 기획안만 박으면 = 기획안을 일반 양식으로 정리.
+          </div>
+        </section>
+
         {/* ★ 단축키 + 자동 백업 위치 (V3.1) */}
         <section style={{ marginBottom: 60 }}>
           <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 14px", letterSpacing: "-0.015em" }}>
@@ -392,13 +469,19 @@ export default function GuidePage() {
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: "var(--ink-1)" }}>⌨️ 키보드 단축키</div>
             <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 16px", fontSize: 13, color: "var(--ink-2)" }}>
               <kbd style={{ padding: "2px 8px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>Ctrl+S</kbd>
-              <span>수동 저장 (자동저장과 별개)</span>
+              <span>수동 저장 (자동저장과 별개) — 💾 저장됨 토스트 알림</span>
+              <kbd style={{ padding: "2px 8px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>Ctrl+F</kbd>
+              <span>본문 찾기 (단어·구절 검색)</span>
+              <kbd style={{ padding: "2px 8px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>Ctrl+H</kbd>
+              <span>본문 바꾸기 (검색 + 모두 바꾸기)</span>
               <kbd style={{ padding: "2px 8px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>Ctrl+D</kbd>
               <span>본문 다운로드 (.docx)</span>
               <kbd style={{ padding: "2px 8px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>Ctrl+B</kbd>
               <span>오른쪽 채팅 워크북 토글</span>
+              <kbd style={{ padding: "2px 8px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>Ctrl+Z / Ctrl+Y</kbd>
+              <span>단락 차원 되돌리기·다시 하기</span>
               <kbd style={{ padding: "2px 8px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>Esc</kbd>
-              <span>현재 편집 취소·blur</span>
+              <span>현재 편집·모달 취소·blur</span>
             </div>
           </div>
           <div style={{ padding: "16px 20px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 10 }}>
