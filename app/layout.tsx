@@ -5,6 +5,7 @@ import { LicenseChecker } from "@/components/LicenseChecker";
 import { ClaudeCliGate } from "@/components/ClaudeCliGate";
 import { ErrorReporter } from "@/components/ErrorReporter";
 import { SessionBanner } from "@/components/SessionBanner";
+import { OnboardingOverlay } from "@/components/OnboardingOverlay";
 
 export const metadata: Metadata = {
   title: "SUNNY Story Maker — 작가의 첫 줄",
@@ -24,6 +25,7 @@ export default function RootLayout({
         <LicenseChecker />
         <ClaudeCliGate />
         <ErrorReporter />
+        <OnboardingOverlay />
       </body>
     </html>
   );
