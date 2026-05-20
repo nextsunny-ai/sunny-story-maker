@@ -19,6 +19,7 @@ import { getWorkflow, QUICK_ACTIONS } from "@/lib/workflows";
 import { useKeyboard } from "@/lib/use-keyboard";
 import { autoBackupDocx } from "@/lib/storymaker/auto-backup";
 import { createSnapshot } from "@/lib/storymaker/snapshots";
+import { SnapshotHistory } from "@/components/SnapshotHistory";
 import {
   MediumFieldRenderer,
   buildDefaultValues,
@@ -863,6 +864,9 @@ function WriteMain() {
     }, 60 * 1000); // 매 1분 체크
     return () => clearInterval(interval);
   }, [isDemo, storageKey, persistKey, saveSnapshot]);
+
+  // ★ V3.1 — 옛 버전 복원 UI 토글
+  const [snapshotOpen, setSnapshotOpen] = useState(false);
 
   // 워크북 패널 토글
   const [bookOpen, setBookOpen] = useState<boolean>(true);
@@ -1826,6 +1830,7 @@ function WriteMain() {
           onColumnAdd={onColumnAdd}
           onColumnRemove={onColumnRemove}
           onBlockReorder={onBlockReorder}
+          onOpenSnapshots={() => setSnapshotOpen(true)}
           paused={paused}
           onPauseToggle={() => {
             // 🛑 중지 — AI streaming 즉시 abort + 현재 streaming 단락을 done으로
@@ -1903,6 +1908,26 @@ function WriteMain() {
           </>
         )}
       </div>
+
+      {/* ★ V3.1 — 옛 버전 복원 UI */}
+      {persistKey && (
+        <SnapshotHistory
+          workId={persistKey}
+          open={snapshotOpen}
+          onClose={() => setSnapshotOpen(false)}
+          onRestore={(body, _notesText) => {
+            // 본문을 = paras 1개 = ProseBlock으로 (= 작가가 다음 작업 시 매체별 재분할)
+            const restoredParas: Para[] = body.split(/\n\s*\n+/).map((text, i) => ({
+              id: `restored_${Date.now()}_${i}`,
+              n: i + 1,
+              label: i === 0 ? "복원됨" : `복원 ${i + 1}`,
+              text: text.trim(),
+              status: "done" as const,
+            }));
+            setParas(restoredParas);
+          }}
+        />
+      )}
     </main>
   );
 }

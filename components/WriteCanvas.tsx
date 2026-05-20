@@ -53,6 +53,8 @@ interface WriteCanvasProps {
   onColumnRemove?: (key: string) => void;
   // ★ V3.1 B4 진짜 drag-drop
   onBlockReorder?: (draggedId: string, targetId: string, position: "before" | "after") => void;
+  // ★ V3.1 — 옛 버전 복원 모달 열기 (Supabase work_snapshots)
+  onOpenSnapshots?: () => void;
   bookOpen: boolean;
   onBookToggle: () => void;
   notesCount: number;
@@ -61,7 +63,7 @@ interface WriteCanvasProps {
 
 export function WriteCanvas({
   work, paras, doc, paused, onPauseToggle, onRewrite, onEdit, onEditAll, onContinue, onImport, onDownload,
-  onBlockEdit, onBlockRewrite, onBlockContinue, onAddHeader, onBlockDelete, onBlockMove, onColumnAdd, onColumnRemove, onBlockReorder,
+  onBlockEdit, onBlockRewrite, onBlockContinue, onAddHeader, onBlockDelete, onBlockMove, onColumnAdd, onColumnRemove, onBlockReorder, onOpenSnapshots,
   bookOpen, onBookToggle, notesCount, aiBusy,
 }: WriteCanvasProps) {
   const I = ICONS;
@@ -303,6 +305,18 @@ export function WriteCanvas({
                 >
                   <span className="wcanvas-book-toggle-icon">📂</span>
                   <span>폴더 열기</span>
+                </button>
+              )}
+              {/* ★ V3.1 — 옛 버전 복원 (5분마다 Supabase work_snapshots에 박힌 본문) */}
+              {onOpenSnapshots && (
+                <button
+                  type="button"
+                  className="wcanvas-book-toggle"
+                  onClick={onOpenSnapshots}
+                  title="옛 버전으로 돌아가기 (5분마다 자동 박힌 본문)"
+                >
+                  <span className="wcanvas-book-toggle-icon">⏮</span>
+                  <span>옛 버전</span>
                 </button>
               )}
             </>
