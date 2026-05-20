@@ -166,9 +166,10 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
     { section: "TOOLS", items: [
       { id: "chat",    label: "Co-Writer",    icon: I.chat },
       { id: "review",  label: "Review",       icon: I.review },
-      { id: "package", label: "Plan Package", icon: I.package },
-      // ★ V3.1.1 — OSMU·지원사업 = 토큰 한계 = V3.2 보류 (대표님 명시 2026-05-20).
-      // 코드는 보존 (글로벌 룰 17). URL 직접 진입은 가능. 작가 메뉴에서만 숨김.
+      // ★ V3.1.1 — Plan Package·OSMU·지원사업 = 토큰 한계 = V3.2 보류 (대표님 명시 2026-05-20).
+      // 한 호출에 여러 산출물 (트리트먼트+시놉+캐릭터+...) 한 번 = 출력 한도 + 한도 즉시 도달.
+      // 코드 한 줄도 안 지움 (글로벌 룰 17 = 옛 작업 보존). URL 직접 진입 가능. 작가 메뉴에서만 숨김.
+      // { id: "package", label: "Plan Package", icon: I.package },
       // { id: "osmu",    label: "OSMU",         icon: I.osmu },
       // { id: "grant",   label: "지원사업 신청서", icon: I.book || I.package },
     ]},
