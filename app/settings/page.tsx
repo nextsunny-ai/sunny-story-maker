@@ -40,6 +40,25 @@ export default function SettingsPage() {
     updatePrefs({ backupFolder: null });
   };
 
+  // ★ V3.1.1 — 현재 저장 폴더를 OS 탐색기에 열기 (Tauri 데스크탑 앱만)
+  const handleOpenFolder = async () => {
+    if (!isTauri) {
+      alert("데스크탑 앱에서만 = 폴더 열기 가능합니다. 웹 = 폴더 위치만 확인 가능.");
+      return;
+    }
+    try {
+      const { open } = await import("@tauri-apps/plugin-shell");
+      const target = currentFolder || prefs.backupFolder;
+      if (!target) {
+        alert("저장 폴더가 박혀있지 않습니다. 먼저 = 📁 폴더 변경으로 폴더 선택.");
+        return;
+      }
+      await open(target);
+    } catch (e) {
+      alert("폴더 열기 실패: " + (e instanceof Error ? e.message : String(e)));
+    }
+  };
+
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getUser();
@@ -165,6 +184,24 @@ export default function SettingsPage() {
                 }}
               >
                 📁 폴더 변경
+              </button>
+              {/* ★ V3.1.1 — 현재 저장 폴더 = OS 탐색기에 열기 */}
+              <button
+                type="button"
+                onClick={handleOpenFolder}
+                disabled={!isTauri}
+                style={{
+                  padding: "7px 14px",
+                  fontSize: 12, fontWeight: 600,
+                  background: isTauri ? "var(--card-soft)" : "var(--card-soft)",
+                  color: isTauri ? "var(--ink-1)" : "var(--ink-5)",
+                  border: "1px solid var(--line)",
+                  borderRadius: 6,
+                  cursor: isTauri ? "pointer" : "not-allowed",
+                }}
+                title={isTauri ? "현재 저장 폴더를 탐색기에 열기" : "데스크탑 앱에서만 가능"}
+              >
+                📂 폴더 열기
               </button>
               {prefs.backupFolder && (
                 <button
