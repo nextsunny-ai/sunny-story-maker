@@ -10,7 +10,7 @@ import type { MediumCanvasRouterProps } from "./MediumCanvasRouter";
 
 export function PanelCanvas({ doc, paused, onBlockEdit, onBlockContinue }: MediumCanvasRouterProps) {
   return (
-    <>
+    <div className="panel-canvas">
       {doc.blocks.length === 0 && (
         <div style={{ padding: 24, color: "var(--ink-4)", fontSize: 13, textAlign: "center" }}>
           빈 작업실입니다. 채팅에서 "1화 시작해줘" 같이 요청하시거나 원고를 가져오세요.
@@ -19,7 +19,7 @@ export function PanelCanvas({ doc, paused, onBlockEdit, onBlockContinue }: Mediu
       {doc.blocks.map((b) => (
         <BlockRouter key={b.id} block={b} paused={paused} onEdit={onBlockEdit} onContinue={onBlockContinue} />
       ))}
-    </>
+    </div>
   );
 }
 

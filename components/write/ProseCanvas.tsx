@@ -34,7 +34,7 @@ export function ProseCanvas({
   };
 
   return (
-    <>
+    <div className="prose-canvas">
       {/* 회차헤더·장번호 메타 박스 (PROSE 전용) */}
       {onAddHeader && (
         <div style={{ marginBottom: 16 }}>
@@ -126,7 +126,7 @@ export function ProseCanvas({
           빈 작업실입니다. 우측 채팅에서 시작하시거나 [📥 원고 가져오기]로 기존 원고를 가져오세요.
         </div>
       )}
-    </>
+    </div>
   );
 }
 

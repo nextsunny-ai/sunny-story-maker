@@ -1233,8 +1233,17 @@ function WriteMain() {
   const doc = useMemo<WriteDocV3>(() => {
     const base = migrateParasToDoc(paras as Array<{id:string;text:string;status:"done"|"streaming"|"pending";label?:string;notes?:string}>, genreParam);
     if (headerBlocks.length === 0) return base;
-    // HeaderBlock을 ProseBlock 앞에 끼움 (간단히 맨 위에 모음 — 정밀 위치는 단계 2+)
-    return { ...base, blocks: [...headerBlocks, ...base.blocks] };
+    // ★ V3.1 B2 — afterBlockId 박혀있으면 = 그 위치에 / 없으면 = 최상단
+    const topHeaders = headerBlocks.filter(h => !(h as { afterBlockId?: string }).afterBlockId);
+    const positionedHeaders = headerBlocks.filter(h => !!(h as { afterBlockId?: string }).afterBlockId);
+    const blocks: BlockV3[] = [...topHeaders];
+    for (const b of base.blocks) {
+      blocks.push(b);
+      // 이 블록 다음에 박혀야 하는 header들
+      const after = positionedHeaders.filter(h => (h as { afterBlockId?: string }).afterBlockId === b.id);
+      blocks.push(...after);
+    }
+    return { ...base, blocks };
   }, [paras, genreParam, headerBlocks]);
 
   const onBlockEdit = (blockId: string, patch: Partial<BlockV3>) => {
@@ -1298,7 +1307,9 @@ function WriteMain() {
     }
   };
 
-  const onAddHeader = (level: "episode" | "chapter", title: string, number?: string) => {
+  const onAddHeader = (level: "episode" | "chapter", title: string, number?: string, afterParaId?: string) => {
+    // ★ V3.1 B2 — 정밀 위치 지원. afterParaId 박혀있으면 = 그 단락 다음에 헤더 박힘.
+    //   없으면 = 옛 path = 최상단 모음.
     const newHeader: HeaderBlockV3 = {
       id: `h_${Date.now()}`,
       kind: "header",
@@ -1306,8 +1317,13 @@ function WriteMain() {
       title,
       number,
       status: "done",
-    };
+      ...(afterParaId ? { afterBlockId: afterParaId } : {}),
+    } as HeaderBlockV3;
     setHeaderBlocks(prev => [...prev, newHeader]);
+  };
+
+  const onRemoveHeader = (headerId: string) => {
+    setHeaderBlocks(prev => prev.filter(h => h.id !== headerId));
   };
 
   // 더 쓰기 — 이 단락 다음에 빈 단락 추가. 작가가 직접 쓰거나(✍️ 직접 쓰기),

@@ -62,9 +62,9 @@ function ExhibitionCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanvasRou
   const others = doc.blocks.filter((b) => b.kind !== "zone");
 
   return (
-    <>
+    <div className="structured-canvas-exhibition">
       {others.map((b) => (
-        <div key={b.id} style={{ marginBottom: 12, padding: 10, color: "var(--ink-3)", fontSize: 13 }}>
+        <div key={b.id} style={{ marginBottom: 12, padding: 10, color: "var(--ink-3)", fontSize: 13, gridColumn: "1 / -1" }}>
           {"text" in b ? (b as { text: string }).text : ""}
         </div>
       ))}
@@ -86,7 +86,7 @@ function ExhibitionCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanvasRou
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -156,7 +156,7 @@ function GameCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanvasRouterPro
   const others = doc.blocks.filter((b) => b.kind !== "game-line");
 
   return (
-    <>
+    <div className="structured-canvas-game">
       {others.map((b) => (
         <div key={b.id} style={{ marginBottom: 12, padding: 10, color: "var(--ink-3)", fontSize: 13 }}>
           {"text" in b ? (b as { text: string }).text : ""}
@@ -196,7 +196,7 @@ function GameCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanvasRouterPro
           </tbody>
         </table>
       )}
-    </>
+    </div>
   );
 }
 

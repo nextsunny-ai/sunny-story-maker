@@ -19,9 +19,9 @@ export function ScreenplayCanvas({
   doc, paused, onBlockEdit, onBlockRewrite, onBlockContinue,
 }: MediumCanvasRouterProps) {
   return (
-    <>
+    <div className="screenplay-canvas">
       {doc.blocks.length === 0 && (
-        <div style={{ padding: 24, color: "var(--ink-4)", fontSize: 13, textAlign: "center" }}>
+        <div style={{ padding: 24, color: "var(--ink-4)", fontSize: 13, textAlign: "center", fontFamily: "var(--font-display)" }}>
           빈 작업실입니다. 우측 채팅에서 시작하시거나 [📥 원고 가져오기]로 기존 시나리오를 가져오세요.
         </div>
       )}
@@ -36,7 +36,7 @@ export function ScreenplayCanvas({
           onContinue={onBlockContinue}
         />
       ))}
-    </>
+    </div>
   );
 }
 

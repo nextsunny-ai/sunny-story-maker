@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { streamAgent } from "@/lib/stream-agent";
+import { TypingIndicator } from "@/components/TypingIndicator";
 
 /**
  * ItemMiniChat — 카드별 보조작가 채팅 (사장님 명시 2026-05-04)
@@ -256,7 +257,7 @@ export function ItemMiniChat({
               {m.role === "writer" ? "작가" : "보조작가"}
             </div>
             <div style={{ color: "var(--ink-2)", whiteSpace: "pre-wrap" }}>
-              {m.text || (busy && m.role === "ai" ? "응답 중…" : "")}
+              {m.text || (busy && m.role === "ai" ? <TypingIndicator /> : "")}
             </div>
           </div>
         ))}

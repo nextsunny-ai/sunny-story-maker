@@ -8,6 +8,7 @@ import { GENRES } from "@/lib/genres";
 import { MediumCanvasRouter } from "@/components/write/MediumCanvasRouter";
 import { Markdown } from "@/components/Markdown";
 import { LibraryPicker } from "@/components/LibraryPicker";
+import { TypingIndicator } from "@/components/TypingIndicator";
 
 export interface WorkInfo {
   title: string;
@@ -694,9 +695,16 @@ function Paragraph({ p, paused, onRewrite, onEdit, onContinue }: {
           </div>
         ) : (
           <div className="wpara-text">
-            <Markdown text={p.text} />
-            {isStreaming && (
-              <span className={"wpara-cursor" + (paused ? " is-paused" : "")}></span>
+            {/* V3.1 A5 — 본문 streaming인데 아직 한 글자도 안 박혔으면 = TypingIndicator로 살아있게 */}
+            {isStreaming && !p.text ? (
+              <TypingIndicator variant="card" />
+            ) : (
+              <>
+                <Markdown text={p.text} />
+                {isStreaming && (
+                  <span className={"wpara-cursor" + (paused ? " is-paused" : "")}></span>
+                )}
+              </>
             )}
           </div>
         )}

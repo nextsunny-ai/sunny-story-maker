@@ -33,10 +33,25 @@ export function appendTurns(
   if (merged.length <= MAX_TURNS) {
     return { messages: merged, compactedSummary: current.compactedSummary };
   }
-  // 옛 turn = 단순 truncate. compactedSummary가 있으면 = 그대로 유지 (다음 라운드 정교화).
+  // ★ V3.1 C3 보강 — 옛 turn = 단순 truncate + 첫·중간·끝 snippet 박힘 = AI가 맥락 인지
   const truncated = merged.slice(-KEEP_RECENT);
+  const dropped = merged.slice(0, merged.length - KEEP_RECENT);
+  const droppedCount = dropped.length;
+
+  // 옛 turn 중 = 첫·중간·끝 1개씩 snippet (각 200자 미만)
+  const first = dropped[0]?.content?.slice(0, 200) || "";
+  const mid = dropped[Math.floor(dropped.length / 2)]?.content?.slice(0, 200) || "";
+  const last = dropped[dropped.length - 1]?.content?.slice(0, 200) || "";
+
+  const newSummary = current.compactedSummary
+    ? `${current.compactedSummary}\n\n(추가로 ${droppedCount} turn = truncate)`
+    : `(옛 ${droppedCount} turn 요약 — 정교 요약은 다음 라운드)
+- 첫 발화: ${first}…
+- 중간: ${mid}…
+- 끝: ${last}…`;
+
   return {
     messages: truncated,
-    compactedSummary: current.compactedSummary || `(옛 ${merged.length - KEEP_RECENT} turn = 단순 truncate. 정교 요약 = 다음 라운드)`,
+    compactedSummary: newSummary,
   };
 }

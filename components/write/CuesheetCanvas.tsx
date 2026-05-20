@@ -15,7 +15,7 @@ export function CuesheetCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanv
   const otherBlocks = doc.blocks.filter((b) => b.kind !== "cue-row");
 
   return (
-    <>
+    <div className="cuesheet-canvas">
       {otherBlocks.map((b) => (
         <div key={b.id} style={{ marginBottom: 12, padding: 10, background: "var(--card-soft)", border: "1px dashed var(--line)", borderRadius: 8, fontSize: 13 }}>
           {"text" in b ? (b as { text: string }).text : ""}
@@ -58,7 +58,7 @@ export function CuesheetCanvas({ doc, onBlockEdit, onBlockContinue }: MediumCanv
           </tbody>
         </table>
       )}
-    </>
+    </div>
   );
 }
 

@@ -28,6 +28,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { notifyAsync } from "@/lib/telegram";
 
 const VALID_LEVELS = ["error", "warn", "info"] as const;
 type Level = typeof VALID_LEVELS[number];
@@ -82,30 +83,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, warn: "log table not ready" }, { status: 200 });
   }
 
-  // critical (= level=error) + 사장님 텔레그램 옵션
+  // ★ V3.1 F3 — 통합 텔레그램 알림 (error 레벨만)
   if (body.level === "error") {
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_ERROR_CHAT_ID || process.env.TELEGRAM_FEEDBACK_CHAT_ID;
-    if (botToken && chatId) {
-      const lines = [
-        "🚨 스토리메이커 — 클라이언트 에러",
-        "",
-        `👤 ${userData.user?.email ?? "(비로그인)"}`,
-        `📍 ${body.url ?? "?"}`,
-        `🛠 ${body.appVersion ?? "?"} · ${body.source ?? "?"}`,
-        "",
-        message.slice(0, 800),
-      ];
-      fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: lines.join("\n"),
-          disable_web_page_preview: true,
-        }),
-      }).catch(() => { /* silent */ });
-    }
+    notifyAsync("error", "스토리메이커 — 클라이언트 에러", {
+      "작가": userData.user?.email ?? "(비로그인)",
+      "URL": body.url ?? "?",
+      "버전": body.appVersion ?? "?",
+      "소스": body.source ?? "?",
+      "메시지": message.slice(0, 800),
+    });
   }
 
   return NextResponse.json({ success: true });

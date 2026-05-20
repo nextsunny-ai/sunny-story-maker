@@ -91,9 +91,24 @@ export async function POST(req: NextRequest) {
 
     const cleaned = text.trim();
     if (!cleaned) {
+      // V3.1 D5 — 매체별 친절 안내
+      const ext = name.split(".").pop() || "?";
+      let hint = "본문을 직접 복사해서 붙여넣어 주세요.";
+      if (ext === "pdf") {
+        hint = "스캔된 PDF·이미지 PDF는 텍스트 추출이 불가능합니다.\n[해결] (a) 원본 워드(.docx)·한글(.hwpx) 파일을 받아 업로드 / (b) PDF를 OCR 도구로 텍스트화 후 .txt 업로드 / (c) 본문을 직접 복사해서 붙여넣기.";
+      } else if (ext === "docx") {
+        hint = "워드 파일이 비어있거나 = 본문이 표·이미지 안에만 있을 수 있습니다. (a) 워드에서 본문 평문으로 복사 / (b) [다른 이름으로 저장] → 평문(.txt) 후 업로드 / (c) 본문 직접 붙여넣기.";
+      } else if (ext === "hwpx") {
+        hint = "한글(.hwpx) 본문이 비어있거나 = 표·이미지 안에만 있을 수 있습니다. 한컴에서 평문으로 복사 후 직접 붙여넣기를 권합니다.";
+      }
       return new Response(JSON.stringify({
-        error: "파일에서 텍스트를 찾지 못했습니다. 스캔된 PDF 또는 이미지 PDF일 수 있습니다. 본문을 직접 복사해주세요.",
+        error: `파일에서 텍스트를 찾지 못했습니다 (.${ext}).\n\n${hint}`,
       }), { status: 422, headers: { "content-type": "application/json" } });
+    }
+
+    // V3.1 D5 — 매우 짧은 본문 = 작가에게 경고 (= 정상 import가 아닐 가능성)
+    if (cleaned.length < 50) {
+      console.warn(`[upload] 본문이 매우 짧음 (${cleaned.length}자) — ${name}`);
     }
 
     const response: UploadResponse = {

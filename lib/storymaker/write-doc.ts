@@ -39,11 +39,14 @@ export interface ProseBlock extends BlockBase {
 }
 
 // ─── 2. HeaderBlock — 회차헤더·장 명시 (PROSE + 다른 그룹 공통) ───
+//   ★ V3.1 B2 — afterBlockId = 단락 사이에 박을 수 있는 위치 지정 (옛엔 최상단 모음만)
 export interface HeaderBlock extends BlockBase {
   kind: "header";
   level: "episode" | "chapter" | "act" | "scene-group";
   title: string;
   number?: string;
+  /** 이 단락(블록 id) 다음에 박힘. 없으면 = 최상단. (V3.1 B2) */
+  afterBlockId?: string;
 }
 
 // ─── 3. SceneHeadingBlock — SCREENPLAY 씬 헤딩 ───

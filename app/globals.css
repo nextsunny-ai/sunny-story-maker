@@ -5205,6 +5205,207 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ============================================================
+   V3.1 A2 — 매체별 본문 캔버스 시각 차별화
+   - 시나리오 (A·B·C·D·E·I·N) = monospace + 들여쓰기·S# 강조
+   - 웹툰 (F) = 컷 카드 = 폴라로이드 느낌
+   - 큐시트 (G·J·M) = 진짜 표 = 셀 borders + sticky header
+   - 소설·에세이 (H·O·P) = 산문 = serif + 더 넓은 line-height + 1열 책 느낌
+   - 게임 (L) = 모노스페이스 + 분기 시각화
+   - 전시 (K) = 카드 grid
+   ============================================================ */
+
+/* SCREENPLAY · STAGE — A·B·C·D·E·I·N */
+.screenplay-canvas {
+  font-family: "Courier New", "D2Coding", "맑은 고딕", monospace;
+  font-size: 13.5px;
+  line-height: 1.85;
+  color: var(--ink-1);
+}
+.screenplay-canvas .scene-heading {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 14px 0 4px;
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+}
+.screenplay-canvas .character-name {
+  font-weight: 700;
+  padding-left: 90px;
+  letter-spacing: 0.05em;
+}
+.screenplay-canvas .dialogue {
+  padding-left: 50px;
+  padding-right: 50px;
+}
+.screenplay-canvas .parenthetical {
+  padding-left: 70px;
+  font-style: italic;
+  color: var(--ink-3);
+}
+.screenplay-canvas .action {
+  padding: 6px 0;
+}
+
+/* PANEL — F (웹툰) */
+.panel-canvas {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bg-soft, #fafaf7);
+  padding: 18px;
+  border-radius: 12px;
+}
+.panel-canvas .cut-card {
+  background: #fff;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05), 0 1px 0 #fff inset;
+  position: relative;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.panel-canvas .cut-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+.panel-canvas .cut-card::before {
+  content: "";
+  position: absolute;
+  top: -1px; left: -1px; right: -1px;
+  height: 4px;
+  background: linear-gradient(90deg, var(--coral) 0%, var(--ink-4) 100%);
+  border-radius: 10px 10px 0 0;
+}
+.panel-canvas .cut-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--coral-deep, #c84738);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+/* CUESHEET — G·J·M */
+.cuesheet-canvas {
+  font-size: 13px;
+}
+.cuesheet-canvas table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+}
+.cuesheet-canvas thead {
+  position: sticky;
+  top: 0;
+  background: var(--card-soft);
+  z-index: 1;
+}
+.cuesheet-canvas th,
+.cuesheet-canvas td {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+.cuesheet-canvas th {
+  font-weight: 700;
+  font-size: 11.5px;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+  text-transform: uppercase;
+}
+.cuesheet-canvas tr:hover td {
+  background: var(--card-soft);
+}
+
+/* PROSE — H·O·P (산문·소설·에세이) */
+.prose-canvas {
+  font-family: "Noto Serif KR", "Nanum Myeongjo", "맑은 고딕", serif;
+  font-size: 15.5px;
+  line-height: 2.0;
+  color: var(--ink-1);
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 8px;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,0.01));
+}
+.prose-canvas .paragraph {
+  text-indent: 1.5em;
+  margin-bottom: 1em;
+}
+.prose-canvas .header-block {
+  text-align: center;
+  font-weight: 700;
+  font-size: 18px;
+  margin: 32px 0 20px;
+  letter-spacing: -0.01em;
+  text-indent: 0;
+}
+.prose-canvas .header-block.episode {
+  font-size: 22px;
+  color: var(--ink-1);
+  border-bottom: 2px solid var(--ink-1);
+  padding-bottom: 8px;
+  display: inline-block;
+  margin: 32px auto 16px;
+}
+.prose-canvas .header-block.chapter {
+  color: var(--ink-2);
+}
+
+/* STRUCTURED — K (전시). 내부에서 자체 layout (flex/grid) 직접 결정. */
+.structured-canvas-exhibition .zone-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  position: relative;
+  transition: border-color 0.2s;
+}
+.structured-canvas-exhibition .zone-card:hover {
+  border-color: var(--coral);
+}
+.structured-canvas-exhibition .zone-card .zone-number {
+  position: absolute;
+  top: 12px; right: 14px;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--coral);
+  opacity: 0.2;
+  line-height: 1;
+}
+
+/* STRUCTURED — L (게임 = 분기 + 대사 데이터) */
+.structured-canvas-game {
+  font-family: "D2Coding", "Courier New", monospace;
+  font-size: 12.5px;
+}
+.structured-canvas-game .game-line {
+  display: grid;
+  grid-template-columns: 50px 100px 80px 1fr;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+}
+.structured-canvas-game .game-line:nth-child(odd) {
+  background: var(--card-soft);
+}
+.structured-canvas-game .game-line .id { color: var(--ink-4); }
+.structured-canvas-game .game-line .character { font-weight: 700; }
+.structured-canvas-game .game-line .emotion { color: var(--coral-deep, #c84738); font-size: 11px; }
+.structured-canvas-game .game-line .text { color: var(--ink-1); }
+
+/* 캔버스 공통 — page-break 안 깨지게 */
+@media print {
+  .screenplay-canvas .scene-heading,
+  .panel-canvas .cut-card,
+  .cuesheet-canvas tr {
+    page-break-inside: avoid;
+  }
+}
+
+/* ============================================================
    V3.1 #4 — 반응형 모바일·태블릿
    - 1024px 미만 = 태블릿: 사이드바 축소·패딩 축소
    - 768px 미만 = 모바일: 사이드바 hidden + 풀스크린 main
