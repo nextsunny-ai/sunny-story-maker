@@ -12,10 +12,10 @@ export const dynamic = "force-dynamic";
 
 // 현재 라이브 버전 (= 매 릴리스 시 갱신)
 const LATEST = {
-  version: "1.0.0",
-  pub_date: "2026-05-13T09:00:00Z",
+  version: "1.0.1",
+  pub_date: "2026-05-22T08:30:00Z",
   notes:
-    "V1.0.0 — 에이전트 프로 데스크탑 .exe 출시. 12명 SUNNY 에이전트 + claude CLI subprocess (= 작가 본인 Pro/Max 구독으로 비용 0).",
+    "V1.0.1 — OAuth 로그인 사고 정정. single-instance plugin 추가 + deep link 핸들러 정정 = 인증 후 자동 진입.",
 };
 
 interface Params {
