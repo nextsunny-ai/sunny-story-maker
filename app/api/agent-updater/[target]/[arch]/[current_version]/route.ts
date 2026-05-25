@@ -12,10 +12,10 @@ export const dynamic = "force-dynamic";
 
 // 현재 라이브 버전 (= 매 릴리스 시 갱신)
 const LATEST = {
-  version: "1.1.0",
-  pub_date: "2026-05-26T12:00:00Z",
+  version: "1.1.1",
+  pub_date: "2026-05-27T00:00:00Z",
   notes:
-    "v1.1.0 — 6 영역 9/10 정정. 보안 (CSP·ADMIN RPC·JWT RS256 path·XSS scheme)·UX (Hero 한국어·OAuth 녹색·페르소나 예시 chip·첫 셋업 7단계)·UI (이모지 → Lucide·아바타 정정·AP 단색)·백엔드 (CHECK·테이블·인덱스·owner 함수)·SKILL (sys_prompt v2 풀세트 + 카드 copy 정정)·유료화 path (Plan 게이트 flag·LemonSqueezy stub). terms·privacy 신규.",
+    "v1.1.1 긴급 정정 — 데스크탑 앱 채팅 사고 (= Tauri 환경 인식 X = API 키 검증 alert 박힘) 정정. sendChat = Tauri 환경 = API 키 검증 skip = Claude CLI subprocess 정상 호출.",
 };
 
 interface Params {
