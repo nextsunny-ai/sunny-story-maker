@@ -227,6 +227,34 @@ export const GENRES: Genre[] = [
       { n: 4, name: "퇴고·문장", short: "퇴고" },
     ],
   },
+  {
+    letter: "Q", name: "브랜딩 스토리", sub: "기업·IP·페스티벌 브랜드 내러티브",
+    format: "워드/PDF", pages: "A4 3~15p",
+    formatOptions: ["브랜드 원페이저 (A4 3~5p)", "브랜드 바이블 (A4 10~15p)", "SNS 콘텐츠 시리즈 (5~10편)", "피치덱 스크립트 (15장)"],
+    standard: "브랜드 내러티브 (.docx / PDF)",
+    rhythm: "WHY 먼저 · 감정 아크 · 비하인드 진정성",
+    steps: [
+      { n: 1, name: "브랜드 코어 (WHY·가치)", short: "코어" },
+      { n: 2, name: "세계관·톤&매너", short: "세계관" },
+      { n: 3, name: "핵심 내러티브", short: "내러티브" },
+      { n: 4, name: "비하인드 스토리", short: "비하인드" },
+      { n: 5, name: "채널별 카피", short: "카피" },
+    ],
+  },
+  {
+    letter: "R", name: "동화책·그림책", sub: "12~16 스프레드 그림책",
+    format: "워드 + 그림지시", pages: "12~16 스프레드",
+    formatOptions: ["12 스프레드 (유아용)", "16 스프레드 (그림책 표준)", "24 스프레드 (긴 이야기)", "보드북 (10 스프레드)"],
+    standard: "그림책 스프레드 (.docx)",
+    rhythm: "짧은 본문 + 그림지시 · 1교훈 원칙 · 반복 리듬",
+    steps: [
+      { n: 1, name: "로그라인·타겟 연령", short: "로그라인" },
+      { n: 2, name: "주제·교훈", short: "주제" },
+      { n: 3, name: "캐릭터", short: "캐릭터" },
+      { n: 4, name: "스프레드 구성 (장면 배치)", short: "구성" },
+      { n: 5, name: "본문·그림지시", short: "본문" },
+    ],
+  },
 ];
 
 export function getGenre(letter: string): Genre | undefined {

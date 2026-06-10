@@ -9,7 +9,7 @@ import { WriteCanvas, type Para, type WorkInfo } from "@/components/WriteCanvas"
 import { WriteWorkbook, type Note, type FlowItem, type ChatMsg } from "@/components/WriteWorkbook";
 import { Btn } from "@/components/ui";
 import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
-import { appendTurns } from "@/lib/storymaker/work-id";
+import { appendTurns, getWorkId } from "@/lib/storymaker/work-id";
 import { downloadDocx, downloadTxt, downloadFountain, downloadPdfViaPrint } from "@/lib/storymaker/export";
 import type { WriteDoc as WriteDocV3, Block as BlockV3, ProseBlock as ProseBlockV3, HeaderBlock as HeaderBlockV3 } from "@/lib/storymaker/write-doc";
 import { migrateParasToDoc } from "@/lib/storymaker/block-convert";
@@ -448,8 +448,10 @@ function projectKeyFor(mode: string | null, isDemo: boolean, projectParam: strin
   if (isDemo) return null;
   if (mode === "continue" && projectParam) return projectParam;
   if (mode === "new" && ideaParam) {
-    // 매체별로 분리 — 같은 idea라도 매체 다르면 다른 작품
-    return `new:${genreLetter}:${ideaParam.slice(0, 40)}`;
+    // ★ 2026-06-01 — develop·adapt·review·package와 동일한 getWorkId 형식으로 통일.
+    //   옛 `new:${genre}:${idea}` = write만 다른 키 → develop에서 쌓은 대화·핸드오프·클라우드 작품을 write가 못 읽던 버그.
+    //   이제 (genre, idea) 같으면 = 모든 화면이 같은 workId = "한 클로드가 앞 내용 이어받음".
+    return getWorkId(genreLetter, ideaParam);
   }
   if (mode === "new" && !ideaParam) {
     return null; // 매체만 있고 아이디어 없으면 의뢰 분석 폼만 — 키는 첫 채움 후
@@ -699,9 +701,15 @@ function WriteMain() {
     const prog = Math.min(1, totalChars / 5000);
     const today = new Date();
     const updatedStr = `${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
+    // ★ 2026-06-01 — 작품 제목 자동 부여: 제목이 기본값("새 작품…")이면 본문 첫 줄에서 추출 (라이브러리 "새 작품" 범벅 방지).
+    const isDefaultTitle = !work.title || /^새 작품/.test(work.title);
+    const firstLine = paras.find(p => p.text && p.text.trim())?.text.trim().split("\n")[0].replace(/^#+\s*/, "").replace(/^S#\d+\.\s*/, "").trim() || "";
+    const autoTitle = (isDefaultTitle && firstLine)
+      ? firstLine.slice(0, 30)
+      : (work.title || ideaParam.slice(0, 40) || "(제목 없음)");
     const newWork: LibraryWorkLite = {
       id: persistKey,
-      title: work.title || ideaParam.slice(0, 40) || "(제목 없음)",
+      title: autoTitle,
       genre: wf.name,
       letter: genreParam,
       stage,
@@ -1004,7 +1012,15 @@ function WriteMain() {
             model: getModelChoice("write"), // ★ V2.13.4 — 본문 = Opus 기본 (옛 fast:true=Haiku 버그 정정)
             ...(persistKey ? { workId: persistKey } : {}),
             ...(initConv ? { conversationMessages: initConv.messages } : {}),
-            ...(developPrior ? { prior: developPrior } : {}),
+            // ★ 2026-06-01 — 첫 호출에도 작가노트(디렉션) 반영 (옛 사고: 첫 본문 생성 시 작가노트 누락).
+            ...((developPrior || notes.some(n => n.label?.trim())) ? {
+              prior: {
+                ...(developPrior || {}),
+                ...(notes.some(n => n.label?.trim())
+                  ? { "작가 디렉션·메모 (작가노트 — 모든 응답에 반영)": notes.filter(n => n.label?.trim()).map(n => `- ${n.label}`).join("\n") }
+                  : {}),
+              },
+            } : {}),
         }, { signal: controller.signal });
         if (!res.body) throw new Error("응답 없음");
 
@@ -1267,7 +1283,7 @@ function WriteMain() {
   //   웹 = 브라우저 다운로드 폴더 (fallback)
   const onSaveProjectFile = async () => {
     if (!paras.some(p => p.text && p.text.trim()) && !work.title) {
-      alert("아직 작성된 내용이 없습니다. 본문을 박힌 후 다시 시도해주세요.");
+      alert("아직 작성된 내용이 없습니다. 본문을 작성한 후 다시 시도해주세요.");
       return;
     }
     const savedPath = await saveSmkrToProjectFolder({
@@ -1299,7 +1315,7 @@ function WriteMain() {
     // 작가 확인 — 현재 작업 덮어쓰기 위험 안내
     const currentHasWork = paras.some(p => p.text && p.text.trim());
     if (currentHasWork) {
-      if (!confirm(`현재 작업 중인 본문이 있습니다.\n\n"${f.work.title || "(제목 없음)"}" 작품을 열면 = 현재 본문이 덮어쓰여집니다.\n(자동저장에 옛 본문은 박혀있으니 = 옛 버전 복원 가능)\n\n계속할까요?`)) {
+      if (!confirm(`현재 작업 중인 본문이 있습니다.\n\n"${f.work.title || "(제목 없음)"}" 작품을 열면 = 현재 본문이 덮어쓰여집니다.\n(자동저장에 옛 본문은 저장돼 있으니 = 옛 버전 복원 가능)\n\n계속할까요?`)) {
         return;
       }
     }
@@ -1519,9 +1535,13 @@ function WriteMain() {
     //   새 path: 작가 메시지 키워드 분석
     //   - 수정·평가·질문·의견 키워드 = "chat" 모드 = 본문 자동 추가 X = AI 응답만
     //   - "다음·이어·계속" 명시 또는 키워드 X = "script" 모드 = 새 단락 추가 (옛 path)
+    // ★ 2026-06-01 정정 — 작가의 "본문 써달라" 명령은 항상 script(본문 생성)로.
+    //   옛 사고: "이 씬 더 길게 써줘"·"2번 다시 써줘" = isChatIntent(길게/다시) 매칭 → chat(대화만) → 본문 안 바뀜.
+    //   작가는 본문이 바뀌길 기대함. 글쓰기 동사("써줘/작성/이어 써/추가")가 있으면 무조건 script로 우선.
+    const isWriteCommand = /써\s*줘|써\s*줄래|써\s*주세요|써\s*봐|작성|다시\s*써|이어\s*써|추가\s*해|추가해|넣어\s*줘|만들어\s*줘|생성/i.test(text);
     const isChatIntent = /수정|다시|짧게|길게|바꿔|고쳐|어때|어떻게|괜찮|좋아|싫어|별로|왜|이유|설명|뜻|의미|느낌|톤|평가|짧은|긴|이상|어색|자연|개선|첫\s*씬|첫\s*단락|\d+번|\d+\s*씬|\d+\s*단락/i.test(text);
     const isContinueIntent = /다음|이어|계속|^더\s|새\s*단락|다음\s*씬/i.test(text);
-    const mode: "chat" | "script" = isChatIntent && !isContinueIntent ? "chat" : "script";
+    const mode: "chat" | "script" = isWriteCommand ? "script" : (isChatIntent && !isContinueIntent ? "chat" : "script");
 
     const currentScript = paras
       .filter(p => p.text && p.text.trim())
@@ -1555,6 +1575,9 @@ function WriteMain() {
         t: "방금"
       }]);
     }
+
+    // ★ 2026-06-01 — 작가가 🛑 중지를 눌렀다가 다시 보내면 = paused 해제 (옛 사고: paused=true 고착 → 재시작 막힘)
+    setPaused(false);
 
     const ac = new AbortController();
     aiAbortRef.current = ac; // ★ 외부 ⏸ 잠깐 버튼이 이 코멘트 호출도 abort 가능하도록
@@ -1905,7 +1928,9 @@ function WriteMain() {
     const startW = workbookWidth;
     const onMove = (ev: MouseEvent) => {
       const delta = startX - ev.clientX;
-      const next = Math.max(240, Math.min(720, startW + delta));
+      // ★ 2026-06-01 — 본문 최소 360px 확보: 워크북 최대 = 화면폭의 42% 또는 720px 중 작은 값.
+      const vwCap = typeof window !== "undefined" ? Math.floor(window.innerWidth * 0.42) : 720;
+      const next = Math.max(240, Math.min(Math.min(720, vwCap), startW + delta));
       setWorkbookWidth(next);
     };
     const onUp = () => {
@@ -1946,7 +1971,11 @@ function WriteMain() {
       />
       <div
         className={"write-shell" + (bookOpen ? " book-open" : " book-closed")}
-        style={bookOpen ? { gridTemplateColumns: `minmax(0, 1fr) 6px ${workbookWidth}px` } : undefined}
+        style={bookOpen ? {
+          // ★ 2026-06-01 본문 세로깨짐 fix — 저장된 워크북 너비가 커도 본문이 깔려 한 글자씩 세로로 쌓이던 사고.
+          //   본문 최소폭 보장(min(100%,360px)) + 워크북은 화면의 42% 이내로 제한 → 본문은 항상 읽을 수 있게.
+          gridTemplateColumns: `minmax(min(100%, 360px), 1fr) 6px clamp(240px, ${workbookWidth}px, 42vw)`,
+        } : undefined}
       >
         <WriteCanvas
           work={work}

@@ -343,9 +343,14 @@ function ProseRenderer({
   return (
     <div className={"wpara is-" + block.status + (paused && isStreaming ? " is-paused" : "")} style={{ marginBottom: 8 }}>
       <div className="wpara-body">
-        <div className="wpara-text">
-          <Markdown text={block.text} />
-        </div>
+        {/* ★ 2026-06-01 — 옛: 읽기전용 Markdown + 죽은 "수정" 버튼. 이제 다른 블록처럼 클릭=바로 편집(EditableSpan). */}
+        <EditableSpan
+          value={block.text}
+          placeholder="여기에 직접 쓰거나, 우측 대화에서 AI에게 맡기세요"
+          onChange={(v) => onEdit?.(block.id, { text: v } as Partial<Block>)}
+          multiline
+          style={{ fontSize: 14, lineHeight: 1.7, color: "var(--ink-1)" }}
+        />
         {block.status === "done" && (
           <div className="wpara-actions">
             {onRewrite && (
@@ -353,9 +358,6 @@ function ProseRenderer({
                 <span className="wpara-action-icon">↻</span><span>다시 써</span>
               </button>
             )}
-            <button type="button" className="wpara-action" onClick={() => onEdit?.(block.id, { text: block.text } as Partial<Block>)}>
-              <span className="wpara-action-icon">✎</span><span>수정</span>
-            </button>
             {onContinue && (
               <button type="button" className="wpara-action" onClick={() => onContinue(block.id)}>
                 <span className="wpara-action-icon">+</span><span>더 쓰기</span>

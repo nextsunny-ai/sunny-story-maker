@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useState, useRef, useEffect } from "react";
 import { ICONS } from "@/lib/icons";
+import { Markdown } from "@/components/Markdown";
 
 export interface ToneChip { id: string; label: string }
 export interface AdaptVersion {
@@ -25,13 +26,55 @@ interface AdaptSameModeProps {
   setFreeform: (v: string) => void;
   onLaunch: (direction: string) => void; // AI 호출 — adapt page에서 처리
   busy?: boolean;
+  /** ★ 2026-06-01 — 각색 결과 본문을 작가가 직접 클릭 편집(워드식) 시 저장 */
+  onEditVersionBody?: (vnum: number, body: string) => void;
+}
+
+/** ★ 각색 결과 본문 — write 에디터처럼 클릭하면 바로 편집 + 딴 곳 누르면 자동 저장 */
+function VersionBody({ vnum, body, onEdit }: { vnum: number; body: string; onEdit?: (vnum: number, body: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(body);
+  const cancelingRef = useRef(false);
+  useEffect(() => { setDraft(body); }, [body]);
+
+  if (!body || !body.trim()) {
+    return <div style={{ fontSize: 13, color: "var(--ink-4)", padding: "8px 0" }}>이 버전은 원본입니다 (변환 결과 없음).</div>;
+  }
+  const save = () => { if (onEdit) onEdit(vnum, draft); setEditing(false); };
+  if (editing) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <textarea
+          value={draft}
+          autoFocus
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => { if (cancelingRef.current) { cancelingRef.current = false; return; } save(); }}
+          style={{ width: "100%", minHeight: 260, padding: "14px 16px", fontSize: 14, lineHeight: 1.8, fontFamily: "var(--font-body)", color: "var(--ink-1)", background: "#fff", border: "1px solid var(--coral)", borderRadius: 10, resize: "vertical", whiteSpace: "pre-wrap" }}
+        />
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <button type="button" className="wpara-action" onClick={save}><span className="wpara-action-icon">✓</span><span>저장</span></button>
+          <button type="button" className="wpara-action" onMouseDown={() => { cancelingRef.current = true; }} onClick={() => { setDraft(body); setEditing(false); }}><span className="wpara-action-icon">✕</span><span>취소</span></button>
+          <span style={{ fontSize: 11, color: "var(--ink-4)", marginLeft: 4 }}>딴 곳을 누르면 자동 저장돼요</span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div
+      onClick={() => onEdit && setEditing(true)}
+      style={{ cursor: onEdit ? "text" : "default", background: "#fff", border: "1px solid var(--line)", borderRadius: 10, padding: "16px 18px", lineHeight: 1.8, fontSize: 14, maxHeight: "60vh", overflowY: "auto" }}
+      title={onEdit ? "클릭해서 바로 수정" : undefined}
+    >
+      <Markdown text={body} />
+    </div>
+  );
 }
 
 export function AdaptSameMode({
   versions, openVer, setOpenVer,
   TONE_CHIPS, activeChips, toggleChip,
   freeform, setFreeform,
-  onLaunch, busy = false,
+  onLaunch, busy = false, onEditVersionBody,
 }: AdaptSameModeProps) {
   const I = ICONS;
   const nextV = versions[versions.length - 1].v + 1;
@@ -185,13 +228,10 @@ export function AdaptSameMode({
                 <div className="atl-detail-row-lbl">DIFF</div>
                 <div className="atl-detail-row-val">{v.diff}</div>
               </div>
-              <div className="atl-detail-actions">
-                <button className="atl-detail-act" type="button">
-                  {I.eye || I.review}<span>이 버전 본문 열기</span>
-                </button>
-                <button className="atl-detail-act" type="button">
-                  {I.spark}<span>이 버전을 v{nextV}의 출발점으로</span>
-                </button>
+              {/* ★ 2026-06-01 — 변환 결과 본문을 바로 보여주고 클릭하면 편집(워드식). 옛: 죽은 버튼만 있고 본문이 안 보였음. */}
+              <div className="atl-detail-row" style={{ display: "block" }}>
+                <div className="atl-detail-row-lbl" style={{ marginBottom: 8 }}>본문 (클릭해서 수정)</div>
+                <VersionBody vnum={v.v} body={v.body || ""} onEdit={onEditVersionBody} />
               </div>
             </div>
           </div>

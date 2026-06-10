@@ -59,7 +59,9 @@ function DevelopMain() {
   const wf = getWorkflow(genreParam);
 
   // ★ 옛 작업 자동 복원용 키 (사장님 명시: develop에 옛 작업 있으면 보여야)
-  const developKey = ideaParam ? `storyMaker.developProject:${genreParam}:${ideaParam.slice(0, 40)}` : "";
+  // V3.1.1 정정: 옛 코드 = ideaParam 없으면 developKey = "" = 의뢰서·6단계 자동저장 전부 누락 사고.
+  //   아이디어 없이 Develop 직접 진입해도 = 장르별 "untitled" 키로 저장·복원.
+  const developKey = `storyMaker.developProject:${genreParam}:${ideaParam ? ideaParam.slice(0, 40) : "untitled"}`;
 
   // ─── Phase 관리 ───
   const [phase, setPhase] = useState<Phase>("brief");

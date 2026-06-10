@@ -315,7 +315,8 @@ export function WriteWorkbook({
               <div className="wbook-msg-text">
                 {(() => {
                   if (m.role !== "ai") return m.text;
-                  if (!m.text) return "";
+                  // ★ 2026-06-01 — 응답 대기 중 빈 말풍선 대신 "쓰는 중…" 표시 (작가가 멈춘 줄 알고 재전송하는 사고 방지)
+                  if (!m.text) return <span style={{ color: "var(--ink-4)", fontStyle: "italic" }}>Sunny가 쓰는 중…</span>;
 
                   // ★ V3.0 단계 5 — [[수정/추가/삭제:N:내용]] 마커 파싱 (본문 patch)
                   const PATCH_RE = /\[\[(수정|추가|삭제):(\d+)(?::([\s\S]*?))?\]\]/g;

@@ -176,7 +176,8 @@ export function Sidebar({ activeGenre = null, onGenreChange, userEmail, onLogout
       { id: "library",   label: "My Works", icon: I.library },
       { id: "resources", label: "Library",  icon: I.book || I.library },
     ]},
-    { section: "ACCOUNT", items: [{ id: "admin", label: "Admin", icon: I.settings }] },
+    // "Admin" 표기 = 관리자 콘솔로 오해 → 실제는 작가 프로필·설정 = Settings로 정정 (2026-06-10)
+    { section: "ACCOUNT", items: [{ id: "admin", label: "Settings", icon: I.settings }] },
   ];
 
   return (

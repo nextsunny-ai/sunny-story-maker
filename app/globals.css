@@ -4763,6 +4763,63 @@ a { color: inherit; text-decoration: none; }
   gap: 28px;
 }
 
+/* ★ write 에디터 v2 — 워드식 한 페이지 (2026-06-01) */
+.pageed-wrap {
+  position: relative;
+  width: 100%;
+}
+.pageed-area {
+  width: 100%;
+  min-height: 72vh;
+  box-sizing: border-box;
+  padding: 40px 44px 64px;
+  background: #fff;
+  border: 1px solid var(--line, #e7e3da);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 8px 28px rgba(0,0,0,0.05);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.95;
+  letter-spacing: -0.003em;
+  color: var(--ink-1, #2a2a26);
+  resize: none;
+  outline: none;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  transition: border-color var(--dur, .2s) var(--ease, ease), box-shadow var(--dur, .2s) var(--ease, ease);
+}
+.pageed-area::placeholder {
+  color: var(--ink-5, #b8b4aa);
+  line-height: 1.8;
+}
+.pageed-area:focus {
+  border-color: var(--coral, #e8765a);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 8px 30px rgba(232,118,90,0.12);
+}
+.pageed-aibadge {
+  position: sticky;
+  bottom: 12px;
+  float: right;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--coral-deep, #c4533a);
+  background: var(--coral-soft, #fbeae5);
+  border: 1px solid var(--coral, #e8765a);
+  border-radius: 999px;
+  pointer-events: none;
+}
+.pageed-aidot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--coral, #e8765a);
+  animation: wpara-blink 1s steps(1) infinite;
+}
+
 /* ---------- 단락 ---------- */
 .wpara {
   display: grid;
@@ -5480,10 +5537,24 @@ a { color: inherit; text-decoration: none; }
   }
   .write-shell.book-open .wbook {
     position: fixed !important;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0; left: 0; right: 0;
+    /* ★ 2026-06-01 — bottom:0 대신 100dvh = 모바일 소프트 키보드 뜨면 높이가 줄어 입력창이 키보드 위에 남음. */
+    height: 100dvh;
     width: 100% !important;
     z-index: 90;
     background: var(--bg, #fff);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  /* 채팅 입력창 = 항상 화면 하단 고정(키보드 위) + 홈바 여백 */
+  .write-shell.book-open .wbook .wbook-input {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg, #fff);
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line);
+    z-index: 2;
   }
   /* Topbar 제목 = 더 작게 */
   .topbar h1, .topbar-title { font-size: 22px !important; line-height: 1.3; }

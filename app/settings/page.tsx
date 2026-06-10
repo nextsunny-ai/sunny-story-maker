@@ -50,7 +50,7 @@ export default function SettingsPage() {
       const { open } = await import("@tauri-apps/plugin-shell");
       const target = currentFolder || prefs.backupFolder;
       if (!target) {
-        alert("저장 폴더가 박혀있지 않습니다. 먼저 = 📁 폴더 변경으로 폴더 선택.");
+        alert("저장 폴더가 설정돼 있지 않습니다. 먼저 📁 폴더 변경으로 폴더를 선택하세요.");
         return;
       }
       await open(target);

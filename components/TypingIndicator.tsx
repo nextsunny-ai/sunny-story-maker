@@ -56,7 +56,7 @@ export function TypingIndicator({ letter, label, variant = "inline" }: TypingInd
         <Dots />
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "var(--coral-deep)", marginBottom: 3 }}>{text}</div>
-          <div style={{ fontSize: 11, color: "var(--ink-4)" }}>잠시만요 — 본문이 곧 흐르듯 박혀요</div>
+          <div style={{ fontSize: 11, color: "var(--ink-4)" }}>잠시만요 — 본문이 곧 흐르듯 채워져요</div>
         </div>
         <style jsx>{`
           @keyframes shimmer {

@@ -6,6 +6,7 @@ import { ICONS } from "@/lib/icons";
 import { KEY, loadJSON } from "@/lib/persist";
 import { GENRES } from "@/lib/genres";
 import { MediumCanvasRouter } from "@/components/write/MediumCanvasRouter";
+import { PageEditor } from "@/components/PageEditor";
 import { Markdown } from "@/components/Markdown";
 import { LibraryPicker } from "@/components/LibraryPicker";
 import { TypingIndicator } from "@/components/TypingIndicator";
@@ -80,7 +81,9 @@ export function WriteCanvas({
 
   // ★ ImportPanel 노출 토글 — 빈 작업실에서는 자동 노출, 본문 있어도 헤더 버튼으로 다시 켤 수 있음.
   //   (옛엔 본문 비었을 때만 = 작가가 중간에 원고 추가 가져오기가 막혔던 사고)
-  const [showImport, setShowImport] = useState<boolean>(() => paras.every(p => !p.text || !p.text.trim()));
+  // ★ 2026-06-01 — 빈 새 작품은 "쓰던 원고가 있으세요" 가져오기 화면 자동 노출 X = 바로 쓰는 화면으로(대표님: 시작 단계 줄이기).
+  //   원고 가져오기는 헤더 「📥 원고 가져오기」 버튼으로 필요할 때만. (기본 false)
+  const [showImport, setShowImport] = useState<boolean>(false);
 
   // ★ V2.14.5 — 데스크탑(Tauri) 환경 = 다운로드 폴더 바로 열기 버튼 노출
   //   (대표님 명시: 작가가 자기 작품 저장된 폴더를 폴더 클릭으로 바로 열 수 있게)
@@ -219,6 +222,11 @@ export function WriteCanvas({
                     <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
                   ))}
                 </optgroup>
+                <optgroup label="브랜딩·동화">
+                  {GENRES.filter(g => ["Q","R"].includes(g.letter)).map(g => (
+                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                  ))}
+                </optgroup>
               </select>
             ) : (
               <span>{work.medium}</span>
@@ -354,7 +362,7 @@ export function WriteCanvas({
                   type="button"
                   className="wcanvas-book-toggle"
                   onClick={onOpenSnapshots}
-                  title="옛 버전으로 돌아가기 (5분마다 자동 박힌 본문)"
+                  title="옛 버전으로 돌아가기 (5분마다 자동 저장된 본문)"
                 >
                   <span className="wcanvas-book-toggle-icon">⏮</span>
                   <span>옛 버전</span>
@@ -534,17 +542,8 @@ export function WriteCanvas({
                   onBlockReorder={onBlockReorder}
                 />
               ) : (
-                paras.map((p, i) => (
-                  <Paragraph
-                    key={p.id}
-                    p={p}
-                    i={i}
-                    onRewrite={() => onRewrite(p.id)}
-                    onEdit={onEdit ? (newText) => onEdit(p.id, newText) : undefined}
-                    onContinue={onContinue ? () => onContinue(p.id) : undefined}
-                    paused={paused}
-                  />
-                ))
+                // ★ write 에디터 v2 — 워드식 한 페이지. 클릭 즉시 직접 편집 + AI 스트리밍 실시간 표시.
+                <PageEditor paras={paras} onEditAll={onEditAll} aiBusy={aiBusy} />
               )}
 
               {paras.every(p => p.status !== "streaming") &&
@@ -640,7 +639,7 @@ function ImportPanel({ onImport, hasContent }: { onImport: (text: string) => voi
       <div style={{ fontSize: 12.5, color: "var(--ink-3)", lineHeight: 1.5 }}>
         이미 쓴 원고를 가져와 이어쓸 수 있습니다. 파일을 올리거나 본문을 붙여넣으세요.<br />
         <strong style={{ color: "var(--coral-deep)" }}>지원 = .pdf · .docx · .hwpx · .txt</strong> (최대 4.5MB). 옛 .doc / .hwp = 변환 후. 큰 파일 = 본문만 복사·붙여넣기 권장.<br />
-        <span style={{ color: "var(--ink-4)", fontSize: 11.5 }}>★ 큰 시나리오 (영화 1편 등) = <strong>통째 박아도 OK</strong>. 자동 5구간 발췌 (앞·1/4·중반·3/4·결말 다 보존) = 작가는 분량 신경 X. AI가 한 단위씩 자동 출력·멈춤.</span>
+        <span style={{ color: "var(--ink-4)", fontSize: 11.5 }}>★ 큰 시나리오 (영화 1편 등) = <strong>통째로 넣어도 OK</strong>. 자동 5구간 발췌 (앞·1/4·중반·3/4·결말 다 보존) = 작가는 분량 신경 X. AI가 한 단위씩 자동 출력·멈춤.</span>
       </div>
       {hasContent && (
         <div style={{

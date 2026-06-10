@@ -177,7 +177,7 @@ ${content}
 - "캐릭터" / "주인공" / "시놉시스" / "본문" / "장면" / "씬" / "대사" / "수정해줘" / "다시 써줘" / "더 써줘" 같은 단어 포함
 - 또는 = 특정 작품 인물·줄거리 언급 (예: "도윤이 너무 차가워")
 
-→ **prior에 = "지금 보고 있는 작품 본문" 또는 = "사전 자료 (제목·로그라인·시놉·캐릭터·기승전결)" 또는 = "이 작품의 누적 메모리"가 박혀있는지 확인.**
+→ **prior에 = "지금 보고 있는 작품 본문" 또는 = "사전 자료 (제목·로그라인·시놉·캐릭터·기승전결)" 또는 = "이 작품의 누적 메모리"가 들어있는지 확인.**
 - **있으면**: 그 작품 컨텍스트 그대로 보고 = 응답.
 - **없으면**: "작가님 어느 작품 얘기하시는 거예요? 라이브러리 작품 가져오시거나 작품 제목 알려주시면 그 작품 보고 답할게요." 식 짧게 명시 요청. 막연 추측 응답 X.
 
@@ -756,6 +756,18 @@ ${targets.length}명 평균 = PASS / CONSIDER / RECOMMEND 중 하나 + 근거 1�
 // 산출물 8종 빌더
 // =====================================================================
 
+// 의뢰서(개요 입력) — 작가가 매체별 폼에 채운 내용을 프롬프트에 실제 반영.
+// V3.1.1 정정: 옛 빌더들이 _mediumFields로 받기만 하고 사용 X = 의뢰서가 AI에 전달 안 되던 사고.
+export function mediumFieldsBlock(mediumFields?: Record<string, string | string[] | number> | null): string {
+  if (!mediumFields) return "";
+  const rows = Object.entries(mediumFields)
+    .filter(([, v]) => v != null && v !== "" && (!Array.isArray(v) || v.length > 0))
+    .map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(", ") : String(v).slice(0, 600)}`);
+  if (!rows.length) return "";
+  return `\n## 의뢰서 (작가 개요 입력 — 최우선 반영)\n${rows.join("\n")}\n`;
+}
+
+
 function commonBrief(idea: string, genre: Genre, userInput?: Record<string, string>): string {
   const fields = userInput
     ? Object.entries(userInput).filter(([, v]) => v).map(([k, v]) => `- **${k}**: ${v.slice(0, 300)}`).join("\n")
@@ -846,7 +858,7 @@ function dramaMovieDeepAddendum(genre: Genre, userInput?: Record<string, string>
 }
 
 
-export function buildTitlePrompt(idea: string, genre: Genre, userInput?: Record<string, string>): string {
+export function buildTitlePrompt(idea: string, genre: Genre, userInput?: Record<string, string>, mediumFields?: Record<string, string | string[] | number> | null): string {
   const fields = userInput
     ? Object.entries(userInput).filter(([, v]) => v).map(([k, v]) => `- **${k}**: ${v.slice(0, 300)}`).join("\n")
     : "";
@@ -856,6 +868,7 @@ export function buildTitlePrompt(idea: string, genre: Genre, userInput?: Record<
 - **아이디어**: ${idea}
 - **매체**: ${genre.name} (${genre.sub})
 ${fields}
+${mediumFieldsBlock(mediumFields)}
 
 ## 출력 형식 (★ 정확히 이 양식으로)
 
@@ -879,7 +892,7 @@ ${fields}
 }
 
 
-export function buildThemePrompt(idea: string, genre: Genre, userInput?: Record<string, string>): string {
+export function buildThemePrompt(idea: string, genre: Genre, userInput?: Record<string, string>, mediumFields?: Record<string, string | string[] | number> | null): string {
   const fields = userInput
     ? Object.entries(userInput).filter(([, v]) => v).map(([k, v]) => `- **${k}**: ${v.slice(0, 300)}`).join("\n")
     : "";
@@ -889,6 +902,7 @@ export function buildThemePrompt(idea: string, genre: Genre, userInput?: Record<
 - **아이디어**: ${idea}
 - **매체**: ${genre.name} (${genre.sub})
 ${fields}
+${mediumFieldsBlock(mediumFields)}
 
 ## 출력 형식
 
@@ -911,10 +925,11 @@ ${fields}
 }
 
 
-export function buildLoglinePrompt(idea: string, genre: Genre, userInput?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
+export function buildLoglinePrompt(idea: string, genre: Genre, userInput?: Record<string, string>, mediumFields?: Record<string, string | string[] | number> | null): string {
   return `# 작업 요청: 로그라인 생성
 
 ${commonBrief(idea, genre, userInput)}
+${mediumFieldsBlock(mediumFields)}
 
 ## 출력 형식
 **로그라인 3안** — 작가가 고르거나 합칠 수 있게 3가지 변형:
@@ -945,7 +960,7 @@ ${commonBrief(idea, genre, userInput)}
 }
 
 
-export function buildSynopsisPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
+export function buildSynopsisPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
     ? "\n\n## 이미 작성된 자료 (최근 핵심)\n" + Object.entries(prior).slice(-3).map(([k, v]) => `### ${k}\n${v.slice(0, 500)}`).join("\n\n")
     : "";
@@ -953,6 +968,7 @@ export function buildSynopsisPrompt(idea: string, genre: Genre, userInput?: Reco
   return `# 작업 요청: 시놉시스 (A4 1쪽)
 
 ${commonBrief(idea, genre, userInput)}
+${mediumFieldsBlock(mediumFields)}
 ${priorPart}
 
 ## 출력 형식
@@ -973,7 +989,7 @@ ${priorPart}
 }
 
 
-export function buildTreatmentPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
+export function buildTreatmentPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
     ? "\n\n## 이미 작성된 자료 (최근 핵심)\n" + Object.entries(prior).slice(-3).map(([k, v]) => `### ${k}\n${v.slice(0, 500)}`).join("\n\n")
     : "";
@@ -981,6 +997,7 @@ export function buildTreatmentPrompt(idea: string, genre: Genre, userInput?: Rec
   return `# 작업 요청: 트리트먼트 (A4 3~5쪽)
 
 ${commonBrief(idea, genre, userInput)}
+${mediumFieldsBlock(mediumFields)}
 ${priorPart}
 
 ## 출력 형식
@@ -1013,7 +1030,7 @@ ${priorPart}
 }
 
 
-export function buildCharactersPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
+export function buildCharactersPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
     ? "\n\n## 이미 작성된 자료 (최근 핵심)\n" + Object.entries(prior).slice(-3).map(([k, v]) => `### ${k}\n${v.slice(0, 500)}`).join("\n\n")
     : "";
@@ -1023,6 +1040,7 @@ export function buildCharactersPrompt(idea: string, genre: Genre, userInput?: Re
   return `# 작업 요청: 캐릭터 시트
 
 ${commonBrief(idea, genre, userInput)}
+${mediumFieldsBlock(mediumFields)}
 ${priorPart}
 
 ## 출력 형식
@@ -1066,7 +1084,7 @@ ${priorPart}
 }
 
 
-export function buildWorldviewPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
+export function buildWorldviewPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
     ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 800)}`).join("\n\n")
     : "";
@@ -1077,6 +1095,7 @@ export function buildWorldviewPrompt(idea: string, genre: Genre, userInput?: Rec
   return `# 작업 요청: 세계관 정리서
 
 ${commonBrief(idea, genre, userInput)}
+${mediumFieldsBlock(mediumFields)}
 ${priorPart}
 
 ## 출력 형식
@@ -1116,7 +1135,7 @@ ${priorPart}
 }
 
 
-export function buildEpisodesPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
+export function buildEpisodesPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
     ? "\n\n## 이미 작성된 자료 (최근 핵심)\n" + Object.entries(prior).slice(-3).map(([k, v]) => `### ${k}\n${v.slice(0, 500)}`).join("\n\n")
     : "";
@@ -1126,6 +1145,7 @@ export function buildEpisodesPrompt(idea: string, genre: Genre, userInput?: Reco
   return `# 작업 요청: 회차 구성표
 
 ${commonBrief(idea, genre, userInput)}
+${mediumFieldsBlock(mediumFields)}
 ${priorPart}
 
 ## 출력 형식 (회차 수: ${episodes})
@@ -1165,7 +1185,7 @@ ${priorPart}
 }
 
 
-export function buildProposalPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, _mediumFields?: Record<string, string | string[] | number> | null): string {
+export function buildProposalPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
     ? "\n\n## 이미 작성된 자료 (최근 핵심)\n" + Object.entries(prior).slice(-3).map(([k, v]) => `### ${k}\n${v.slice(0, 500)}`).join("\n\n")
     : "";
@@ -1173,6 +1193,7 @@ export function buildProposalPrompt(idea: string, genre: Genre, userInput?: Reco
   return `# 작업 요청: 기획안 (제출용)
 
 ${commonBrief(idea, genre, userInput)}
+${mediumFieldsBlock(mediumFields)}
 ${priorPart}
 
 ## 출력 형식 — 한국 제작사·방송사 표준 기획안
@@ -1220,7 +1241,7 @@ ${priorPart}
 }
 
 
-export function buildScriptPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, targetSection = "EP01 첫 부분 샘플 (5~10페이지)", _mediumFields?: Record<string, string | string[] | number> | null): string {
+export function buildScriptPrompt(idea: string, genre: Genre, userInput?: Record<string, string>, prior?: Record<string, string>, targetSection = "EP01 첫 부분 샘플 (5~10페이지)", mediumFields?: Record<string, string | string[] | number> | null): string {
   const priorPart = prior
     ? "\n\n## 이미 작성된 자료\n" + Object.entries(prior).map(([k, v]) => `### ${k}\n${v.slice(0, 800)}`).join("\n\n")
     : "";
@@ -1228,6 +1249,7 @@ export function buildScriptPrompt(idea: string, genre: Genre, userInput?: Record
   return `# 작업 요청: 본문 (${targetSection})
 
 ${commonBrief(idea, genre, userInput)}
+${mediumFieldsBlock(mediumFields)}
 ${priorPart}
 
 ## ★★★★★ 매체 = ${genre.name} ★★★★★
@@ -1284,7 +1306,7 @@ ${targetSection} — 위 ${genre.name} 양식 그대로. 곧바로 첫 양식 �
 (여기에 humanizer 검증 결과, 캐릭터 화법 차별 분석, 다음 단계 안내, 자가 진단 등 자유 작성)
 \`\`\`
 
-- 마커 위 = 시나리오 본문만 (작가 원고지에 박힘)
+- 마커 위 = 시나리오 본문만 (작가 원고지에 들어감)
 - 마커 아래 = 분석 (작가가 "💭 분석" 버튼 클릭 시 별도 표시)
 - 마커는 정확히 \`===AI_NOTES===\` (양쪽 = 3개씩)
 - 분석이 없으면 마커도 박지 마라

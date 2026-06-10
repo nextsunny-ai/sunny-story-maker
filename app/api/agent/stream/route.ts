@@ -178,6 +178,41 @@ ${lines.join("\n\n")}
 작가가 "1번"·"2번"·"그거"·"방금 말한 거"라고 하면 = 위 대화에서 보조작가가 제시한 바로 그 항목을 가리킨다. 절대 새로 지어내지 X.`;
 }
 
+// ★ 집필실(write) 대화 모드 — 작가가 "지금 쓰는 글"을 보면서 톤·수정·평가를 대화로 묻는 경로.
+//   write/page.tsx가 isChatIntent(수정·어때·톤·짧게 등) 판단 시 mode:"chat"으로 호출.
+//   buildCollaboratePrompt(stage:"chat")는 "본문 집필은 다른 페이지로" 안내라 집필실엔 부적합 →
+//   여기선 지금 초안을 함께 보며 대화·짧은 제안. 5개 후보 강제 X, 본문 자동 추가 X (대화만).
+function buildWriteChatPrompt(b: RequestBody): string {
+  const genre = findGenre(b.genreLetter);
+  const priorPart = b.prior
+    ? "\n\n## 지금 작업 중인 자료 (이걸 보고 답한다)\n" +
+      Object.entries(b.prior)
+        .filter(([, v]) => v && String(v).trim() && String(v).trim() !== "(없음)")
+        .map(([k, v]) => `### ${k}\n${String(v).slice(0, 3000)}`)
+        .join("\n\n")
+    : "";
+  const ideaPart = b.idea ? `\n\n## 작품 아이디어\n${b.idea.slice(0, 1500)}` : "";
+
+  return `# 집필실 대화 — 작가가 지금 쓰는 글을 함께 본다
+
+## 매체
+**${genre.name} (${genre.sub})** — 작가가 집필실에서 글을 쓰는 중. 채팅으로 디렉션·질문을 보냄.
+
+## 너의 역할
+- 작가가 방금 보낸 메시지에 곧바로 답한다 (위 "지금 작업 중인 자료"를 근거로).
+- "이 톤 어때?", "더 짧게", "왜 이렇게 썼어?", "수정 방향?" 같은 디렉션·질문 = 그에 맞춰 대화로 답한다.
+- 작가가 명시적으로 "이어 써줘 / 다음 단락"이라고 하지 않는 한 = 본문을 새로 길게 뽑지 X = 대화·짧은 제안 위주.
+- 수정안을 제안할 땐 1~3개만. 후보 5개 자동 X.
+
+## 응답 톤 (절대 준수)
+- 호칭은 "작가님". 짧게 (기본 2~5문장, 작가가 길게 물으면 길게).
+- 인사·자기소개·"다음 단계 안내" 자동 X = 작가 메시지에 바로 답.
+- AI 티 단어(다층적·본질적·결국·요컨대·격언체) 0%. 마크다운 헤더(##)·표 같은 메타 양식 X = 자연스러운 대화체.${ideaPart}${priorPart}
+
+## 출력
+작가의 마지막 메시지에 맞는 대화 응답.`;
+}
+
 function buildUserPrompt(b: RequestBody): string {
   const learning = formatWriterLearning(b.writerLearning);
   const memory = formatWorkMemoryFromFiles(b.priorFiles);
@@ -249,10 +284,10 @@ function buildBasePrompt(b: RequestBody): string {
       return buildRevisePrompt(b.text ?? "", b.direction ?? "", genre, b.targetSection, b.versionNumber);
 
     case "title":
-      return buildTitlePrompt(b.idea ?? "", genre, b.userInput);
+      return buildTitlePrompt(b.idea ?? "", genre, b.userInput, b.mediumFields);
 
     case "theme":
-      return buildThemePrompt(b.idea ?? "", genre, b.userInput);
+      return buildThemePrompt(b.idea ?? "", genre, b.userInput, b.mediumFields);
 
     case "logline":
       return buildLoglinePrompt(b.idea ?? "", genre, b.userInput, b.mediumFields);
@@ -289,6 +324,10 @@ function buildBasePrompt(b: RequestBody): string {
 
     case "extract-grant-meta":
       return buildGrantMetaPrompt(b.text ?? "");
+
+    case "chat":
+      // ★ 집필실 대화 모드 (write/page.tsx isChatIntent) — 지금 초안 보며 대화·짧은 제안.
+      return buildWriteChatPrompt(b);
 
     default:
       throw new Error(`Unknown mode: ${b.mode}`);

@@ -144,15 +144,18 @@ export function LibraryPicker({
           </button>
         </div>
 
-        <div style={{ padding: "12px 24px", borderBottom: "1px solid var(--line)" }}>
-          <input
-            className="field-input"
-            placeholder="작품명·매체 검색"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            autoFocus
-          />
-        </div>
+        {/* ★ 2026-06-01 — 작품이 많을 때만 검색창 노출 (적으면 헷갈림 = 대표님 지적). 이 앱에 저장된 작품 안에서 찾는 것임을 명시. */}
+        {works.length > 6 && (
+          <div style={{ padding: "12px 24px", borderBottom: "1px solid var(--line)" }}>
+            <input
+              className="field-input"
+              placeholder="저장한 작품 이름으로 찾기"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+        )}
 
         <div style={{
           flex: 1, overflowY: "auto", padding: "16px 24px 24px",

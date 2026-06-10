@@ -4,7 +4,7 @@
 // V2.14 Paragraph 로직 이전 + 회차헤더·장번호 메타 박스 추가.
 // 다른 그룹의 폴백으로도 사용 (단계 2~6에서 각 그룹 Canvas 도입 전까지).
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Markdown } from "@/components/Markdown";
 import type { Block, ProseBlock, HeaderBlock } from "@/lib/storymaker/write-doc";
 import type { MediumCanvasRouterProps } from "./MediumCanvasRouter";
@@ -237,6 +237,7 @@ function ProseBlockRenderer({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(block.text);
+  const cancelingRef = useRef(false); // ★ 취소 클릭 시 blur 자동저장 건너뛰기
 
   const isStreaming = block.status === "streaming";
   const isDone = block.status === "done";
@@ -254,6 +255,11 @@ function ProseBlockRenderer({
     setDraft(block.text);
     setEditing(false);
   };
+  // ★ 2026-06-01 워드식 — 포커스 빠지면 자동 저장 (저장 버튼 안 눌러도 됨). 취소 클릭이면 건너뜀.
+  const onTextBlur = () => {
+    if (cancelingRef.current) { cancelingRef.current = false; return; }
+    saveEdit();
+  };
 
   return (
     <div className={"wpara is-" + block.status + (paused && isStreaming ? " is-paused" : "")} data-block-id={block.id}>
@@ -263,6 +269,7 @@ function ProseBlockRenderer({
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onBlur={onTextBlur}
               autoFocus
               placeholder="여기에 직접 쓰세요…"
               style={{
@@ -274,13 +281,14 @@ function ProseBlockRenderer({
                 resize: "vertical", whiteSpace: "pre-wrap",
               }}
             />
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <button type="button" className="wpara-action" onClick={saveEdit} title="저장">
                 <span className="wpara-action-icon">✓</span><span>저장</span>
               </button>
-              <button type="button" className="wpara-action" onClick={cancelEdit} title="취소">
+              <button type="button" className="wpara-action" onMouseDown={() => { cancelingRef.current = true; }} onClick={cancelEdit} title="취소">
                 <span className="wpara-action-icon">✕</span><span>취소</span>
               </button>
+              <span style={{ fontSize: 11, color: "var(--ink-4)", marginLeft: 4 }}>딴 곳을 누르면 자동 저장돼요</span>
             </div>
           </div>
         ) : isPending ? (
@@ -294,7 +302,13 @@ function ProseBlockRenderer({
             )}
           </div>
         ) : (
-          <div className="wpara-text">
+          // ★ 2026-06-01 워드식 — 본문을 클릭하면 바로 편집 모드(커서). 옛: hover해서 작은 ✎ 버튼 찾아야만 편집 가능했던 사고.
+          <div
+            className="wpara-text"
+            onClick={() => { if (onEdit && !isStreaming) startEdit(); }}
+            style={onEdit && !isStreaming ? { cursor: "text" } : undefined}
+            title={onEdit && !isStreaming ? "클릭해서 바로 수정" : undefined}
+          >
             <Markdown text={block.text} />
             {isStreaming && (
               <span className={"wpara-cursor" + (paused ? " is-paused" : "")}></span>

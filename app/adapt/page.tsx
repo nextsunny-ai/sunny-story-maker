@@ -206,6 +206,7 @@ function AdaptMain() {
         diff: `${body.length.toLocaleString()}자 — 디렉션: ${direction.slice(0, 60)}…`,
         body,
       }]);
+      setOpenVer(nextV); // ★ 변환 결과 바로 펼쳐 보여주기
       setActiveChips([]);
       setFreeform("");
     } catch (e) {
@@ -306,6 +307,7 @@ function AdaptMain() {
         diff: `${body.length.toLocaleString()}자 — 매체 변환`,
         body,
       }]);
+      setOpenVer(nextV); // ★ 변환 결과 바로 펼쳐 보여주기
     } catch (e) {
       setAdaptError(e instanceof Error ? e.message : "변환 실패");
     } finally {
@@ -489,6 +491,7 @@ function AdaptMain() {
           setFreeform={setFreeform}
           onLaunch={handleRevise}
           busy={adapting}
+          onEditVersionBody={(vnum, body) => setVersions(prev => prev.map(x => x.v === vnum ? { ...x, body } : x))}
         />
       ) : (
         <>
@@ -498,8 +501,8 @@ function AdaptMain() {
             targetLetter={targetLetter}
             setTargetLetter={setTargetLetter}
             targetGenre={targetGenre}
-            targetScore={targetScore}
-            rankedTargets={rankedTargets}
+            scores={adaptScores}
+            sourceChars={sourceText.length}
           />
           <div className="btn-row" style={{ marginTop: 16 }}>
             <Btn kind="coral" icon={I.spark} onClick={handleAdaptCross} disabled={adapting}>
@@ -585,7 +588,8 @@ function AdaptMain() {
                   briefDone: true,
                   updatedAt: new Date().toISOString(),
                 };
-                window.localStorage.setItem(`sunny.write.anon.project.${persistKey}`, JSON.stringify(snapshot));
+                // ★ 2026-06-01 — 옛 사고: "anon" 하드코딩 → 로그인 작가는 currentUser 네임스페이스로 읽어 복원 실패.
+                window.localStorage.setItem(KEY.writeProject(persistKey), JSON.stringify(snapshot));
 
                 // 라이브러리 자동 등록
                 const totalChars = last.body.length;
@@ -599,12 +603,12 @@ function AdaptMain() {
                   updated: updatedStr,
                   size: `${totalChars.toLocaleString()}자`,
                 };
-                const libRaw = window.localStorage.getItem("sunny.library.anon.works");
+                const libRaw = window.localStorage.getItem(KEY.libraryWorks);
                 const libworks = libRaw ? JSON.parse(libRaw) : [];
                 const idx = libworks.findIndex((w: { id: string }) => w.id === persistKey);
                 if (idx >= 0) libworks[idx] = { ...libworks[idx], ...newWork };
                 else libworks.push(newWork);
-                window.localStorage.setItem("sunny.library.anon.works", JSON.stringify(libworks));
+                window.localStorage.setItem(KEY.libraryWorks, JSON.stringify(libworks));
 
                 // /write로 redirect
                 router.push(`/write?mode=continue&project=${encodeURIComponent(persistKey)}`);

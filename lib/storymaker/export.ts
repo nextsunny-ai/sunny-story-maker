@@ -35,8 +35,8 @@ function detectScriptFormat(md: string): boolean {
   let dialogCount = 0;
   let cutCount = 0;
   for (const line of lines) {
-    // 씬 헤딩: "   1. 거리" or "S#1. 장소" — 3공백+ 들여쓰기 + 숫자 + 점
-    if (/^\s{2,}(S#)?\d+\.\s*\S/.test(line)) sceneCount++;
+    // 씬 헤딩: "S#1. 장소 (시간)"(들여쓰기 없음·신표준) 또는 "   1. 거리"(들여쓰기·구표준)
+    if (/^\s*S#\s*\d+\.\s*\S/.test(line) || /^\s{2,}\d+\.\s*\S/.test(line)) sceneCount++;
     // 캐릭터 + 다중 공백 + 대사: "   진우         대사" (5+ 공백 = 시나리오 캐릭터 행)
     if (/^\s{2,}[가-힣A-Za-z][가-힣A-Za-z0-9 ]{0,15}(\s+E)?\s{4,}\S/.test(line)) dialogCount++;
     // CUT TO. or -CUT TO.
