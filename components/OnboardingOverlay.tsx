@@ -27,7 +27,7 @@ const STEPS: Step[] = [
           <strong>SUNNY Story Maker</strong>는 12개 매체 한국 작가팀이 함께 만든
           AI 협업 도구입니다.
         </p>
-        <p>30초만 투자해서 핵심 기능을 둘러봐주세요.</p>
+        <p>주요 기능을 간단히 안내해 드립니다.</p>
       </>
     ),
   },

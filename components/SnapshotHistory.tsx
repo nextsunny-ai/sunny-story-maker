@@ -173,7 +173,7 @@ export function SnapshotHistory({ workId, open, onClose, onRestore }: SnapshotHi
                   ⏮ 이 버전으로 복원
                 </button>
                 <span style={{ marginLeft: 12, fontSize: 12, color: "var(--ink-4)" }}>
-                  복원해도 현재 작업 = 자동저장으로 또 박혀있어 = 안전합니다.
+                  복원해도 현재 작업 = 자동저장으로 함께 보관돼 = 안전합니다.
                 </span>
               </>
             )}

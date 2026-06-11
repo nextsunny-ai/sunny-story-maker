@@ -389,7 +389,7 @@ export default function GuidePage() {
             작가 사용 흐름<span style={{ color: "var(--coral)" }}>.</span>
           </h2>
           <p style={{ fontSize: 14, color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 18 }}>
-            왼쪽 사이드바 메뉴 = 작가 작업 순서 그대로. 처음부터 끝까지 = 한 작품 끝낼 수 있게 박힘.
+            왼쪽 사이드바 메뉴 = 작가 작업 순서 그대로. 처음부터 끝까지 = 한 작품 끝낼 수 있게 구성돼 있습니다.
           </p>
           <div style={{ display: "grid", gap: 12 }}>
             <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
@@ -510,7 +510,7 @@ export default function GuidePage() {
             <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>② AI가 쓰는 중 = 작가가 끼어들기</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-                AI가 본문을 써내려가는 중 = 상단 <strong>🛑 중지</strong> 버튼 = 즉시 멈춤. 그 단락이 done으로 박힘 → <strong>✎ 수정</strong> 액션 = 작가가 그 자리에서 이어쓰기·수정·다시 쓰기.
+                AI가 본문을 써내려가는 중 = 상단 <strong>🛑 중지</strong> 버튼 = 즉시 멈춤. 그 단락이 완료로 저장됨 → <strong>✎ 수정</strong> 액션 = 작가가 그 자리에서 이어쓰기·수정·다시 쓰기.
               </div>
             </div>
             <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>

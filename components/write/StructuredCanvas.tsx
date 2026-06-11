@@ -351,7 +351,7 @@ function GameBranchTree({ lines }: { lines: GameLineBlock[] }) {
       </div>
       {roots.length === 0 && (
         <div style={{ color: "var(--ink-4)", fontSize: 12 }}>
-          시작점이 없습니다 (= 모든 노드가 다른 노드의 분기). 첫 lineId의 nextId만 박혀있는지 점검하세요.
+          시작점이 없습니다 (= 모든 노드가 다른 노드의 분기). 첫 lineId의 nextId가 올바르게 설정됐는지 점검하세요.
         </div>
       )}
       {roots.map(r => renderNode(r, 0, new Set()))}
