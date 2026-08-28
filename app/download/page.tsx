@@ -18,8 +18,9 @@ const DOWNLOAD_OPTIONS: {
   recommended?: boolean;
 }[] = [
   { id: "windows-exe", emoji: "⊞", label: `Windows 데스크탑 앱 (.exe · v${V.version})`, hint: `${V.sizes["windows-exe"]} · 더블클릭 = 자동 설치 · 추천 ★`, recommended: true },
-  { id: "windows", emoji: "⊞", label: "Windows 자동 설치 ZIP", hint: "PowerShell 스크립트로 자동 설치 (Node.js·Claude Code 자동)" },
-  { id: "mac", emoji: "🍎", label: `Mac 데스크탑 앱 (.dmg · v${V.version})`, hint: `Apple Silicon · ${V.sizes["mac-dmg"]} · 마운트 → 앱 폴더 드래그 · 첫 실행은 우클릭→열기` },
+  //   ★ Windows ZIP · Mac .dmg 는 내렸다 (2026-08-28).
+  //   파일이 5월 것(v3.1.0)인데 화면에는 최신 버전으로 표기돼, 받는 분은 옛 버전을 최신인 줄 알고 받게 된다.
+  //   최신 파일을 올린 뒤 다시 켠다. 파일 자체는 _private_downloads 에 그대로 있다.
 ];
 
 export default function DownloadPage() {
@@ -259,7 +260,7 @@ export default function DownloadPage() {
 
           <div style={{ marginTop: 22, paddingTop: 20, borderTop: "1px solid var(--line)", fontSize: 11, color: "var(--ink-5)", lineHeight: 1.7 }}>
             ※ Windows .exe = V{V.version} (NSIS 자동 설치 · 자동 업데이터). <strong>{V.requirements.windows}</strong> 권장.<br />
-            ※ macOS .dmg = V{V.version} (Apple Silicon aarch64 · 자동 업데이터). <strong>{V.requirements.macos}</strong>.<br />
+            ※ macOS = 최신 버전 준비 중입니다. 맥을 쓰시면 알려주시면 바로 보내드립니다.<br />
             ※ 메모리 {V.requirements.memory} · 디스크 {V.requirements.disk} · {V.requirements.network}.<br />
             ※ 1차 오픈 매체 = 영화 · TV 드라마 · 숏드라마 · 웹툰 · 웹소설 · 소설. 나머지 매체는 2차 오픈 예정.<br />
             ※ iOS·Android = 준비 중.
