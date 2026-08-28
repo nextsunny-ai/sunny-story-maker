@@ -182,9 +182,14 @@ function buildNewWorkContext(idea: string, genreLetter: string, activeStepName?:
  * 복원 시 그런 단락은 작가가 직접 쓸 수 있는 빈 자리(pending)로 되돌린다.
  */
 function healStuckParas<T extends { text?: string; status?: string }>(list: T[]): T[] {
+  //   ★ 페이지를 다시 열었다 = 그 생성은 이미 끝났거나 끊겼다 (실측 2026-08-29).
+  //   옛날엔 「글자가 없는 채로 streaming 인 것」만 고쳐서,
+  //   뒤로가기로 끊긴 단락(글은 있는데 streaming)이 영구히 「쓰는 중」으로 남았다.
+  //   67단락 3,587자를 썼는데 화면에는 「0/1 단락」이라고 떴고,
+  //   그 단락에는 「↻ 다시 써」·「+ 더 쓰기」도 뜨지 않았다.
   const healed = list.map(p =>
-    p.status === "streaming" && !(p.text || "").trim()
-      ? { ...p, status: "pending" as const }
+    p.status === "streaming"
+      ? { ...p, status: ((p.text || "").trim() ? "done" : "pending") as "done" | "pending" }
       : p
   );
   // 원고 끝에 쌓인 빈 칸은 작가가 만든 게 아니라 중단된 이어쓰기의 잔재다 — 마지막 하나만 남긴다
