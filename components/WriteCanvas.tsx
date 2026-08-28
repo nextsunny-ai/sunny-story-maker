@@ -643,7 +643,23 @@ function ImportPanel({ onImport, hasContent }: { onImport: (text: string) => voi
         setErr(json.error || "업로드 실패");
         return;
       }
-      setText(prev => (prev ? prev + "\n\n" : "") + (json.text || ""));
+      const incoming = String(json.text || "");
+      setText(prev => (prev ? prev + "\n\n" : "") + incoming);
+      //   ★ 파일을 고르면 바로 원고가 된다 (대표님 룰 — 고르는 즉시 적용, 2단계 금지).
+      //   다만 가져오기는 지금 본문을 교체하므로, 쓰던 글이 있으면 한 번만 여쭙는다.
+      //   (빈 작업실이면 잃을 것이 없으니 묻지 않는다)
+      const merged = (text ? text + "\n\n" : "") + incoming;
+      if (merged.trim()) {
+        if (!hasContent) {
+          onImport(merged.trim());
+        } else if (window.confirm(
+          "가져온 원고로 지금 본문을 바꿉니다.\n\n" +
+          "지금 쓰던 글은 사라집니다. 남겨두시려면 취소를 누르고 먼저 워드나 TXT로 내려받으세요.\n\n" +
+          "바꿀까요?"
+        )) {
+          onImport(merged.trim());
+        }
+      }
     } catch {
       setErr("파일을 읽지 못했습니다. 본문을 붙여넣기로 시도해주세요.");
     } finally {

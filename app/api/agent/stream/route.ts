@@ -459,7 +459,12 @@ function streamViaOAuth(systemPrompt: string, messages: ConversationMessage[], m
     async start(controller) {
       const enc = new TextEncoder();
       const send = (event: string, data: unknown) => {
-        controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        //   작가가 화면을 옮기면 이 스트림은 이미 닫혀 있다.
+        //   닫힌 곳에 쓰면 서버가 uncaughtException 을 던진다 (실측 2026-08-28).
+        //   작가가 화면을 옮기는 건 잘못이 아니므로 조용히 넘어간다.
+        try {
+          controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch { /* 이미 닫힌 스트림 */ }
       };
 
       // ★ messages 마지막 turn에 cache_control 박음 — 작품 전체 conversation = 다음 호출에서 cached
@@ -571,8 +576,13 @@ function streamViaOAuth(systemPrompt: string, messages: ConversationMessage[], m
       try {
         await attempt(model);
       } catch (e) {
+        if (isClientGone(e)) {
+          //   작가가 화면을 옮긴 것. 조용히 끝낸다.
+          try { controller.close(); } catch { /* 이미 닫힘 */ }
+          return;
+        }
         send("error", { message: `OAuth 호출 실패: ${e instanceof Error ? e.message : String(e)}` });
-        controller.close();
+        try { controller.close(); } catch { /* 이미 닫힘 */ }
       }
     },
   });
@@ -584,7 +594,12 @@ function streamViaClaudeCode(systemPrompt: string, userMessage: string, model: s
     async start(controller) {
       const enc = new TextEncoder();
       const send = (event: string, data: unknown) => {
-        controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        //   작가가 화면을 옮기면 이 스트림은 이미 닫혀 있다.
+        //   닫힌 곳에 쓰면 서버가 uncaughtException 을 던진다 (실측 2026-08-28).
+        //   작가가 화면을 옮기는 건 잘못이 아니므로 조용히 넘어간다.
+        try {
+          controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch { /* 이미 닫힌 스트림 */ }
       };
 
       const cliModel = model.includes("haiku") ? "haiku" : model.includes("sonnet") ? "sonnet" : "opus";
@@ -699,6 +714,17 @@ function streamViaClaudeCode(systemPrompt: string, userMessage: string, model: s
       });
     },
   });
+}
+
+
+//   작가가 생성 도중 다른 화면으로 가면 브라우저가 연결을 끊는다.
+//   그건 오류가 아니라 흔한 일이다. 서버 로그에 예외로 남기지 않는다 (실측 2026-08-28).
+function isClientGone(e: unknown): boolean {
+  const err = e as { name?: string; code?: string; message?: string } | null;
+  if (!err) return false;
+  return err.name === "AbortError"
+    || err.code === "ECONNRESET"
+    || /aborted|ECONNRESET|closed|EPIPE/i.test(String(err.message ?? ""));
 }
 
 export async function POST(req: NextRequest) {
