@@ -246,6 +246,7 @@ function DevelopMain() {
       const decoder = new TextDecoder();
       let buf = "";
       let collected = "";
+      let serverError = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -264,6 +265,11 @@ function DevelopMain() {
                 setStages(prev => prev.map(s => s.key === key ? { ...s, text: collected } : s));
               }
             } catch { /* ignore */ }
+          } else if (eventType === "error" && dataLine) {
+            //   ★ 서버가 보낸 진짜 이유를 받아 둔다 (실측 2026-08-28).
+            //   옛날엔 이걸 버려서, 「데스크탑에서 쓰세요」가 와도
+            //   「분당 토큰 한도」라는 엉뚱한 안내가 떴다.
+            try { serverError = JSON.parse(dataLine)?.message || serverError; } catch { /* ignore */ }
           }
         }
       }
@@ -271,9 +277,13 @@ function DevelopMain() {
       //   내부 제어 마커([[다음:…]] 등)는 카드·내보내기에 그대로 보이므로 여기서 제거
       const finalText = stripControlMarkers(collected);
       if (!finalText) {
+        //   ★ 이유를 지어내지 않는다. 서버가 말해 준 것이 있으면 그대로 보여준다.
+        const why = serverError
+          ? serverError
+          : "응답이 비어 있습니다. 잠시 후 「↻ 다시」를 눌러주세요.";
         setStages(prev => prev.map(s => s.key === key ? {
           ...s,
-          text: "(응답이 비어있습니다 — 잠시 후 「↻ 다시」 눌러주세요. 분당 토큰 한도에 걸렸을 수 있습니다.)",
+          text: `(${why})`,
           status: "active" as const,
         } : s));
       } else {

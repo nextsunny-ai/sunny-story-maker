@@ -61,12 +61,16 @@ export default function SettingsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) {
-        router.push("/login?redirect=/settings");
-        return;
+      //   ★ 로그인하지 않았다고 설정 화면을 막지 않는다 (실측 2026-08-28).
+      //   데스크탑에서는 로그인 없이 쓰는 것이 기본인데, 여기 「저장 폴더」 같은
+      //   로컬 설정이 들어 있어서 작가가 자기 저장 위치를 바꿀 수 없었다.
+      //   계정 관련 항목만 로그인 여부에 따라 다르게 보이면 된다.
+      try {
+        const { data } = await supabase.auth.getUser();
+        setUserEmail(data.user?.email ?? null);
+      } catch {
+        setUserEmail(null);
       }
-      setUserEmail(data.user.email ?? null);
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
