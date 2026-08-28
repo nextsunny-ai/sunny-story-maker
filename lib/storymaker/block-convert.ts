@@ -36,6 +36,29 @@ export function migrateParasToDoc(paras: ParaLike[], letter: string): WriteDoc {
     };
   }
 
+  //   ★ 쓰는 중에는 파싱하지 않는다 (실측 2026-08-28).
+  //   시나리오·웹툰은 단락을 합쳐 다시 파싱해 블록을 만드는데,
+  //   스트리밍 중에는 문장이 잘려 있어("S#1. 영안실 / 오") 파서가 제대로 못 만든다.
+  //   그래서 화면이 빈 채로 남았고, 작가는 새로고침해야 자기 글을 볼 수 있었다.
+  //   기다리는 3분이 견딜 만한지는 글이 흐르는지에 달렸다 — 쓰는 동안은 그대로 보여준다.
+  //   다 쓰고 나면(streaming 이 없어지면) 아래 파서가 제대로 정리한다.
+  const isWriting = paras.some((p) => p.status === "streaming");
+  if (isWriting) {
+    return {
+      v: 3,
+      group,
+      letter,
+      blocks: paras.map((p) => ({
+        id: p.id,
+        kind: "prose" as const,
+        text: p.text,
+        label: p.label,
+        status: p.status,
+        notes: p.notes,
+      })),
+    };
+  }
+
   // 그 외 그룹 = 평탄화 후 그룹 파서 재파싱 (파싱 실패 시 ProseBlock fallback = 텍스트 손실 0)
   const flattened = paras
     .filter((p) => p.text && p.text.trim())

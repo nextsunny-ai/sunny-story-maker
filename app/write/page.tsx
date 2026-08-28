@@ -2118,11 +2118,27 @@ function WriteMain() {
                 }
                 // 원고 본문에는 문서 편집 표시(제목·구분선·굵게)를 남기지 않는다
                 const cleanBody = stripDocMarkup(stripControlMarkers(bodyOnly));
-                setParas(prev => prev.map(p =>
-                  p.id === newPara!.id
-                    ? { ...p, text: cleanBody, status: "done" as const }
-                    : p
-                ));
+                //   ★ 채팅으로 이어 쓴 글도 단락으로 쪼갠다 (실측 2026-08-28).
+                //   옛날엔 통째로 한 칸에 들어가서, 그 덩어리는 「↻ 다시 써」·「+ 더 쓰기」를
+                //   쓸 수 없었다. 「본문 시작」으로 만든 원고와 같은 규칙(빈 줄)으로 나눈다.
+                const chunks = cleanBody.split(/\n\s*\n+/).map(b => b.trim()).filter(Boolean);
+                setParas(prev => {
+                  const at = prev.findIndex(p => p.id === newPara!.id);
+                  if (at < 0) return prev;
+                  if (chunks.length <= 1) {
+                    return prev.map(p => p.id === newPara!.id
+                      ? { ...p, text: cleanBody, status: "done" as const } : p);
+                  }
+                  const made: Para[] = chunks.map((tx, k) => ({
+                    id: k === 0 ? newPara!.id : `${newPara!.id}_${k}`,
+                    n: 0,
+                    label: "이어쓰기",
+                    text: tx,
+                    status: "done" as const,
+                  }));
+                  const next = [...prev.slice(0, at), ...made, ...prev.slice(at + 1)];
+                  return next.map((p, i) => ({ ...p, n: i + 1 }));
+                });
                 // 갓 쓴 본문은 비문·조사·시제가 남는다 → 문장만 자동 교정 (내용 수정 X)
                 if (polishEnabled && cleanBody.trim().length >= 200) {
                   void polishParagraph(newPara!.id, cleanBody);
