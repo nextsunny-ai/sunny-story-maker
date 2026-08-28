@@ -55,3 +55,4 @@ STORY_MAKER_DESIGN/
 src-tauri/.keys/
 *.key
 !**/node_modules/**/*.key
+_devserver.log
