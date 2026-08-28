@@ -712,8 +712,10 @@ export async function POST(req: NextRequest) {
     const supabase = await createSupabaseServer();
     const { data: authData } = await supabase.auth.getUser();
     if (authData.user) {
+      //   ★ 테이블 이름이 subscriptions 로 바뀐 뒤에도 이 한 곳만 옛 이름(licenses)을 부르고 있었다.
+      //   없는 테이블이라 조회가 늘 실패했고, 그래서 **정지시킨 계정도 그냥 통과했다** (실측 2026-08-28).
       const { data: licenseRow } = await supabase
-        .from("licenses")
+        .from("subscriptions")
         .select("plan, status")
         .eq("user_id", authData.user.id)
         .maybeSingle();
