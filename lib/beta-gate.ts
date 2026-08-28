@@ -5,7 +5,7 @@
 //
 // open (디폴트, 현재 V3.0+) = 누구나 가입. INVITE_CODE 검증 X.
 // invite = 가입 시 INVITE_CODE 입력 필요.
-// approval = 가입 OK + subscriptions.status = "suspended" → 사장님 승인 후 "active".
+// approval = 가입 OK + subscriptions.status = "suspended" → 대표님 승인 후 "active".
 //
 // 사용:
 //   서버: getBetaGateMode() = "open"|"invite"|"approval"
@@ -23,7 +23,7 @@ export function getBetaGateMode(): BetaGateMode {
  * 작가 가입 시 = 이 함수가 = subscriptions row의 초기 status 결정.
  * - open = active (즉시 사용)
  * - invite = active (INVITE_CODE 검증 통과 가정)
- * - approval = suspended (사장님 승인 대기)
+ * - approval = suspended (대표님 승인 대기)
  */
 export function getInitialSubscriptionStatus(): "active" | "suspended" {
   return getBetaGateMode() === "approval" ? "suspended" : "active";
@@ -43,6 +43,8 @@ export function canUseApp(subscriptionStatus: string | null | undefined): boolea
  */
 export function verifyInviteCode(input: string): boolean {
   if (getBetaGateMode() !== "invite") return true; // open·approval에서는 무조건 통과
-  const expected = process.env.INVITE_CODE || "SUNNY2026!";
+  // ★ V3.1.1 — 하드코딩 기본값 제거. INVITE_CODE 미설정 상태로 invite 모드면 아무도 못 들어오게(fail-closed).
+  const expected = process.env.INVITE_CODE;
+  if (!expected) return false;
   return input.trim() === expected;
 }

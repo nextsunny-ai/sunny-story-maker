@@ -1,16 +1,16 @@
 "use client";
 
-import { Suspense, useRef, useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRef, useState, useEffect } from "react";
+import { useQueryParams } from "@/lib/use-query-params";
 import { ICONS } from "@/lib/icons";
-import { GENRES } from "@/lib/genres";
+import { GENRES, isLaunchGenre } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
 import { Field, Tip, Btn } from "@/components/ui";
 import { streamAgent } from "@/lib/stream-agent";
 import { Markdown } from "@/components/Markdown";
-import { downloadDocx, downloadTxt } from "@/lib/storymaker/export";
+import { downloadDocx, downloadTxt, todayStamp } from "@/lib/storymaker/export";
 import { KEY, usePersistedState, loadJSON } from "@/lib/persist";
 
 interface OutputItem {
@@ -96,23 +96,17 @@ interface PersistedProjectLite {
 
 type GrantMode = "new" | "existing" | "direct";
 
-// ★ Vercel build fix: useSearchParams() = static prerender X = force dynamic.
-//   /package 페이지 = ?support=1 query param 사용 = static prerender 의미 X.
-export const dynamic = "force-dynamic";
-
 export default function PackagePage() {
   return (
     <AppShell>
-      <Suspense fallback={null}>
-        <PackageMain />
-      </Suspense>
+      <PackageMain />
     </AppShell>
   );
 }
 
 function PackageMain() {
   const I = ICONS;
-  const searchParams = useSearchParams();
+  const searchParams = useQueryParams();
   const [outputs, setOutputs] = useState<Record<string, boolean>>({
     treatment: true, synopsis: true, character: true,
     structure: true, scene: false, pitch: false,
@@ -335,7 +329,8 @@ function PackageMain() {
     }
   };
 
-  const [result, setResult] = useState("");
+  // ★ 2~3분 기다려 받은 6종 산출물이 새로고침 한 번에 사라지던 문제 (실측 2026-08-27)
+  const [result, setResult] = usePersistedState<string>(KEY.packageResult, "");
   const [running, setRunning] = useState(false);
   const [activeStep, setActiveStep] = useState<string>("");
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
@@ -452,7 +447,7 @@ function PackageMain() {
   };
 
   // 다운로드
-  const downloadName = (project || "기획_패키지") + "_" + new Date().toISOString().slice(0, 10);
+  const downloadName = (project || "기획_패키지") + "_" + todayStamp();
   const downloadHtml = () => {
     if (!result) return;
     const html = `<!DOCTYPE html>
@@ -523,7 +518,8 @@ function PackageMain() {
 
   const generate = async (overrideKeys?: string[]) => {
     if (running) return;
-    const runKeys = overrideKeys ?? selectedKeys;
+    // React onClick 이 이벤트 객체를 넘기는 사고 방지 — 배열일 때만 인정한다
+    const runKeys = Array.isArray(overrideKeys) ? overrideKeys : selectedKeys;
     if (runKeys.length === 0) {
       setError("산출물을 1개 이상 선택해주세요.");
       return;
@@ -736,7 +732,7 @@ function PackageMain() {
             매체에 맞춰 표준 포맷(한글·워드·엑셀·PPT)으로 자동 생성됩니다. 작가는 검토하고 다듬는 데에만 집중하세요.
           </div>
         </div>
-        <Btn kind="coral" icon={I.spark} onClick={generate} disabled={running || selectedKeys.length === 0}>
+        <Btn kind="coral" icon={I.spark} onClick={() => generate()} disabled={running || selectedKeys.length === 0}>
           {running ? "생성 중…" : "의뢰 시작"}
         </Btn>
       </div>
@@ -758,7 +754,7 @@ function PackageMain() {
         <Field label="매체" required>
           <select className="field-select" value={genreLetter} onChange={e => setGenreLetter(e.target.value)} disabled={running}>
             {GENRES.map(g => (
-              <option key={g.letter} value={g.letter}>{g.letter}. {g.name} ({g.sub})</option>
+              <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>{g.letter}. {g.name}{isLaunchGenre(g.letter) ? ` (${g.sub})` : " — 2차 오픈 예정"}</option>
             ))}
           </select>
         </Field>
@@ -1450,7 +1446,7 @@ function PackageMain() {
       )}
 
       <div style={{ marginTop: 28, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <Btn kind="coral" icon={I.spark} onClick={generate} disabled={running || selectedKeys.length === 0}>
+        <Btn kind="coral" icon={I.spark} onClick={() => generate()} disabled={running || selectedKeys.length === 0}>
           {running ? "생성 중…" : "패키지 생성"}
         </Btn>
         {running && <Btn onClick={stop}>중지</Btn>}

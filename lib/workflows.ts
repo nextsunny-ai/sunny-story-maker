@@ -1,5 +1,5 @@
 // 매체별 워크플로우 — V1 modules/workflows.py 그대로 TS 포팅
-// 사장님 노하우 한 글자도 빼지 않음.
+// 대표님 노하우 한 글자도 빼지 않음.
 // 각 매체마다: steps(작업 단계) / fields(매체 전용 + 공통 입력) / export_format / output_files
 
 export type FieldType = "text" | "textarea" | "select" | "multiselect" | "number";

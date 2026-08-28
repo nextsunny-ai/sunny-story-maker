@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
 import { KEY, loadJSON } from "@/lib/persist";
-import { GENRES } from "@/lib/genres";
+import { GENRES, isLaunchGenre } from "@/lib/genres";
 import { MediumCanvasRouter } from "@/components/write/MediumCanvasRouter";
 import { PageEditor } from "@/components/PageEditor";
 import { Markdown } from "@/components/Markdown";
@@ -59,24 +59,28 @@ interface WriteCanvasProps {
   onOpenSnapshots?: () => void;
   // ★ V3.1 — 작품 프로젝트 파일 (.smkr) 저장·열기
   onSaveProjectFile?: () => void;
+  onBeforeSwitchWork?: () => void;  // 작품 전환 직전 저장
   onOpenProjectFile?: () => void;
   bookOpen: boolean;
   onBookToggle: () => void;
   notesCount: number;
   aiBusy?: boolean;                                      // ★ 외부 AI 호출 진행 중 여부 — 스탑 버튼 노출 통제
+  polishing?: boolean;                                   // 문장 자동 교정 진행 중
+  polishEnabled?: boolean;                               // 문장 자동 교정 사용 여부
+  onPolishToggle?: () => void;
 }
 
 export function WriteCanvas({
   work, paras, doc, paused, onPauseToggle, onRewrite, onEdit, onEditAll, onContinue, onImport, onDownload,
-  onBlockEdit, onBlockRewrite, onBlockContinue, onAddHeader, onBlockDelete, onBlockMove, onColumnAdd, onColumnRemove, onBlockReorder, onOpenSnapshots, onSaveProjectFile, onOpenProjectFile,
-  bookOpen, onBookToggle, notesCount, aiBusy,
+  onBlockEdit, onBlockRewrite, onBlockContinue, onAddHeader, onBlockDelete, onBlockMove, onColumnAdd, onColumnRemove, onBlockReorder, onOpenSnapshots, onSaveProjectFile, onOpenProjectFile, onBeforeSwitchWork,
+  bookOpen, onBookToggle, notesCount, aiBusy, polishing, polishEnabled, onPolishToggle,
 }: WriteCanvasProps) {
   const I = ICONS;
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   useLocale(); // ★ V3.1 i18n — locale 변경 시 re-render 트리거
 
-  // 작품 변경 모달 — 사장님 명시: 작업실에서 다른 작품 불러오기
+  // 작품 변경 모달 — 대표님 명시: 작업실에서 다른 작품 불러오기
   const [showProjectPicker, setShowProjectPicker] = useState(false);
 
   // ★ ImportPanel 노출 토글 — 빈 작업실에서는 자동 노출, 본문 있어도 헤더 버튼으로 다시 켤 수 있음.
@@ -189,42 +193,42 @@ export function WriteCanvas({
                 {/* ★ V3.1 B9 — 매체별 표준 분량 표시 (작가 의사결정 가시화) */}
                 <optgroup label="시나리오·드라마">
                   {GENRES.filter(g => ["A","B","C"].includes(g.letter)).map(g => (
-                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                    <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>{g.letter}. {g.name} · {isLaunchGenre(g.letter) ? g.pages : "2차 오픈 예정"}</option>
                   ))}
                 </optgroup>
                 <optgroup label="애니메이션">
                   {GENRES.filter(g => ["D","E"].includes(g.letter)).map(g => (
-                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                    <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>{g.letter}. {g.name} · {isLaunchGenre(g.letter) ? g.pages : "2차 오픈 예정"}</option>
                   ))}
                 </optgroup>
                 <optgroup label="만화·웹툰">
                   {GENRES.filter(g => g.letter === "F").map(g => (
-                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                    <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>{g.letter}. {g.name} · {isLaunchGenre(g.letter) ? g.pages : "2차 오픈 예정"}</option>
                   ))}
                 </optgroup>
                 <optgroup label="다큐·예능·유튜브">
                   {GENRES.filter(g => ["G","J","M"].includes(g.letter)).map(g => (
-                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                    <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>{g.letter}. {g.name} · {isLaunchGenre(g.letter) ? g.pages : "2차 오픈 예정"}</option>
                   ))}
                 </optgroup>
                 <optgroup label="공연·뮤지컬">
                   {GENRES.filter(g => ["I","N"].includes(g.letter)).map(g => (
-                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                    <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>{g.letter}. {g.name} · {isLaunchGenre(g.letter) ? g.pages : "2차 오픈 예정"}</option>
                   ))}
                 </optgroup>
                 <optgroup label="소설·웹소설·에세이">
                   {GENRES.filter(g => ["H","O","P"].includes(g.letter)).map(g => (
-                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                    <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>{g.letter}. {g.name} · {isLaunchGenre(g.letter) ? g.pages : "2차 오픈 예정"}</option>
                   ))}
                 </optgroup>
                 <optgroup label="전시·게임">
                   {GENRES.filter(g => ["K","L"].includes(g.letter)).map(g => (
-                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                    <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>{g.letter}. {g.name} · {isLaunchGenre(g.letter) ? g.pages : "2차 오픈 예정"}</option>
                   ))}
                 </optgroup>
                 <optgroup label="브랜딩·동화">
                   {GENRES.filter(g => ["Q","R"].includes(g.letter)).map(g => (
-                    <option key={g.letter} value={g.letter}>{g.letter}. {g.name} · {g.pages}</option>
+                    <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>{g.letter}. {g.name} · {isLaunchGenre(g.letter) ? g.pages : "2차 오픈 예정"}</option>
                   ))}
                 </optgroup>
               </select>
@@ -248,6 +252,23 @@ export function WriteCanvas({
             <span className="wcanvas-saved-dot"></span>
             자동 저장됨 · 방금
           </span>
+          {polishing && (
+            <span className="wcanvas-saved" title="비문·조사·시제만 다듬는 중 — 내용은 그대로입니다">
+              ✎ 문장 다듬는 중
+            </span>
+          )}
+          {onPolishToggle && !polishing && (
+            <button
+              type="button"
+              className="wcanvas-book-toggle"
+              onClick={onPolishToggle}
+              title={polishEnabled
+                ? "문장 자동 다듬기 켜짐 — 생성 직후 비문·조사·시제만 교정합니다 (내용 수정 X)"
+                : "문장 자동 다듬기 꺼짐 — AI가 쓴 문장을 그대로 둡니다"}
+            >
+              {polishEnabled ? "✎ 자동 다듬기 켬" : "✎ 자동 다듬기 끔"}
+            </button>
+          )}
           {(isStreaming || aiBusy) && (
             <button
               type="button"
@@ -558,16 +579,20 @@ export function WriteCanvas({
         </div>
       </div>
 
-      {/* 작품 변경 모달 — 사장님 명시: 작업실에서 다른 작품 불러오기 */}
+      {/* 작품 변경 모달 — 대표님 명시: 작업실에서 다른 작품 불러오기 */}
       <LibraryPicker
         open={showProjectPicker}
         onClose={() => setShowProjectPicker(false)}
         title="작업할 작품 선택"
         subtitle="다른 작품으로 즉시 전환합니다. 현재 작품은 자동 저장됨."
         onPick={(work) => {
-          router.push(`/write?mode=continue&project=${encodeURIComponent(String(work.id))}`);
-          // mode=continue 진입 시 = 그 작품 자동 복원
-          setTimeout(() => router.refresh(), 50);
+          // ★ 작품을 바꿔도 원고가 안 바뀌던 문제 (실측 2026-08-27)
+          //   router.push 는 같은 /write 안에서의 이동이라 화면이 다시 만들어지지 않는다.
+          //   주소와 단락 수만 새 작품으로 바뀌고 본문 자리에는 "쓰던 원고가 있으세요?" 안내가 떴다.
+          //   작가 눈에는 원고가 사라진 것으로 보인다. 그래서 확실히 새로 연다.
+          //   (지금 작품은 자동 저장돼 있고, 이동 직전 한 번 더 저장한다)
+          try { onBeforeSwitchWork?.(); } catch { /* 저장 실패해도 이동은 막지 않는다 */ }
+          window.location.href = `/write?mode=continue&project=${encodeURIComponent(String(work.id))}`;
         }}
       />
     </section>

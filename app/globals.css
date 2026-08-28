@@ -270,6 +270,8 @@ a { color: inherit; text-decoration: none; }
   max-width: 1280px;
   width: 100%;
   margin: 0 auto;
+  /* grid 자식의 기본 min-width:auto 가 내용 폭만큼 화면을 밀어내는 것 차단 */
+  min-width: 0;
 }
 
 /* ============================================================
@@ -383,6 +385,7 @@ a { color: inherit; text-decoration: none; }
 .section-head:first-of-type { margin-top: 0; }
 .section-head-left { display: flex; align-items: baseline; gap: 16px; flex: 1; min-width: 0; flex-wrap: wrap; }
 .section-head-left > div { min-width: 0; }
+.section-head-right { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .section-title { word-break: keep-all; }
 .section-num {
   font-family: var(--font-display);
@@ -767,6 +770,15 @@ a { color: inherit; text-decoration: none; }
   color: var(--ink-3);
   line-height: 1.55;
   letter-spacing: -0.005em;
+}
+
+/* 가이드 — Defender 안내 단계 (설명 + 화면 목업) */
+.guide-defender-step {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
+}
+@media (max-width: 900px) {
+  .guide-defender-step { grid-template-columns: 1fr; }
 }
 
 /* Output items grid (Plan Package) */
@@ -3666,6 +3678,13 @@ a { color: inherit; text-decoration: none; }
   padding: 4px;
   margin-bottom: 28px;
 }
+/* ★ V3.1.1 — 좁은 화면에서 2칸 강제 = 라벨이 세로 한 글자씩 깨짐 → 세로 스택 + 메타 아랫줄 */
+@media (max-width: 640px) {
+  .adapt-segment { grid-template-columns: 1fr; }
+  .adapt-segment-btn { flex-wrap: wrap; row-gap: 4px; }
+  .adapt-segment-label { flex: 0 0 auto; white-space: nowrap; }
+  .adapt-segment-meta { flex: 1 1 100%; padding-left: 34px; }
+}
 .adapt-segment-btn {
   display: flex;
   align-items: center;
@@ -3693,7 +3712,7 @@ a { color: inherit; text-decoration: none; }
 }
 .adapt-segment-btn.is-on .adapt-segment-num { color: var(--coral-soft); opacity: 0.85; }
 .adapt-segment-label {
-  flex: 1;
+  flex: 1 1 auto;
   font-size: 14px;
   font-weight: 600;
   color: var(--ink);
@@ -4830,6 +4849,13 @@ a { color: inherit; text-decoration: none; }
   transition: opacity var(--dur) var(--ease);
 }
 .wpara.is-pending { opacity: 0.42; }
+/* ★ V3.1.1 — pending 행은 라벨 자식이 없어 본문이 56px 라벨 칸에 자동 배치되던 버그
+   (좁은 화면에서 "여기에 직접 쓰거나…"가 한 줄 2~3자로 세로 깨짐) → 전체 폭 사용 */
+.wpara.is-pending > .wpara-body:first-child { grid-column: 1 / -1; }
+/* ★ V3.1.1 — 좁은 화면에서 라벨 칸·간격 축소 = 본문 폭 확보 */
+@media (max-width: 520px) {
+  .wpara { grid-template-columns: 40px 1fr; gap: 8px; }
+}
 /* ★ 씬 헤더 (S#1., INT., EXT., 자막) = 굵게 + 위 간격 = 시나리오 표준 */
 .wpara.is-heading { margin-top: 18px; }
 .wpara.is-heading .wpara-text { font-weight: 700; font-size: 15px; color: var(--ink-1); }
@@ -5565,6 +5591,27 @@ a { color: inherit; text-decoration: none; }
   .sb-foot { padding: 12px 14px; }
   /* 라이브러리·OSMU grid = 1열 */
   .lib-grid { grid-template-columns: 1fr !important; gap: 12px; }
+  /* 기획 패키지 = 큰 숫자·3열 아이템이 좁은 화면에서 글자를 세로로 눌러버림 */
+  .hero-callout { flex-wrap: wrap; gap: 12px; padding: 18px 20px; }
+  .hero-callout-num { font-size: 40px; }
+  .hero-callout-text { flex: 1 1 100%; }
+  .output-grid { grid-template-columns: 1fr; }
+  .output-item { grid-template-columns: auto 1fr; gap: 10px; }
+  .output-spec { grid-column: 2; }
+  /* 홈 히어로 = select 의 고유 폭(가장 긴 항목)이 화면을 밀어내는 것 방지 */
+  .home-hero-genre { flex-wrap: wrap; width: 100%; }
+  .home-hero-genre-select,
+  .home-hero-genre-spec { flex: 1 1 130px; min-width: 0; max-width: 100%; }
+  .home-hero-actions { width: 100%; flex-wrap: wrap; gap: 10px; }
+  /* 섹션 헤더 = 우측 버튼이 설명문을 눌러 세로로 깨지는 것 방지 */
+  .section-head { flex-wrap: wrap; gap: 12px; }
+  .section-head-right { width: 100%; }
+  /* 라이브러리 툴바 = 줄바꿈 허용 + 검색창 고정폭 해제 (가로 스크롤 방지) */
+  .lib-toolbar { flex-wrap: wrap; }
+  .lib-toolbar-right { flex-wrap: wrap; width: 100%; }
+  .lib-search { min-width: 0; flex: 1 1 120px; }
+  /* input 은 기본 intrinsic 폭(size=20)이 있어 그대로 두면 부모를 밀어낸다 */
+  .lib-search input { min-width: 0; width: 100%; }
   .osmu-genre-grid { grid-template-columns: repeat(2, 1fr) !important; }
   .osmu-depth-grid { grid-template-columns: 1fr !important; }
   .osmu-result-grid { grid-template-columns: 1fr !important; }

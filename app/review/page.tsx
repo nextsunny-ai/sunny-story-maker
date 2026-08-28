@@ -6,13 +6,15 @@ import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
 import { Field, Btn } from "@/components/ui";
-import { GENRES } from "@/lib/genres";
+import { GENRES, isLaunchGenre } from "@/lib/genres";
+import { useQueryParamsState } from "@/lib/use-query-params";
 import type { TargetPersona } from "@/lib/storymaker/prompts";
 import { KEY, usePersistedState, saveJSON, loadJSON, type WorkConversation } from "@/lib/persist";
 import { getWorkId, appendTurns } from "@/lib/storymaker/work-id";
 import { REVIEWERS, recommendForGenre, type Reviewer } from "@/lib/storymaker/reviewers";
 import { Markdown } from "@/components/Markdown";
 import { streamFetch } from "@/lib/stream-agent";
+import { todayStamp } from "@/lib/storymaker/export";
 
 export default function ReviewPage() {
   return (
@@ -91,6 +93,18 @@ function ReviewMain() {
 
   // ----- 매체/작품명 -----
   const [genreLetter, setGenreLetter] = usePersistedState<string>(KEY.reviewGenre, "A");
+  //   작가가 리뷰어를 직접 손댔는지. 손대기 전까지는 매체를 바꾸면 리뷰어도 따라간다.
+  const [personasPicked, setPersonasPicked] = usePersistedState<boolean>(KEY.reviewPersonasPicked, false);
+  //   다른 화면에서 ?genre=O 로 넘어오면 그 매체로 연다. (실측 2026-08-27: 소설을 써 놓고 와도 TV드라마로 잡혔다)
+  const { params: reviewQuery, ready: reviewQueryReady } = useQueryParamsState();
+  const genreFromQuery = (reviewQuery.get("genre") || "").toUpperCase().slice(0, 1);
+  useEffect(() => {
+    if (!reviewQueryReady) return;
+    if (!genreFromQuery || !GENRES.some(g => g.letter === genreFromQuery)) return;
+    if (genreFromQuery === genreLetter) return;
+    setGenreLetter(genreFromQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewQueryReady, genreFromQuery]);
   const [title, setTitle] = usePersistedState<string>(KEY.reviewTitle, "");
 
   // ----- 페르소나 -----
@@ -162,6 +176,7 @@ function ReviewMain() {
   });
 
   const addReviewerFromLibrary = (r: Reviewer) => {
+    setPersonasPicked(true);
     setPersonas(prev => {
       if (prev.some(p => p.reviewerId === r.id)) return prev;
       return [...prev, reviewerToCard(r)];
@@ -170,17 +185,42 @@ function ReviewMain() {
 
   // 모달에서 "추가됨" 카드 클릭 시 제거 (토글)
   const removeReviewerFromActive = (reviewerId: string) => {
+    setPersonasPicked(true);
     setPersonas(prev => prev.filter(p => p.reviewerId !== reviewerId));
   };
 
-  // 매체 변경 시 추천 4명 자동 채움 (작가가 활성 리뷰어 모두 비웠을 때만)
+  // 매체가 바뀌면 그 매체 독자로 리뷰어를 바꾼다 — 단, 작가가 직접 고른 뒤로는 건드리지 않는다.
   useEffect(() => {
-    if (personas.length === 0) {
-      const recommended = recommendForGenre(genreLetter, 4);
-      setPersonas(recommended.map(reviewerToCard));
+    //   ★ 작가가 손댄 적이 있으면 그 선택이 우선이다. 매체를 바꿔도 그대로 둔다.
+    if (personasPicked) {
+      if (personas.length === 0) {
+        setPersonas(recommendForGenre(genreLetter, 4).map(reviewerToCard));
+      }
+      return;
     }
+    //   손댄 적이 없으면 = 시스템이 채워준 4명이므로, 매체에 맞는 사람들로 갈아 끼운다.
+    //   (실측 2026-08-27: TV드라마로 열어 둔 채 매체만 소설로 바꾸면 드라마 시청자가 소설을 리뷰했다)
+    const next = recommendForGenre(genreLetter, 4).map(reviewerToCard);
+    const sameAsNow =
+      personas.length === next.length &&
+      personas.every((p, i) => p.reviewerId === next[i].reviewerId);
+    if (sameAsNow) return;
+    setPersonas(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [genreLetter]);
+  }, [genreLetter, personasPicked]);
+
+  // (옛 자동 채움 — 활성 리뷰어가 비었을 때만)
+  useEffect(() => {
+    if (personas.length > 0) return;
+    // ★ 작가가 고른 리뷰어를 시스템이 덮어쓰던 문제 (실측 2026-08-27).
+    //   저장소에서 값이 올라오기 전 한순간 목록이 비어 보이는데, 그때 이 자동 채움이 돌아
+    //   **작가가 고른 2명이 기본 4명으로 바뀌었다.** 고르지도 않은 사람이 리뷰를 썼다.
+    //   저장된 값이 있으면 곧 올라오므로 건드리지 않는다.
+    const saved = loadJSON<PersonaCard[] | null>(KEY.reviewPersonas, null);
+    if (saved && saved.length > 0) return;
+    setPersonas(recommendForGenre(genreLetter, 4).map(reviewerToCard));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genreLetter, personas.length]);
 
   const filteredReviewers = REVIEWERS.filter(r => {
     const q = librarySearch.trim().toLowerCase();
@@ -197,7 +237,7 @@ function ReviewMain() {
 
   // ----- 리뷰 실행 -----
   const [reviewing, setReviewing] = useState(false);
-  const [reviewMode, setReviewMode] = useState<"simple" | "deep">("deep"); // ★ 간단/심층 토글 (사장님 명시 2026-05-04)
+  const [reviewMode, setReviewMode] = useState<"simple" | "deep">("deep"); // ★ 간단/심층 토글 (대표님 명시 2026-05-04)
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [unifiedReview, setUnifiedReview] = useState<string>("");
   const [reviewResults, setReviewResults] = useState<ReviewResult[]>([]);
@@ -270,6 +310,52 @@ function ReviewMain() {
 
   const onLibrary = () => {
     setShowLibrary(true);
+  };
+
+  /**
+   * 리뷰 지적을 들고 작업실로 간다.
+   *
+   * 리뷰는 「우선 수정」까지 짚어 주는데, 그걸 원고에 옮길 길이 없었다.
+   * 작가가 화면을 오가며 복사해야 했다. 원고와 지적을 함께 넘긴다.
+   */
+  const onOpenInWorkroom = () => {
+    const body = (text || "").trim();
+    if (!body) { alert("리뷰한 원고가 없습니다."); return; }
+    try {
+      const titleForKey = (title || "리뷰 원고").slice(0, 40);
+      const persistKey = `new:${genreLetter}:${titleForKey}`;
+      const blocks = body.split(/\n\s*\n+/).map(b => b.trim()).filter(Boolean);
+      const paras = blocks.map((t, i) => ({
+        id: `p_rv_${Date.now()}_${i}`, n: i + 1, label: "", text: t, status: "done" as const,
+      }));
+
+      // 리뷰에서 고칠 거리를 뽑아 작가 노트로 옮긴다.
+      //   제목 줄(우선 수정·약점·한 줄 평)을 찾아 그 아래 몇 줄을 가져온다.
+      const src = displayedText || unifiedReview || "";
+      const lines = src.split(/\r?\n/);
+      const notes: Array<{ id: string; label: string }> = [];
+      for (let i = 0; i < lines.length && notes.length < 5; i++) {
+        const head = lines[i].replace(/[#*\s]/g, "");
+        if (!/^(우선수정|약점|고칠것|보완)/.test(head)) continue;
+        for (let j = i + 1; j < Math.min(i + 8, lines.length) && notes.length < 5; j++) {
+          const raw = lines[j].trim();
+          if (!raw) continue;
+          if (/^[#*]{1,3}\s*\S/.test(raw) && raw.replace(/[#*\s]/g, "").length < 12) break; // 다음 제목
+          const label = raw.replace(/^[-·*\d.)\s]+/, "").replace(/\*\*/g, "").trim();
+          if (label.length > 4) notes.push({ id: `n_rv_${notes.length}`, label: label.slice(0, 90) });
+        }
+      }
+
+      saveJSON(KEY.writeProject(persistKey), {
+        work: { title: titleForKey, chapter: "리뷰 반영", elapsed: "방금 열림", medium: "" },
+        notes, flow: [], paras, chat: [],
+        headerBlocks: [], mediumFields: {}, briefDone: true,
+        updatedAt: new Date().toISOString(),
+      });
+      window.location.href = `/write?mode=continue&project=${encodeURIComponent(persistKey)}`;
+    } catch {
+      alert("작업실로 넘기지 못했습니다. 원고를 복사해서 옮겨 주세요.");
+    }
   };
 
   const onRunReview = async () => {
@@ -435,7 +521,7 @@ function ReviewMain() {
 
   const buildHeader = (kind: "통합" | "익명" | string, withReviewerList = true): string => {
     const safeTitle = title.trim() || "리뷰";
-    const stamp = new Date().toISOString().slice(0, 10);
+    const stamp = todayStamp();
     const mediumName = GENRES.find(g => g.letter === genreLetter)?.name ?? "";
     const reviewerList = withReviewerList
       ? `## 리뷰어 (${selectedPersonas.length}명)\n${selectedPersonas.map(p => `- ${p.name}`).join("\n")}\n\n`
@@ -447,7 +533,7 @@ function ReviewMain() {
 
   const baseFilename = (suffix: string): string => {
     const safeTitle = title.trim() || "리뷰";
-    const stamp = new Date().toISOString().slice(0, 10);
+    const stamp = todayStamp();
     return `${safeTitle}_review_${suffix}_${stamp}`;
   };
 
@@ -474,15 +560,18 @@ function ReviewMain() {
     await exportDocument(md, baseFilename(safeName), format);
   };
 
-  // ★ 사장님 명시 (2026-05-04): 통합 리뷰 먼저, 개별 그 다음
+  // ★ 대표님 명시 (2026-05-04): 통합 리뷰 먼저, 개별 그 다음
   //    AI 응답에 ===PERSONAS_BREAK=== 마커 박음 → split
   const personasBreakIdx = unifiedReview.indexOf("===PERSONAS_BREAK===");
   const integratedReview = personasBreakIdx >= 0
-    ? unifiedReview.slice(0, personasBreakIdx).trim()
+    ? unifiedReview.slice(0, personasBreakIdx).replace(/={2,}\s*PERSONAS_BREAK\s*={2,}/g, "").trim()
     : ""; // 마커 없으면 = 옛 형식 (= 통합 X = 개별만)
+  // ★ 마커가 두 번 이상 나오면 뒤엣것이 화면에 그대로 보였다 (실측 2026-08-26).
+  //   분리한 뒤 남은 마커는 전부 지운다.
+  const stripBreak = (x: string) => x.replace(/={2,}\s*PERSONAS_BREAK\s*={2,}/g, "").trim();
   const personasReview = personasBreakIdx >= 0
-    ? unifiedReview.slice(personasBreakIdx + "===PERSONAS_BREAK===".length).trim()
-    : unifiedReview;
+    ? stripBreak(unifiedReview.slice(personasBreakIdx + "===PERSONAS_BREAK===".length))
+    : stripBreak(unifiedReview);
 
   // 리뷰어별 섹션 (화면 표시용 + 개별 다운로드용) — 마커 아래 부분에서만 split
   const reviewerSections = personasReview ? splitByReviewer(personasReview) : [];
@@ -535,8 +624,8 @@ function ReviewMain() {
             onChange={e => setGenreLetter(e.target.value)}
           >
             {GENRES.map(g => (
-              <option key={g.letter} value={g.letter}>
-                {g.letter}. {g.name} ({g.sub})
+              <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>
+                {g.letter}. {g.name}{isLaunchGenre(g.letter) ? ` (${g.sub})` : " — 2차 오픈 예정"}
               </option>
             ))}
           </select>
@@ -671,9 +760,10 @@ function ReviewMain() {
         </div>
       )}
 
-      {/* ★ 간단/심층 리뷰 토글 (사장님 명시 2026-05-04) */}
+      {/* 간단/심층 리뷰 토글 */}
       <div style={{
         display: "flex", gap: 8, marginBottom: 12, alignItems: "center",
+        flexWrap: "wrap",
         padding: "10px 14px", background: "var(--card-soft)",
         border: "1px solid var(--line)", borderRadius: 10,
       }}>
@@ -685,7 +775,7 @@ function ReviewMain() {
           onClick={() => setReviewMode("simple")}
           disabled={reviewing}
           style={{
-            padding: "6px 14px", fontSize: 12, fontWeight: 600,
+            padding: "6px 14px", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
             background: reviewMode === "simple" ? "var(--coral)" : "transparent",
             color: reviewMode === "simple" ? "#fff" : "var(--ink-3)",
             border: `1px solid ${reviewMode === "simple" ? "var(--coral)" : "var(--line)"}`,
@@ -698,7 +788,7 @@ function ReviewMain() {
           onClick={() => setReviewMode("deep")}
           disabled={reviewing}
           style={{
-            padding: "6px 14px", fontSize: 12, fontWeight: 600,
+            padding: "6px 14px", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap",
             background: reviewMode === "deep" ? "var(--coral)" : "transparent",
             color: reviewMode === "deep" ? "#fff" : "var(--ink-3)",
             border: `1px solid ${reviewMode === "deep" ? "var(--coral)" : "var(--line)"}`,
@@ -734,7 +824,7 @@ function ReviewMain() {
               !reviewing && unifiedReview && !reviewError ? (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <Btn icon={I.spark} onClick={onRunReview}>다시 리뷰</Btn>
-                  {/* ★ 카피 버튼 (사장님 명시 2026-05-04) */}
+                  {/* ★ 카피 버튼 (대표님 명시 2026-05-04) */}
                   <button
                     type="button"
                     onClick={async (e) => {
@@ -757,6 +847,9 @@ function ReviewMain() {
                   >📋 복사</button>
                   <Btn kind="primary" icon={I.save} onClick={() => onSaveCurrent("docx")}>현재 워드</Btn>
                   <Btn icon={I.save} onClick={() => onSaveCurrent("txt")}>현재 txt</Btn>
+                  {/* ★ 리뷰를 받아도 원고에 반영할 길이 없었다 (실측 2026-08-27).
+                      작가가 복사해서 직접 옮겨야 했다. 작업실로 원고 + 지적을 함께 넘긴다. */}
+                  <Btn kind="coral" icon={I.write} onClick={onOpenInWorkroom}>작업실에서 고치기 →</Btn>
                 </div>
               ) : null
             }

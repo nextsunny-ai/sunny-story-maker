@@ -128,7 +128,7 @@ function buildTable(lines: string[]): Table {
   });
 }
 
-/** ★ 표지 옵션 — 사장님 명시 2026-05-04: 외부 발송 가능 수준 */
+/** ★ 표지 옵션 — 대표님 명시 2026-05-04: 외부 발송 가능 수준 */
 export interface CoverOptions {
   /** 작가명 — 표지 하단에 박힘 */
   author?: string;
@@ -646,4 +646,17 @@ export async function exportDocument(md: string, baseFilename: string, format: E
   if (format === "fountain") return downloadFountain(md, baseFilename);
   if (format === "pdf") return downloadPdfViaPrint(md, baseFilename);
   return downloadTxt(md, baseFilename);
+}
+
+/**
+ * todayStamp — 파일명에 쓰는 오늘 날짜 (YYYY-MM-DD).
+ *
+ * toISOString() 은 UTC 기준이라 한국 시간 새벽에 파일을 받으면
+ * 파일명이 하루 전 날짜로 찍힌다 (실측 2026-08-27 00:5x, 파일명은 08-26).
+ * 작가가 날짜로 원고를 정리하니 보고 있는 날짜와 같아야 한다.
+ */
+export function todayStamp(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }

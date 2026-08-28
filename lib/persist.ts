@@ -114,22 +114,42 @@ export const KEY = {
   get reviewTitle() { return `${PREFIX}.review.${currentUser}.title`; },
   get reviewGenre() { return `${PREFIX}.review.${currentUser}.genre`; },
   get reviewPersonas() { return `${PREFIX}.review.${currentUser}.personas`; },
+  //   작가가 리뷰어를 직접 고르거나 뺐는가. 손댄 뒤로는 매체를 바꿔도 그 선택을 지킨다.
+  get reviewPersonasPicked() { return `${PREFIX}.review.${currentUser}.personasPicked`; },
   get reviewLastResult() { return `${PREFIX}.review.${currentUser}.lastResult`; },
 
   // adapt
   get adaptText() { return `${PREFIX}.adapt.${currentUser}.text`; },
   get adaptTitle() { return `${PREFIX}.adapt.${currentUser}.title`; },
   get adaptGenre() { return `${PREFIX}.adapt.${currentUser}.genre`; },
+  get adaptVersions() { return `${PREFIX}.adapt.${currentUser}.versions`; },
+  // 다른 작품으로 새로 시작할 때 이전 작업을 보관하는 자리 (지우지 않는다)
+  get adaptBackup() { return `${PREFIX}.adapt.${currentUser}.backup`; },
+  // 매체 변환 시 작가 지시 (인트로 처리 등)
+  get adaptCrossDirection() { return `${PREFIX}.adapt.${currentUser}.crossDirection`; },
+  get adaptDropIntro() { return `${PREFIX}.adapt.${currentUser}.dropIntro`; },
+  // 지원사업 신청서 — 2~3분 걸려 받은 결과가 새로고침 한 번에 사라지던 문제 (2026-08-27)
+  get grantNotice()   { return `${PREFIX}.grant.${currentUser}.notice`; },
+  get grantForm()     { return `${PREFIX}.grant.${currentUser}.form`; },
+  get grantProposal() { return `${PREFIX}.grant.${currentUser}.proposal`; },
+  get grantProject()  { return `${PREFIX}.grant.${currentUser}.project`; },
+  get grantExtra()    { return `${PREFIX}.grant.${currentUser}.extra`; },
+  get grantResult()   { return `${PREFIX}.grant.${currentUser}.result`; },
 
   // osmu
   get osmuText() { return `${PREFIX}.osmu.${currentUser}.text`; },
   get osmuTitle() { return `${PREFIX}.osmu.${currentUser}.title`; },
   get osmuGenre() { return `${PREFIX}.osmu.${currentUser}.genre`; },
+  get osmuLastResult() { return `${PREFIX}.osmu.${currentUser}.lastResult`; },
+  // 기획 패키지 결과 · 보조작가 대화 — 새로고침에 사라지던 문제 (2026-08-27)
+  get packageResult()  { return `${PREFIX}.package.${currentUser}.result`; },
+  get coWriterMessages() { return `${PREFIX}.chat.${currentUser}.messages`; },
 
   // write
   writeProject: (id: string) => `${PREFIX}.write.${currentUser}.project.${id}`,
   get writeLastProject() { return `${PREFIX}.write.${currentUser}.lastProject`; },
   get writeWorkbookWidth() { return `${PREFIX}.write.${currentUser}.workbookWidth`; },
+  get writeAutoPolish() { return `${PREFIX}.write.${currentUser}.autoPolish`; },
   workConversation: (id: string) => `${PREFIX}.conv.${currentUser}.work.${id}`,
 
   // BYOK
@@ -170,7 +190,7 @@ export function saveJSON(key: string, value: unknown): void {
     if (typeof console !== "undefined") {
       console.warn(`[persist] saveJSON failed for key "${key}":`, e);
     }
-    // /api/log로 박힘 (= 사장님 /admin/dashboard에서 확인)
+    // /api/log로 박힘 (= 대표님 /admin/dashboard에서 확인)
     if (typeof window !== "undefined") {
       import("@/lib/log").then(({ logWarn }) => {
         logWarn(`localStorage saveJSON failed: ${e instanceof Error ? e.message : String(e)} (key=${key})`, "persist:saveJSON");

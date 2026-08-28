@@ -119,8 +119,9 @@ export function enrichBody(body: Record<string, unknown>): Record<string, unknow
   if (hasProfile) enriched.writerProfile = profile;
 
   // ★ 한 클로드 conversation 모델 — body.workId 있으면 옛 turn 누적
+  // ★ V3.1.1 — 호출부가 conversationMessages를 직접 넣었으면(채팅 페이지 등) 덮어쓰지 않음
   const workId = typeof body.workId === "string" ? body.workId : "";
-  if (workId) {
+  if (workId && !enriched.conversationMessages) {
     const conv = loadJSON<WorkConversation>(
       KEY.workConversation(workId),
       { workId, messages: [], updatedAt: 0 }
@@ -140,7 +141,7 @@ interface BuildPromptResponse {
 
 /**
  * /api/build-prompt 호출 → Tauri Rust subprocess에 전달할 system/user prompt + model 빌드.
- * Vercel에서 Claude API 호출 X = 단순 텍스트 빌드만 = 사장님 비용 0.
+ * Vercel에서 Claude API 호출 X = 단순 텍스트 빌드만 = 대표님 비용 0.
  */
 async function buildPromptForTauri(body: Record<string, unknown>): Promise<BuildPromptResponse> {
   const res = await fetch("/api/build-prompt", {

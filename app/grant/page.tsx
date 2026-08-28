@@ -7,8 +7,9 @@ import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
 import { Field, Btn } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
-import { downloadDocx, downloadTxt } from "@/lib/storymaker/export";
+import { downloadDocx, downloadTxt, todayStamp } from "@/lib/storymaker/export";
 import { streamFetch } from "@/lib/stream-agent";
+import { KEY, usePersistedState } from "@/lib/persist";
 
 export default function GrantPage() {
   return (
@@ -30,13 +31,14 @@ const initialSlot: UploadSlot = { text: "", filename: "", status: "idle" };
 function GrantMain() {
   const I = ICONS;
 
-  const [notice, setNotice] = useState<UploadSlot>(initialSlot);    // 공고
-  const [form, setForm] = useState<UploadSlot>(initialSlot);        // 신청서 양식
-  const [proposal, setProposal] = useState<UploadSlot>(initialSlot); // 기획안
+  const [notice, setNotice] = usePersistedState<UploadSlot>(KEY.grantNotice, initialSlot);    // 공고
+  const [form, setForm] = usePersistedState<UploadSlot>(KEY.grantForm, initialSlot);        // 신청서 양식
+  const [proposal, setProposal] = usePersistedState<UploadSlot>(KEY.grantProposal, initialSlot); // 기획안
 
-  const [project, setProject] = useState("");
-  const [extra, setExtra] = useState("");
-  const [result, setResult] = useState("");
+  const [project, setProject] = usePersistedState<string>(KEY.grantProject, "");
+  const [extra, setExtra] = usePersistedState<string>(KEY.grantExtra, "");
+  // ★ 2~3분 기다려 받은 신청서가 새로고침 한 번에 사라지던 문제 (실측 2026-08-27)
+  const [result, setResult] = usePersistedState<string>(KEY.grantResult, "");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
@@ -226,7 +228,7 @@ ${analysisPart}
 
   const stop = () => { abortRef.current?.abort(); };
 
-  const downloadName = (project || "지원사업_신청서") + "_" + new Date().toISOString().slice(0, 10);
+  const downloadName = (project || "지원사업_신청서") + "_" + todayStamp();
   const downloadHtml = () => {
     if (!result) return;
     const html = `<!DOCTYPE html>

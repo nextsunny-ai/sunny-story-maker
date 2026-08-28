@@ -1,8 +1,8 @@
 -- ============================================================
 -- 스토리메이커 V2.11 — 작품 저장 = Supabase로 마이그레이션
 -- 박힘일: 2026-05-05
--- 사장님 명시: 작품 = production(Vercel) 디스크 휘발성 = Supabase DB로 박아야 영구 저장.
--- 사장님 손: 1번 — Supabase SQL Editor에 이거 붙여넣고 Run.
+-- 대표님 명시: 작품 = production(Vercel) 디스크 휘발성 = Supabase DB로 박아야 영구 저장.
+-- 대표님 손: 1번 — Supabase SQL Editor에 이거 붙여넣고 Run.
 --   콘솔: https://supabase.com/dashboard/project/lcasxovjrgbnraxzyvnf/sql/new
 -- ============================================================
 
@@ -70,7 +70,7 @@ CREATE INDEX IF NOT EXISTS works_user_id_work_id_idx
   ON public.works (user_id, work_id);
 
 -- ============================================================
--- 검증 쿼리 (사장님 = Run 후 = 이거 한 번 더 실행 = 결과 박힌 거 확인)
+-- 검증 쿼리 (대표님 = Run 후 = 이거 한 번 더 실행 = 결과 박힌 거 확인)
 -- ============================================================
 -- SELECT table_name FROM information_schema.tables WHERE table_name = 'works';
 -- SELECT policyname FROM pg_policies WHERE tablename = 'works';

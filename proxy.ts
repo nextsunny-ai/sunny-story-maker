@@ -29,7 +29,8 @@ const PUBLIC_PATHS: readonly string[] = [
   "/api/updater-download", // ★ V2.12 = 스토리메이커 .exe 다운로드
   "/api/agent-updater", // ★ V1.0 = SUNNY Agent Pro auto-updater
   "/api/agent-updater-download", // ★ V1.0 = SUNNY Agent Pro .exe 다운로드
-  "/api/agent/stream", // 베타: mock UI라 일단 자유 접근
+  // ★ V3.1.1 (2026-08-26) — /api/agent/stream 공개 접근 제거. 베타 시절 "일단 자유 접근"이
+  //   그대로 남아 핵심 AI 엔드포인트가 비인증 공개였음 (진단 2026-06-12 P2). 이제 로그인 필수.
 ];
 
 function isPublicPath(pathname: string): boolean {
@@ -37,6 +38,13 @@ function isPublicPath(pathname: string): boolean {
 }
 
 export async function proxy(request: NextRequest) {
+  // ★ V3.1.1 (2026-08-26, 대표님 지시 "로그인은 일단 떼고 본 내용부터") —
+  //   로컬 개발·테스트 전용 로그인 우회. .env.local에만 두는 플래그.
+  //   ⚠️ 배포 env(Vercel)에 STORYMAKER_NO_AUTH를 절대 설정하지 말 것.
+  if (process.env.STORYMAKER_NO_AUTH === "true") {
+    return NextResponse.next();
+  }
+
   const { response, user } = await updateSession(request);
   const { pathname, search } = request.nextUrl;
 

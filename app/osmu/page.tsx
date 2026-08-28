@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
-import { GENRES } from "@/lib/genres";
+import { GENRES, isLaunchGenre } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
@@ -11,6 +11,8 @@ import { Btn } from "@/components/ui";
 import { Markdown } from "@/components/Markdown";
 import { LibraryPicker } from "@/components/LibraryPicker";
 import { streamAgent } from "@/lib/stream-agent";
+import { KEY, usePersistedState } from "@/lib/persist";
+import { todayStamp } from "@/lib/storymaker/export";
 
 export default function OsmuPage() {
   return (
@@ -36,13 +38,16 @@ function OsmuMain() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [running, setRunning] = useState(false);
-  const [streamText, setStreamText] = useState("");
+  // ★ 매트릭스 결과도 저장한다. 옛엔 화면 state 뿐이라 새로고침 한 번에 사라졌다.
+  const [streamText, setStreamText] = usePersistedState<string>(KEY.osmuLastResult, "");
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
 
-  const targetCount = GENRES.length - 1; // 원본 제외
+  // 1차 오픈 매체만 분석한다. 2차 오픈 예정 매체까지 세면
+  // "나머지 16개 매체로 자동 분석"이라고 떠서 화면끼리 말이 어긋난다.
+  const targetCount = GENRES.filter(g => isLaunchGenre(g.letter) && g.letter !== source).length;
   const depthInfo = {
     A: { label: "매트릭스 분석", desc: "각 매체 1단락 · 빠른 스캔 (★ 가장 안정)", eta: "1~3분", pages: "1단락", disabled: false },
     B: { label: "트리트먼트", desc: "각 매체 A4 1쪽 · Haiku 사전 분석 + Sonnet 변환", eta: `${targetCount * 1}~${targetCount * 2}분`, pages: "A4 1쪽", disabled: false },
@@ -223,8 +228,8 @@ function OsmuMain() {
     <main className="main">
       <Topbar
         eyebrow="CREATE — OSMU"
-        title='하나의 이야기, <em style="font-style:italic">열두 가지 매체</em>'
-        sub="원본 한 작품을 12개 매체로 동시 분석 — 적합도·강점·전환 룰을 매트릭스로 한 번에."
+        title='하나의 이야기, <em style="font-style:italic">여러 매체</em>'
+        sub={`원본 한 작품을 ${targetCount}개 매체로 동시 분석 — 적합도·강점·전환 룰을 매트릭스로 한 번에.`}
       />
 
       {/* INPUT CARD */}
@@ -252,7 +257,7 @@ function OsmuMain() {
               rows={4}
               value={body}
               onChange={e => setBody(e.target.value)}
-              placeholder="시놉시스 또는 1화 본문 — 자유롭게 붙여넣기 (★ 큰 시나리오 = 파일 업로드 또는 본문 복사. 4.5MB 초과 파일 = 본문 붙여넣기 권장)"
+              placeholder="시놉시스 또는 1화 본문을 붙여넣으세요. 긴 시나리오는 파일로 올리셔도 됩니다 (4.5MB를 넘으면 본문만 붙여넣기)"
             />
             <div className="osmu-input-source-actions">
               <button
@@ -288,8 +293,8 @@ function OsmuMain() {
                 onChange={e => setSource(e.target.value)}
               >
                 {GENRES.map(g => (
-                  <option key={g.letter} value={g.letter}>
-                    {g.letter}. {g.name}
+                  <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>
+                    {g.letter}. {g.name}{isLaunchGenre(g.letter) ? "" : " — 2차 오픈 예정"}
                   </option>
                 ))}
               </select>
@@ -339,7 +344,7 @@ function OsmuMain() {
             >
               <span className="osmu-run-cta-icon">{I.spark}</span>
               <span className="osmu-run-cta-label">
-                {running ? "중지" : "12개 매체 매트릭스 시작"}
+                {running ? "중지" : `${targetCount}개 매체 매트릭스 시작`}
               </span>
               <span className="osmu-run-cta-meta">
                 {running ? "스트리밍 중…" : cur.eta}
@@ -358,18 +363,18 @@ function OsmuMain() {
         <div style={{ marginTop: 24 }}>
           <SectionHead
             title="매트릭스 분석 결과"
-            sub={running ? "스트리밍 중 — 12개 매체 분석" : `완료 · ${streamText.length.toLocaleString()}자`}
+            sub={running ? `스트리밍 중 — ${targetCount}개 매체 분석` : `완료 · ${streamText.length.toLocaleString()}자`}
             right={!running && streamText ? (
               <div style={{ display: "flex", gap: 6 }}>
                 <Btn kind="primary" icon={I.save} onClick={async () => {
                   const { downloadDocx } = await import("@/lib/storymaker/export");
-                  const stamp = new Date().toISOString().slice(0, 10);
+                  const stamp = todayStamp();
                   const t = title || "OSMU 매트릭스";
                   await downloadDocx(`# ${t} — OSMU 매트릭스\n> 생성일: ${stamp}  |  원본 매체: ${sourceGenre.name}\n\n${streamText}`, `${t}_OSMU_${stamp}`);
                 }}>워드</Btn>
                 <Btn icon={I.save} onClick={async () => {
                   const { downloadTxt } = await import("@/lib/storymaker/export");
-                  const stamp = new Date().toISOString().slice(0, 10);
+                  const stamp = todayStamp();
                   const t = title || "OSMU 매트릭스";
                   downloadTxt(`# ${t} — OSMU 매트릭스\n> 생성일: ${stamp}  |  원본 매체: ${sourceGenre.name}\n\n${streamText}`, `${t}_OSMU_${stamp}`);
                 }}>텍스트</Btn>
@@ -405,10 +410,10 @@ function OsmuMain() {
             OSMU 매트릭스
           </div>
           <div style={{ fontSize: 15, color: "var(--ink-1)", marginBottom: 6, fontWeight: 600 }}>
-            원본 본문을 입력하면 <em style={{ fontStyle: "italic", color: "var(--coral)" }}>12개 매체</em>로 펼쳐집니다
+            원본 본문을 입력하면 <em style={{ fontStyle: "italic", color: "var(--coral)" }}>{targetCount}개 매체</em>로 펼쳐집니다
           </div>
           <div style={{ fontSize: 12.5, color: "var(--ink-4)" }}>
-            웹툰 · 웹소설 · 영화 · TV드라마 · 숏드라마 · 애니메이션 · 게임 · 뮤지컬 · 다큐 · 유튜브 · 전시 · 예능
+            {GENRES.filter(g => isLaunchGenre(g.letter)).map(g => g.name).join(" · ")}
             <br />
             매체별 적합도 점수 + 강점 + 전환 룰을 한 번에 분석
           </div>

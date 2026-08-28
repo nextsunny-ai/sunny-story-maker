@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
-import { GENRES } from "@/lib/genres";
+import { GENRES, isLaunchGenre } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { SectionHead } from "@/components/SectionHead";
 import { KEY, loadJSON, usePersistedState } from "@/lib/persist";
+import { STORYMAKER_VERSION } from "@/lib/storymaker/version";
 import {
   WORKFLOWS,
   WORKFLOW_LETTERS,
@@ -38,7 +39,7 @@ interface LibraryWork {
 }
 
 // 매체별 핵심 결정 필드 (sub_genre 제외, hero 옆 부가 dropdown 1개)
-// — 사장님 사양: A=episodes, B=runtime, C=total_episodes, G=format_type,
+// — 대표님 사양: A=episodes, B=runtime, C=total_episodes, G=format_type,
 //   H=chars_per_ep, J=length_type, K=area, M=ep_length 등 매체 핵심 결정
 const PRIMARY_DECISION_KEY: Record<string, string> = {
   A: "episodes",
@@ -75,6 +76,14 @@ function HomeMain() {
 
   // ★ V3.1 — 최근 .smkr 프로젝트 (Tauri 데스크탑) — 최대 3개
   const [recentSmkr, setRecentSmkr] = useState<Array<{ filename: string; fullPath: string; title: string; genreLetter: string; updatedAt: string }>>([]);
+
+  // 시간대에 맞는 인사 — 저녁에 "Good morning"이 뜨던 것을 고침.
+  // 서버·첫 렌더에서는 고정값을 쓰고(하이드레이션 어긋남 방지) 마운트 후 실제 시각으로 바꾼다.
+  const [greetingWord, setGreetingWord] = useState("morning");
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreetingWord(h < 5 ? "night" : h < 12 ? "morning" : h < 18 ? "afternoon" : "evening");
+  }, []);
   useEffect(() => {
     if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
       import("@/lib/storymaker/project-file").then(async ({ listProjectFolder }) => {
@@ -202,7 +211,7 @@ function HomeMain() {
     setStats({ done, wip, pages: 0, calls: 0 });
   }, []);
 
-  // 사장님 명시: placeholder 회색 샘플도 거슬림 = 매체별 예시 X = 단순 안내만.
+  // 대표님 명시: placeholder 회색 샘플도 거슬림 = 매체별 예시 X = 단순 안내만.
   // 매체별 영감은 = 아래 「영감이 필요하면」 영역에서 작가가 클릭해서 채움.
   const heroPlaceholder = "한 줄 아이디어로 시작하세요";
   // 매체 이름 받침 따라 "을/를" 결정 (한국어 조사 자동)
@@ -231,7 +240,7 @@ function HomeMain() {
     <main className="main">
       <Topbar
         eyebrow="WORKSPACE — HOME"
-        title='Good <em style="font-style:italic">morning</em>, 작가님<span class="dot">.</span>'
+        title={`Good <em style="font-style:italic">${greetingWord}</em>, 작가님<span class="dot">.</span>`}
         sub="머릿속 한 문장이면 충분합니다. SUNNY가 로그라인부터 첫 부분 샘플까지 만들어 드려요."
       />
 
@@ -332,9 +341,12 @@ function HomeMain() {
             >
               {WORKFLOW_LETTERS.map(letter => {
                 const w = WORKFLOWS[letter];
+                // 아래 매체 카드에는 "2차 오픈 예정"이 붙는데 이 선택창에는 안 붙어
+                // 작가가 2차 매체를 고를 수 있던 불일치를 맞춘다.
+                const launched = isLaunchGenre(letter);
                 return (
-                  <option key={letter} value={letter}>
-                    {letter}. {w.name}
+                  <option key={letter} value={letter} disabled={!launched}>
+                    {letter}. {w.name}{launched ? "" : " — 2차 오픈 예정"}
                   </option>
                 );
               })}
@@ -444,23 +456,26 @@ function HomeMain() {
       <div className="home-genre-mini">
         {G.map(g => {
           const isActive = g.letter === medium;
+          // ★ V3.1.1 — 1차 오픈 4개 장르만 활성 (대표님 확정 2026-08-26)
+          const launched = isLaunchGenre(g.letter);
           return (
             <button
               key={g.letter}
               className="home-genre-mini-card"
-              onClick={() => switchMedium(g.letter)}
+              onClick={() => launched && switchMedium(g.letter)}
+              disabled={!launched}
               style={isActive ? {
                 borderColor: "var(--coral)",
                 borderWidth: 2,
                 fontWeight: 700,
-              } : undefined}
-              title={isActive ? `현재 작업실: ${g.name}` : `${g.name}로 전환`}
+              } : (!launched ? { opacity: 0.4, cursor: "default" } : undefined)}
+              title={!launched ? `${g.name} — 2차 오픈 예정` : isActive ? `현재 작업실: ${g.name}` : `${g.name}로 전환`}
             >
               <span className="home-genre-mini-icon">{I[g.letter]}</span>
               <span className="home-genre-mini-name" style={isActive ? { color: "var(--coral)" } : undefined}>
                 {g.name}
               </span>
-              <span className="home-genre-mini-sub">{g.sub}</span>
+              <span className="home-genre-mini-sub">{launched ? g.sub : "2차 오픈 예정"}</span>
             </button>
           );
         })}
@@ -490,7 +505,7 @@ function HomeMain() {
         <div className="footer-band-left">
           <span>SUNNY Story Maker</span>
           <span>·</span>
-          <span>v2.3 (Develop)</span>
+          <span>v{STORYMAKER_VERSION.version}</span>
         </div>
         <div>마지막 동기화 — 방금 전</div>
       </div>

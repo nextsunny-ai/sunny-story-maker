@@ -1,5 +1,5 @@
 -- V3.1 #14 — 클라이언트 에러·디버그 로그 테이블.
--- /api/log endpoint가 INSERT, 사장님 (= service_role) 만 SELECT.
+-- /api/log endpoint가 INSERT, 대표님 (= service_role) 만 SELECT.
 -- 작가 PC에서 발생한 에러를 자동 수집 = 사고 재발 분석용.
 
 create table if not exists public.client_logs (
@@ -24,7 +24,7 @@ create policy "Anyone can insert client log"
   on public.client_logs for insert
   with check (true);
 
--- service_role (사장님) 만 SELECT
+-- service_role (대표님) 만 SELECT
 create policy "Service role can read client logs"
   on public.client_logs for select
   using (auth.jwt() ->> 'role' = 'service_role');
@@ -33,4 +33,4 @@ create index if not exists client_logs_created_idx on public.client_logs (create
 create index if not exists client_logs_level_idx on public.client_logs (level, created_at desc);
 create index if not exists client_logs_user_idx on public.client_logs (user_id, created_at desc);
 
-comment on table public.client_logs is 'V3.1 #14 — 작가 PC 클라이언트 에러 자동 수집. 사장님 운영용.';
+comment on table public.client_logs is 'V3.1 #14 — 작가 PC 클라이언트 에러 자동 수집. 대표님 운영용.';

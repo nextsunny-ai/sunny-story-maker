@@ -287,7 +287,7 @@ function buildCardChatPrompt(b: RequestBody): string {
  * ★ V2.12.5 정정 — 대화 모드 prefix
  *
  * 옛 사고: stage builder (buildTitlePrompt 등) = 무조건 "5개 후보 5개" 형식 강제 →
- * 작가가 본인 제목 제시·의견 묻기 = 무시 + 또 5개 후보 박음 = "대화가 아님" (사장님 분노).
+ * 작가가 본인 제목 제시·의견 묻기 = 무시 + 또 5개 후보 박음 = "대화가 아님" (대표님 분노).
  *
  * 정정: conversationMessages.length > 0 = 옛 turn 박혔으면 = "대화 모드" prefix를 user prompt 맨 앞에 박음.
  * = AI가 stage builder 형식 강제 무시 + 작가 메시지에 대화로 응답.
@@ -398,7 +398,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    // ★ V3.1 D3 — server console log = Vercel function log에서 사장님 확인
+    // ★ V3.1 D3 — server console log = Vercel function log에서 대표님 확인
     console.error("[/api/build-prompt] 실패:", msg);
     return new Response(
       JSON.stringify({ error: `프롬프트 생성 중 오류: ${msg}\n\n작품이 너무 길거나 양식이 잘못됐을 수 있습니다. 작품을 짧게 줄이거나 = 우측 하단 💬 위젯으로 알려주세요.` }),

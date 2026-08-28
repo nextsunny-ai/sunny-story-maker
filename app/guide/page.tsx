@@ -7,8 +7,8 @@ export const metadata = {
 /**
  * /guide — 작가 사용법 안내 페이지 (V2.11.3)
  *
- * 사장님 명시 옛: "매번 카톡으로 설명 = X = 영구 가이드 페이지로".
- * 사장님 명시 2026-05-12: "Windows Defender 경고 = 작가 헤맴 = 안내 강화".
+ * 대표님 명시 옛: "매번 카톡으로 설명 = X = 영구 가이드 페이지로".
+ * 대표님 명시 2026-05-12: "Windows Defender 경고 = 작가 헤맴 = 안내 강화".
  *
  * 박힌 내용:
  * - 4단계 설치 가이드
@@ -86,11 +86,11 @@ const FAQ = [
   },
   {
     q: "Mac에서도 쓸 수 있나요?",
-    a: "Mac 데스크탑 앱은 V2.12 출시 예정 (Apple Developer 인증 필요). 현재 Mac 사용자는 = 다운로드 페이지의 \"Mac 자동 설치 ZIP\" 옵션 사용 가능 (Node.js + Claude Code 자동 설치).",
+    a: "Mac 데스크탑 앱은 준비 중입니다 (Apple 개발자 인증 절차가 남아 있습니다). 지금 Mac에서는 다운로드 페이지의 \"Mac 자동 설치 ZIP\"을 쓰시면 됩니다 (Node.js + Claude Code 자동 설치).",
   },
   {
     q: "iOS·Android는 언제 나오나요?",
-    a: "V2.13~14 출시 예정. App Store + Google Play 심사 통과 후. 현재 = Windows 데스크탑 앱이 가장 안정적.",
+    a: "준비 중입니다. App Store·Google Play 심사를 거쳐야 합니다. 지금은 Windows 데스크탑 앱이 가장 안정적입니다.",
   },
   {
     q: "작품 데이터는 어디 저장되나요?",
@@ -98,15 +98,15 @@ const FAQ = [
   },
   {
     q: "업데이트는 어떻게 받나요?",
-    a: "V2.11.x 현재 = 수동 (= /download 페이지에서 새 버전 받음). V2.12부터 = 앱 시작 시 자동 알림 + 1클릭 설치 예정. /changelog 페이지에서 최신 버전 확인 가능.",
+    a: "앱을 켤 때 새 버전이 있으면 알림이 뜨고, 클릭 한 번으로 설치됩니다. 웹에서 쓰는 기능은 자동 반영됩니다. 변경 내역은 /changelog 페이지에서 볼 수 있습니다.",
   },
   {
     q: "작법 노하우는 자동 업데이트되나요?",
-    a: "네. 매주 한 번 사장님 큐레이션 + GitHub 자료 검색을 통해 작법 노하우가 자동 갱신되고, 다음 사용 시 자동 적용됩니다. (앱 자체 업데이트 없이 = 노하우만 최신 유지)",
+    a: "네. 작법 자료는 주기적으로 갱신되며, 다음 사용 시 자동 적용됩니다. 앱을 새로 받지 않아도 됩니다.",
   },
   {
     q: "유료로 전환되면 어떻게 되나요?",
-    a: "현재 = 베타 = 30일 무료 trial 자동 발급. 유료 전환 시 = 결제하지 않으면 (= 다음 라이선스 갱신 시) 사용 제한. 결제 = Stripe·Toss Payments(예정) = V2.13 출시.",
+    a: "가입하면 30일 무료로 쓸 수 있습니다. 무료 기간이 끝나면 결제 전까지 사용이 제한됩니다. 결제 수단은 준비 중이며, 유료 전환 전에 미리 안내드립니다.",
   },
   {
     q: "피드백·버그 신고는 어떻게 하나요?",
@@ -133,7 +133,7 @@ const TROUBLESHOOTING = [
   },
   {
     issue: "AI 응답이 이상하게 \"일반 클로드\"처럼 나옴 (스토리 전문성 X)",
-    fix: "앱 재시작 → 최신 버전으로 업데이트 (V2.11.2부터 fix됨). /changelog 확인.",
+    fix: "앱을 다시 켜고 최신 버전으로 업데이트해 주세요. 변경 내역은 /changelog 에서 볼 수 있습니다.",
   },
 ];
 
@@ -303,9 +303,8 @@ export default function GuidePage() {
             {DEFENDER_STEPS.map((step) => (
               <li
                 key={step.n}
+                className="guide-defender-step"
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 360px",
                   gap: 24,
                   alignItems: "start",
                   padding: "20px 22px",
@@ -347,13 +346,13 @@ export default function GuidePage() {
           </details>
         </section>
 
-        {/* ★ V3.0 신기능 안내 (V3.1에서 추가) */}
+        {/* 원고지에서 할 수 있는 일 */}
         <section style={{ marginBottom: 60 }}>
           <h2 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 500, margin: "0 0 14px", letterSpacing: "-0.015em" }}>
-            V3.0 신기능<span style={{ color: "var(--coral)" }}>.</span>
+            원고지에서 할 수 있는 일<span style={{ color: "var(--coral)" }}>.</span>
           </h2>
           <p style={{ fontSize: 14, color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 18 }}>
-            본문 모델 재설계 + 16매체별 양식 틀 + 인라인 수정 + 채팅 정밀 patch.
+            매체마다 다른 양식으로 본문이 만들어지고, 그 자리에서 바로 고칠 수 있습니다.
           </p>
           <div style={{ display: "grid", gap: 14 }}>
             <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
@@ -371,7 +370,7 @@ export default function GuidePage() {
             <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 6 }}>📥 채팅 → 본문 정밀 적용</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-                AI가 본문 수정·추가 제안 = <strong>[📥 N번째 수정]</strong> 버튼 1클릭 = 정확히 그 위치만. 작가가 다시 손볼 필요 X.
+                AI가 본문 수정·추가를 제안하면 <strong>[📥 N번째 수정]</strong> 버튼 한 번으로 그 위치에만 반영됩니다.
               </div>
             </div>
             <div style={{ padding: "16px 20px", background: "var(--card-soft)", border: "1px solid var(--line)", borderRadius: 10 }}>
@@ -425,7 +424,7 @@ export default function GuidePage() {
             ★ 작업 가능 범위 — 현실적 가이드라인<span style={{ color: "var(--coral)" }}>.</span>
           </h2>
           <p style={{ fontSize: 14, color: "var(--ink-3)", lineHeight: 1.7, marginBottom: 18 }}>
-            AI는 = 한 번에 = 너무 큰 작업 X (= 출력 한도 + 작가 Pro 구독 5시간 한도). 그래도 = 단계별로 = 한 작품 끝까지 만들 수 있게 설계. 아래 권장 단위 따르면 = 토큰 막힘 X.
+            AI는 한 번에 아주 긴 분량을 쓰지 않습니다(출력 한도와 구독 사용량 한도가 있습니다). 대신 단계를 나눠 한 작품을 끝까지 만들도록 설계했습니다. 아래 권장 단위대로 쓰면 중간에 막히지 않습니다.
           </p>
 
           <div style={{ display: "grid", gap: 14 }}>
@@ -433,8 +432,8 @@ export default function GuidePage() {
             <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>📝 본문 쓰기 (Write)</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-                ✅ <strong>옛 시나리오 = 📥 원고 가져오기로 통째 박기.</strong> 큰 시나리오 (영화 1편 등) = 자동 5구간 발췌 (앞·1/4·중반·3/4·결말) = 작가가 신경 쓸 부분 X.<br />
-                ✅ <strong>AI가 알아서 한 단위씩 출력 + 자동 멈춤</strong> = 작가가 매번 분량 지정 X. 자연 발화 = 자연 작업 흐름.<br />
+                ✅ <strong>쓰던 원고는 「📥 원고 가져오기」로 통째로 넣으세요.</strong> 영화 한 편처럼 긴 원고는 앞·1/4·중반·3/4·결말 다섯 구간을 자동으로 발췌해 참고합니다.<br />
+                ✅ <strong>AI가 한 단위씩 쓰고 스스로 멈춥니다.</strong> 분량을 매번 지정하지 않아도 됩니다.<br />
                 ★ <strong>자연 발화 예시</strong>: "1막 1씬부터 써줘" / "다음 씬 이어줘" / "이 분위기로 더" / "이 씬 다시 써줘"
               </div>
             </div>
@@ -443,9 +442,9 @@ export default function GuidePage() {
             <div style={{ padding: "18px 22px", background: "var(--card)", border: "1px solid var(--line)", borderRadius: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>🔄 매체 변환 (Adapt)</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-                ✅ <strong>★ 풀 컨텍스트 보장</strong> = 각색은 캐릭터·복선·톤·디테일 다 봐야 정확. 다른 작업(쓰기·검토)보다 = 자동 발췌 한도 2배 (40K자 = 영화 1편 평균 거의 다 분석). 5구간 발췌 (앞·1/4·중반·3/4·결말) = 발단·전개·위기·절정·결말 다 보존.<br />
-                ✅ 영화 → 웹툰·드라마·숏폼 등 어떤 매체로도 변환. <strong>AI가 알아서 1 단위씩</strong> 변환 = 작가는 자연 발화. "영화 → 웹툰으로" → AI가 1화부터 출력 → "다음 이어줘" 누적.<br />
-                ⚠️ 8만자+ 거대 본문 = 일부 디테일 누락 가능. V3.2에서 = "2단계 path" (원본 분석 → 변환) 본격 박힐 예정.<br />
+                ✅ <strong>원본을 넓게 읽습니다.</strong> 각색은 캐릭터·복선·톤을 함께 봐야 정확해서, 쓰기·검토보다 두 배 분량(약 4만 자 — 영화 한 편에 가까운 양)을 참고합니다. 앞·1/4·중반·3/4·결말 다섯 구간을 발췌해 발단부터 결말까지 놓치지 않습니다.<br />
+                ✅ 영화에서 웹툰·드라마·숏폼 등 어떤 매체로도 옮길 수 있습니다. <strong>AI가 한 단위씩</strong> 변환하니 "영화를 웹툰으로"라고 말하면 1화부터 나오고, "다음 이어줘"로 이어갑니다.<br />
+                ⚠️ 8만 자가 넘는 원고는 일부 디테일이 빠질 수 있습니다. 원본 분석을 먼저 거치는 방식은 준비 중입니다.<br />
                 ★ <strong>자연 발화 예시</strong>: "이 영화를 웹툰으로" / "이 분위기로 다음 회" / "더 짧게" / "더 강한 후크"
               </div>
             </div>
@@ -465,10 +464,10 @@ export default function GuidePage() {
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--coral-deep, #c84738)", marginBottom: 10 }}>📂 자료 가져오기 (= 본문·기획안 업로드)</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
                 ✅ <strong>지원 포맷</strong>: PDF · 워드(.docx) · 한글 신버전(.hwpx) · 텍스트(.txt·.md·.fountain).<br />
-                ✅ <strong>크기 4.5MB 이내</strong>는 = 통째 박으면 됨. 큰 시나리오도 = 자동 5구간 발췌로 핵심 다 보존.<br />
+                ✅ <strong>4.5MB 이내 파일</strong>은 통째로 넣으면 됩니다. 긴 시나리오도 다섯 구간 발췌로 핵심을 보존합니다.<br />
                 ❌ <strong>비지원 포맷</strong>: 옛 워드(.doc) → .docx로 변환 / 옛 한글(.hwp) → .hwpx 또는 PDF로 변환.<br />
-                ⚠️ <strong>4.5MB 초과 또는 스캔 PDF</strong>: 친절 안내 자동 표시 = "본문만 복사 → 텍스트 칸에 붙여넣기 권장" (= 크기 제한 X).<br />
-                ⚠️ <strong>이미지 많은 PDF</strong>: 텍스트만 자동 추출. 스캔된 PDF (= OCR 필요) = OCR 도구로 텍스트 변환 후 박기.
+                ⚠️ <strong>4.5MB를 넘거나 스캔한 PDF</strong>: 안내가 뜹니다. 본문만 복사해서 텍스트 칸에 붙여넣으면 크기 제한 없이 쓸 수 있습니다.<br />
+                ⚠️ <strong>이미지가 많은 PDF</strong>: 텍스트만 추출됩니다. 스캔한 PDF는 문자 인식 도구로 텍스트로 바꾼 뒤 넣어주세요.
               </div>
             </div>
 
@@ -476,9 +475,9 @@ export default function GuidePage() {
             <div style={{ padding: "18px 22px", background: "rgba(255, 107, 107, 0.06)", border: "1px solid rgba(255, 107, 107, 0.2)", borderRadius: 12 }}>
               <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ink-1)", marginBottom: 10 }}>⏱ 한도 도달 시 — 자동 처리됨</div>
               <div style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.7 }}>
-                ✅ <strong>자동 Haiku 전환</strong>: 작가 Pro 구독 5시간 한도 도달 시 = AI가 자동으로 Haiku 모델로 전환 = <strong>작업 끊김 X</strong> (quality 약간 낮음, 작업 계속 가능).<br />
-                ✅ <strong>5시간 후 자동 회복</strong>: 한도 = 자동 갱신 = 다시 Opus·Sonnet 풀 quality.<br />
-                ✅ <strong>토스트 알림</strong>: 작가가 알 수 있게 = 화면 상단 토스트 자동 표시.
+                ✅ <strong>가벼운 모델로 자동 전환</strong>: 구독 사용량 한도에 닿으면 가벼운 모델로 바꿔 <strong>작업이 끊기지 않게</strong> 이어갑니다(문장 결이 조금 달라질 수 있습니다).<br />
+                ✅ <strong>한도가 회복되면 원래대로</strong>: 사용량이 갱신되면 다시 본래 품질로 돌아옵니다.<br />
+                ✅ <strong>화면 알림</strong>: 모델이 바뀌면 화면 위쪽에 알려드립니다.
               </div>
             </div>
           </div>

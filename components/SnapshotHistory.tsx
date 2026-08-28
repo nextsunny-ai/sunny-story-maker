@@ -36,6 +36,22 @@ const SOURCE_LABEL: Record<string, string> = {
 };
 
 export function SnapshotHistory({ workId, open, onClose, onRestore }: SnapshotHistoryProps) {
+  // 클라우드 로그인 여부 — 옛 버전은 로그인해야 쌓인다
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { createClient } = await import("@/lib/supabase/client");
+        const sb = createClient();
+        if (!sb) return;
+        const { data } = await sb.auth.getUser();
+        if (alive) setSignedIn(!!data?.user);
+      } catch { /* 확인 못 하면 로그아웃으로 본다 */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<SnapshotRow | null>(null);
@@ -58,7 +74,7 @@ export function SnapshotHistory({ workId, open, onClose, onRestore }: SnapshotHi
 
   const handleRestore = () => {
     if (!preview || !selected) return;
-    if (!confirm(`이 버전(${fmtTime(selected.created_at)})으로 본문을 복원할까요?\n\n현재 작업 중인 본문은 = 자동저장으로 또 다른 snapshot이 박힙니다 = 옛 거 그대로 안전.`)) {
+    if (!confirm(`이 버전(${fmtTime(selected.created_at)})으로 본문을 복원할까요?\n\n지금 쓰고 계신 본문도 자동으로 한 벌 저장됩니다. 되돌려도 지금 것은 남습니다.`)) {
       return;
     }
     onRestore(preview, selected.notes_text);
@@ -103,8 +119,22 @@ export function SnapshotHistory({ workId, open, onClose, onRestore }: SnapshotHi
             {loading && <div style={{ padding: 20, color: "var(--ink-4)", fontSize: 13 }}>옛 버전 불러오는 중…</div>}
             {!loading && snapshots.length === 0 && (
               <div style={{ padding: 24, color: "var(--ink-4)", fontSize: 13, textAlign: "center" }}>
-                아직 옛 버전이 없습니다.<br />
-                <span style={{ fontSize: 11, color: "var(--ink-5)" }}>5분마다 자동 박힙니다.</span>
+                {/* ★ 옛 버전은 클라우드에 쌓인다. 로그인이 끊겨 있으면 영영 0개인데
+                    「아직 없습니다」라고만 하면 작가가 기다린다 (실측 2026-08-27). */}
+                {signedIn ? (
+                  <>
+                    아직 옛 버전이 없습니다.<br />
+                    <span style={{ fontSize: 11, color: "var(--ink-5)" }}>5분마다 자동으로 저장됩니다.</span>
+                  </>
+                ) : (
+                  <>
+                    로그인하면 옛 버전이 쌓입니다.<br />
+                    <span style={{ fontSize: 11, color: "var(--ink-5)" }}>
+                      지금은 본 PC에만 저장됩니다.<br />
+                      원고를 지키려면 <strong>「💾 프로젝트」</strong>로 .smkr 파일을 받아 두세요.
+                    </span>
+                  </>
+                )}
               </div>
             )}
             {snapshots.map(s => (

@@ -9,7 +9,7 @@ import { SectionHead } from "@/components/SectionHead";
 import { Field, Btn } from "@/components/ui";
 import { KEY, usePersistedState } from "@/lib/persist";
 
-/** ★ /api/works/list — _works/ 자동 스캔 응답 (사장님 명시 2026-05-04) */
+/** ★ /api/works/list — _works/ 자동 스캔 응답 (대표님 명시 2026-05-04) */
 interface ApiWorkInfo {
   workId: string;
   title: string;
@@ -104,7 +104,7 @@ function LibraryMain() {
     }
   };
 
-  // ★ Supabase works 테이블 + localStorage 통합 (사장님 명시 2026-05-04)
+  // ★ Supabase works 테이블 + localStorage 통합 (대표님 명시 2026-05-04)
   const [apiWorks, setApiWorks] = useState<ApiWorkInfo[]>([]);
   const [worksDir, setWorksDir] = useState<string>("");
   const [apiLoading, setApiLoading] = useState(true);

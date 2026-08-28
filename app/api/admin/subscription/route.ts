@@ -1,9 +1,9 @@
-// V3.1 F2 — 작가 plan 변경 API (사장님 운영 도구).
-// 사장님이 /admin/dashboard에서 작가 plan을 trial → pro → banned 등으로 변경.
+// V3.1 F2 — 작가 plan 변경 API (대표님 운영 도구).
+// 대표님이 /admin/dashboard에서 작가 plan을 trial → pro → banned 등으로 변경.
 //
 // 인증:
 //   - ADMIN_EMAILS에 박힌 이메일만 접근 가능
-//   - service_role key는 박지 X (= BYOK 모델 = 사장님 비용 0 유지)
+//   - service_role key는 박지 X (= BYOK 모델 = 대표님 비용 0 유지)
 //   - RLS 정책 = admin email은 service_role JWT 없이도 update 가능하게 supabase 측 정책 추가 필요
 
 import { NextRequest, NextResponse } from "next/server";

@@ -2,6 +2,7 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { stripControlMarkers } from "@/lib/storymaker/strip-markers";
 
 interface MarkdownProps {
   text: string;
@@ -16,7 +17,9 @@ interface MarkdownProps {
 export function Markdown({ text, compact = false }: MarkdownProps) {
   return (
     <div className={"sm-md" + (compact ? " sm-md-compact" : "")}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+      {/* 내부 제어 표시([[다음:…]] 등)는 어느 화면에서도 작가에게 보이지 않는다.
+          마커를 버튼으로 바꾸는 화면은 이 컴포넌트에 넘기기 전에 이미 파싱한다. */}
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripControlMarkers(text)}</ReactMarkdown>
       <style jsx>{`
         .sm-md :global(h1) {
           font-size: ${compact ? "16px" : "20px"};

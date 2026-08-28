@@ -8,7 +8,7 @@ export interface UpdateSessionResult {
 }
 
 // ★ V3.1 D3 완전 — Supabase env 없거나 placeholder면 = 모든 라우트가 영원히 로그인 실패.
-//   미리 체크해서 = 사장님 production 배포 시 바로 인지.
+//   미리 체크해서 = 대표님 production 배포 시 바로 인지.
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const HAS_REAL_SUPABASE = SUPABASE_URL && SUPABASE_KEY

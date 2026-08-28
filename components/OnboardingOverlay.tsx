@@ -24,7 +24,7 @@ const STEPS: Step[] = [
     body: (
       <>
         <p style={{ marginBottom: 12 }}>
-          <strong>SUNNY Story Maker</strong>는 12개 매체 한국 작가팀이 함께 만든
+          <strong>SUNNY Story Maker</strong>는 한국 매체 표준 양식으로 쓰는
           AI 협업 도구입니다.
         </p>
         <p>주요 기능을 간단히 안내해 드립니다.</p>
@@ -33,7 +33,7 @@ const STEPS: Step[] = [
   },
   {
     emoji: "🎬",
-    title: "12개 매체 선택",
+    title: "매체 선택",
     body: (
       <>
         <p style={{ marginBottom: 12 }}>

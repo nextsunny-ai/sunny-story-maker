@@ -299,7 +299,7 @@ function ClaudeCliBanner({ info }: { info: ClaudeCliInfo | "web" | "checking" })
   } else if (info.available) {
     bg = "rgba(120,200,140,0.08)"; border = "rgba(120,200,140,0.3)"; color = "#2d6a3e"; icon = "✅";
     title = "Claude CLI 로그인됨 — API 안 씀 (작가 본인 구독으로 작동)";
-    desc = "이 PC의 Claude Code CLI가 로그인돼 있어 = 작가 본인의 Claude Pro/Max 구독으로 AI가 작동합니다. Anthropic API key(종량제)를 쓰지 않습니다 = 사장님 비용 0 + 작가 추가 비용 0.";
+    desc = "이 PC의 Claude Code CLI가 로그인돼 있어 = 작가 본인의 Claude Pro/Max 구독으로 AI가 작동합니다. Anthropic API key(종량제)를 쓰지 않습니다 = 대표님 비용 0 + 작가 추가 비용 0.";
   } else {
     bg = "rgba(255,107,107,0.06)"; border = "rgba(255,107,107,0.25)"; color = "#a33"; icon = "⚠️";
     title = info.reason === "not-installed" ? "Claude Code CLI 미설치" : "Claude CLI 미로그인";

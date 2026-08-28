@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, FormEvent, KeyboardEvent } from "react";
 import { ICONS } from "@/lib/icons";
 import { Markdown } from "@/components/Markdown";
 import { t, useLocale } from "@/lib/i18n";
+import { pickFirstLogline } from "@/lib/storymaker/pick-title";
 
 export interface Note { id: string; label: string }
 export interface FlowItem { id: string; state: "done" | "active" | "pending"; title: string; hint: string }
@@ -19,7 +20,7 @@ interface WriteWorkbookProps {
   onAddNote: (label: string) => void;
   onRemoveNote: (id: string) => void;
   onClose: () => void;
-  mediumLabel?: string; // ★ 사장님 명시: 작품 정보에 매체 표시
+  mediumLabel?: string; // ★ 대표님 명시: 작품 정보에 매체 표시
   onApplyToScript?: (text: string) => void; // ★ V2.14 — AI 채팅 메시지를 본문 끝에 단락으로 추가
   onPatchBlock?: (action: "수정" | "추가" | "삭제", n: number, content?: string) => void; // ★ V3.0 단계 5 — 블록 patch
   /** ★ V3.1 C4 — workflow step 클릭 시 = 작가가 그 단계 작업 시작 (chat에 자동 박힘) */
@@ -34,13 +35,13 @@ export function WriteWorkbook({
   const I = ICONS;
   useLocale(); // ★ V3.1 i18n — locale 변경 시 re-render
   const [newNote, setNewNote] = useState("");
-  // 디렉션·메모 = default 접힘 (작가가 필요할 때만 펼침). 사장님 명시: 채팅이 메인.
+  // 디렉션·메모 = default 접힘 (작가가 필요할 때만 펼침). 대표님 명시: 채팅이 메인.
   const [notesOpen, setNotesOpen] = useState(false);
-  // AI 작업 흐름 = default 접힘 (사장님 명시: 대화가 더 중요. AI 흐름은 보조)
+  // AI 작업 흐름 = default 접힘 (대표님 명시: 대화가 더 중요. AI 흐름은 보조)
   const [flowOpen, setFlowOpen] = useState(false);
 
   // 작품 정보 — develop 페이지에서 만든 사전 자료 (로그라인·캐릭터·시놉시스 등) 자동 read.
-  // 사장님 명시: 작가가 본문 쓰다가 캐릭터·로그라인 헷갈릴 때 참조용.
+  // 대표님 명시: 작가가 본문 쓰다가 캐릭터·로그라인 헷갈릴 때 참조용.
   const [workRef, setWorkRef] = useState<{
     title?: string; logline?: string; theme?: string;
     synopsis?: string; characters?: string; structure?: string;
@@ -50,7 +51,17 @@ export function WriteWorkbook({
     if (typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem("storyMaker.developHandoff");
-      if (raw) setWorkRef(JSON.parse(raw));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // 기획실에서 추천작을 뽑아 뒀으면 후보 목록 대신 그 제목을 보여준다
+        const picked = (window.localStorage.getItem("storyMaker.developTitle") || "").trim();
+        const logline = pickFirstLogline(parsed.logline || "");
+        setWorkRef({
+          ...parsed,
+          ...(picked ? { title: picked } : {}),
+          ...(logline ? { logline } : {}),
+        });
+      }
     } catch { /* ignore */ }
   }, []);
 
@@ -96,7 +107,7 @@ export function WriteWorkbook({
         >×</button>
       </div>
 
-      {/* 작품 정보 — develop 사전 자료 자동 표시 (사장님 명시: 작가가 캐릭터·로그라인 헷갈릴 때 참조용) */}
+      {/* 작품 정보 — develop 사전 자료 자동 표시 (대표님 명시: 작가가 캐릭터·로그라인 헷갈릴 때 참조용) */}
       {hasWorkRef && (
         <section className="wbook-section">
           <button
@@ -117,7 +128,7 @@ export function WriteWorkbook({
                 </div>
                 <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--ink-1)", lineHeight: 1.4 }}>
                   {(() => {
-                    // 사장님 명시: 작가가 제목 안 정하면 = 가제로. 작가가 채택하면 그때 박힘.
+                    // 대표님 명시: 작가가 제목 안 정하면 = 가제로. 작가가 채택하면 그때 박힘.
                     const t = workRef?.title?.trim();
                     if (!t) return <em style={{ fontStyle: "normal", color: "var(--ink-4)", fontWeight: 500 }}>(가제)</em>;
                     // AI 후보 텍스트 판정: 마크다운 시작·후보 표현·너무 김 → 작가 채택 X = 가제
@@ -149,7 +160,7 @@ export function WriteWorkbook({
                   })()}
                 </div>
               </div>
-              {/* 매체 — 사장님 명시: 작품 정보에 매체 표시 (제목·로그라인·매체·캐릭터) */}
+              {/* 매체 — 대표님 명시: 작품 정보에 매체 표시 (제목·로그라인·매체·캐릭터) */}
               {mediumLabel && (
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-5)", letterSpacing: "0.08em", marginBottom: 2 }}>
@@ -160,7 +171,7 @@ export function WriteWorkbook({
                   </div>
                 </div>
               )}
-              {/* 캐릭터 이름들만 — 사장님 명시: 본문 쓰다가 이름 헷갈릴 때 빠르게 보는 용. 시놉·기승전결 제거. */}
+              {/* 캐릭터 이름들만 — 대표님 명시: 본문 쓰다가 이름 헷갈릴 때 빠르게 보는 용. 시놉·기승전결 제거. */}
               {workRef?.characters && (
                 <div>
                   <div style={{ fontSize: 10, fontWeight: 700, color: "var(--ink-5)", letterSpacing: "0.08em", marginBottom: 4 }}>
@@ -258,7 +269,7 @@ export function WriteWorkbook({
         )}
       </section>
 
-      {/* 대화 (메인 — 가장 큰 영역, 사장님 명시: 대화가 가장 중요) */}
+      {/* 대화 (메인 — 가장 큰 영역, 대표님 명시: 대화가 가장 중요) */}
       <section className="wbook-section wbook-chat-section">
         <div className="wbook-section-head">
           <span className="wbook-section-title">💬 {t("대화")}</span>
@@ -426,7 +437,7 @@ export function WriteWorkbook({
                     </div>
                   ) : null;
 
-                  // ===CHOICES=== 마커 분리 — chip 버튼 (사장님 명시: 작가 채팅 적게 치고 빠른 결정)
+                  // ===CHOICES=== 마커 분리 — chip 버튼 (대표님 명시: 작가 채팅 적게 치고 빠른 결정)
                   const idx = textWithoutMarkers.indexOf("===CHOICES===");
                   if (idx === -1) {
                     return (
@@ -500,7 +511,7 @@ export function WriteWorkbook({
                               {i + 1}. {c.length > 36 ? c.slice(0, 34) + "…" : c}
                             </button>
                           ))}
-                          {/* 기타 — 사장님 명시: 항상 추가 */}
+                          {/* 기타 — 대표님 명시: 항상 추가 */}
                           <button
                             type="button"
                             onClick={() => {

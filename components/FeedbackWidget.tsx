@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { buildFeedbackMailto, buildGmailComposeUrl, FEEDBACK_TO_EMAIL } from "@/lib/email";
+import { STORYMAKER_VERSION } from "@/lib/storymaker/version";
 
 type Category = "bug" | "feature" | "praise" | "question" | "other";
 
@@ -14,7 +15,8 @@ const CATEGORY_LABEL: Record<Category, { emoji: string; text: string; placeholde
   other: { emoji: "💬", text: "기타", placeholder: "자유롭게 의견을 들려주세요." },
 };
 
-const APP_VERSION = "v2.11";
+//   버전은 한 곳에서만 관리한다 — 여기에 직접 적으면 릴리스 때마다 빠뜨린다.
+const APP_VERSION = `v${STORYMAKER_VERSION.version}`;
 
 /**
  * In-app 피드백 위젯 (= 우측 하단 floating)

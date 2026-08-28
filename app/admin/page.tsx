@@ -10,8 +10,9 @@ import { KEY, usePersistedState } from "@/lib/persist";
 import { WORKFLOWS, WORKFLOW_LETTERS } from "@/lib/workflows";
 import { DEFAULT_MODEL_PREFS, MODEL_LABELS, type ModelPrefs, type ModelChoice } from "@/lib/storymaker/model-prefs";
 import { createClient } from "@/lib/supabase/client";
+import { todayStamp } from "@/lib/storymaker/export";
 
-/** ★ 비밀번호 변경 모달 — 사장님 명시 2026-05-04: 작가 비번 까먹어도 = 로그인 후 = 직접 변경 가능 */
+/** ★ 비밀번호 변경 모달 — 대표님 명시 2026-05-04: 작가 비번 까먹어도 = 로그인 후 = 직접 변경 가능 */
 function PasswordChangeModal({ onClose }: { onClose: () => void }) {
   const [oldPw, setOldPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -157,7 +158,7 @@ function AdminMain() {
         sub="작가 프로필과 시스템 설정. SUNNY가 더 잘 도울 수 있도록 본인의 정보를 알려주세요."
       />
 
-      {/* ★ 비밀번호 변경 버튼 — 사장님 명시 2026-05-04: 작가 = 까먹어도 = 직접 변경 가능 */}
+      {/* ★ 비밀번호 변경 버튼 — 대표님 명시 2026-05-04: 작가 = 까먹어도 = 직접 변경 가능 */}
       <div style={{
         display: "flex", justifyContent: "flex-end",
         marginBottom: 16,
@@ -271,7 +272,7 @@ function WriterTab() {
       alert("학습시킬 내용을 입력해 주세요.");
       return;
     }
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayStamp();
     setLearning(prev => [...prev, { date: today, category: skillCat, text: trimmed }]);
     setDraft("");
   };
@@ -300,13 +301,13 @@ function WriterTab() {
       return;
     }
     const author = profile.penName || profile.name || "작가";
-    const header = `# ${author} 누적 학습\n\n총 ${learning.length}건 · ${learningStats.chars.toLocaleString()}자\n생성일: ${new Date().toISOString().slice(0, 10)}\n\n---\n\n`;
+    const header = `# ${author} 누적 학습\n\n총 ${learning.length}건 · ${learningStats.chars.toLocaleString()}자\n생성일: ${todayStamp()}\n\n---\n\n`;
     const body = learningHistory;
     const blob = new Blob([header + body], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${author}_학습_${new Date().toISOString().slice(0, 10)}.md`;
+    a.download = `${author}_학습_${todayStamp()}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -442,7 +443,7 @@ function WriterTab() {
             <option value="opus">{MODEL_LABELS.opus}</option>
           </select>
         </Field>
-        <Field label="OSMU (12매체 매트릭스)" help="짧은 분석 12개. 기본 Haiku.">
+        <Field label="OSMU (매체 매트릭스)" help="매체별 짧은 분석. 기본 Haiku.">
           <select className="field-select" value={modelPrefs.osmu} onChange={e => updateModel("osmu", e.target.value as ModelChoice)}>
             <option value="haiku">{MODEL_LABELS.haiku}</option>
             <option value="opus">{MODEL_LABELS.opus}</option>
@@ -532,7 +533,7 @@ function WriterTab() {
           <>
             <span style={{ color: "rgb(64, 160, 100)", fontWeight: 700 }}>✓ 자동 반영 중</span>
             <span style={{ color: "var(--ink-3)" }}>
-              ({learning.length}건) — 모든 페이지(develop·write·chat·adapt·review·osmu·package)의 AI 호출에 자동 박힙니다.
+              ({learning.length}건) — 기획·집필·대화·각색·리뷰 등 모든 작업에 자동으로 반영됩니다.
             </span>
           </>
         ) : (

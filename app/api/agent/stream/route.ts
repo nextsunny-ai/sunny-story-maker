@@ -14,6 +14,9 @@ import {
   buildAdaptPrompt,
   buildAnalyzePrompt,
   buildRevisePrompt,
+  buildRewriteParaPrompt,
+  buildContinueParaPrompt,
+  buildPolishPrompt,
   buildLoglinePrompt,
   buildTitlePrompt,
   buildThemePrompt,
@@ -69,7 +72,10 @@ interface RequestBody {
   artifactKeys?: string[];         // package 모드 산출물 선택
   targets?: TargetPersona[];       // targeted review 페르소나
   direction?: string;              // revise 방향
-  targetSection?: string;          // script/revise 섹션
+  targetSection?: string;
+  beforeText?: string;
+  afterText?: string;
+  writerNotes?: string;          // script/revise 섹션
   versionNumber?: number;          // revise 버전
   sourceIp?: string;               // osmu 원천 IP
   profile?: Record<string, unknown> | null;
@@ -140,6 +146,23 @@ function buildCardChatPrompt(b: RequestBody): string {
 
 ## 매체
 **${genre.name} (${genre.sub})** — 작가가 「${cardLabel}」 카드를 다듬는 중. 채팅으로 디렉션을 보냄.
+
+## ★★★ 고쳐 달라고 하면 — 되묻지 말고 고친 것을 낸다
+작가가 「~로 바꿔줘」 「~를 넣어줘」 「~를 빼줘」 「고쳐줘」라고 하면
+**그 자리에서 고친 결과 전문**을 낸다. 이건 상담이 아니라 작업이다.
+
+- **되묻지 않는다.** 「어디에 넣을까요?」 「어떤 톤으로 할까요?」 ✗
+  애매하면 **가장 자연스러운 쪽으로 네가 정하고** 고친다.
+  다른 선택지는 결과를 낸 **뒤에** 한 줄로 덧붙인다 —
+  「(마지막 장면 뒤에 넣었습니다. 앞쪽이 나으면 말씀해 주세요)」
+- **칭찬으로 시작하지 않는다.** 「좋은 지적이네요」 「자연스럽습니다」 ✗ 바로 고친 것부터.
+- 지시가 **여러 개면 전부** 반영한다. 하나라도 빠뜨리지 않는다.
+- 고친 **전문**을 낸다. 「이렇게 바꾸면 됩니다」 같은 설명만 내지 않는다.
+  (작가가 그걸 그대로 카드에 저장한다)
+- 무엇을 고쳤는지는 **맨 끝에 한 줄**로. 길게 설명하지 않는다.
+
+정말로 물어야만 하는 때 = 작가 지시가 **서로 모순될 때**뿐이다.
+(예: 「1화로 줄여줘」와 「12화 구성 살려줘」를 함께 말한 경우)
 
 ## 작가 의도 (★ 절대 준수)
 1. 작가의 직전 메시지를 그대로 읽고 = 그에 맞춰 응답한다.
@@ -274,7 +297,7 @@ function buildBasePrompt(b: RequestBody): string {
 
     case "adapt":
       // ★ V3.1.1 — analysis 박혀있으면 = 2단계 path (= Haiku 풀 컨텍스트 분석 결과 활용)
-      return buildAdaptPrompt(b.text ?? "", genre, targetGenre, b.analysis);
+      return buildAdaptPrompt(b.text ?? "", genre, targetGenre, b.analysis, b.direction);
 
     case "analyze":
       // ★ V3.1.1 — 각색 1단계: Haiku로 원본 풀 컨텍스트 분석. Pro fair use = 한도 거의 무제한.
@@ -282,6 +305,22 @@ function buildBasePrompt(b: RequestBody): string {
 
     case "revise":
       return buildRevisePrompt(b.text ?? "", b.direction ?? "", genre, b.targetSection, b.versionNumber);
+
+    case "continuePara":
+      // 원고지 「+ 더 쓰기」 — 다음 한 단락만
+      return buildContinueParaPrompt(genre, {
+        before: b.beforeText, after: b.afterText, notes: b.writerNotes,
+      });
+
+    case "rewritePara":
+      // 원고지 「↻ 다시 써」 — 단락 하나만. 본문만 돌려준다
+      return buildRewriteParaPrompt(b.text ?? "", genre, {
+        before: b.beforeText, after: b.afterText, notes: b.writerNotes,
+      });
+
+    case "polish":
+      // 갓 쓴 본문의 비문·조사·시제만 바로잡는다 (내용 수정 X)
+      return buildPolishPrompt(b.text ?? "", genre);
 
     case "title":
       return buildTitlePrompt(b.idea ?? "", genre, b.userInput, b.mediumFields);
@@ -366,7 +405,7 @@ function getClaudeExePath(): string {
 
 // ─── Claude Max OAuth 직접 호출 (Windows claude.exe 한글 인코딩 우회) ───
 // .credentials.json의 OAuth access token을 사용해 Anthropic Messages API를 직접 stream.
-// 사장님 Pro/Max 구독 그대로 사용 → API 키 없이 무료 + 한글 100% 보장.
+// 대표님 Pro/Max 구독 그대로 사용 → API 키 없이 무료 + 한글 100% 보장.
 function getClaudeOAuthToken(): string | null {
   try {
     const credPath = path.join(homedir(), ".claude", ".credentials.json");
@@ -427,7 +466,9 @@ function streamViaOAuth(systemPrompt: string, messages: ConversationMessage[], m
           },
           body: JSON.stringify({
             model: useModel,
-            max_tokens: 8000,
+            // ★ V3.1.1 — opus-5/sonnet-5는 thinking이 기본 ON이고 max_tokens에 합산됨.
+            //   8000이면 긴 집필 출력이 잘릴 수 있어 32000으로 상향 (스트리밍이라 타임아웃 무관).
+            max_tokens: 32000,
             // ★ system prompt = 1h TTL cache (= 작가가 1시간 안 다음 호출 = 70KB 스킬 cache hit = 토큰 1/10)
             system: [
               {
@@ -637,7 +678,7 @@ export async function POST(req: NextRequest) {
   // ★ BYOK 정통 모델 (글로벌 룰 16, 2026-05-11·2026-05-20 재확인):
   // - 작가 = 본인 PC Claude Code OAuth 토큰 (~/.claude/.credentials.json) → streamViaOAuth
   //   또는 = `claude` CLI subprocess → streamViaClaudeCode
-  // - Pro/Max 구독($20~$100/월)으로 감당 = 사장님·작가 추가 비용 0
+  // - Pro/Max 구독($20~$100/월)으로 감당 = 대표님·작가 추가 비용 0
   // - 옛 body.userApiKey (작가 본인 API 키) path = 2026-05-18 제거됨
   // - 대표님 ANTHROPIC_API_KEY (Vercel 환경변수) = 박지 X (영구 룰)
   //   → 웹에서 호출 시도 = DESKTOP_REQUIRED 안내 (= 다운로드 페이지로)
@@ -739,7 +780,7 @@ export async function POST(req: NextRequest) {
   const { resolveModelId } = await import("@/lib/storymaker/model-ids");
   let model = resolveModelId(body.model, body.fast === true);
 
-  // LOCAL: 사장님 Pro/Max 구독 사용
+  // LOCAL: 대표님 Pro/Max 구독 사용
   // 우선순위 1) OAuth 직접 호출 (한글 100% — Windows claude.exe 인코딩 우회)
   // 우선순위 2) claude.exe CLI subprocess (Mac/Linux 또는 OAuth 만료 시 fallback)
   if (useClaudeCode) {

@@ -1,3 +1,4 @@
+import { STORYMAKER_VERSION } from "./storymaker/version";
 // V3.1 #14 — 클라이언트 로그 헬퍼.
 // 작가 PC에서 발생한 에러·경고를 /api/log로 박음.
 //
@@ -40,7 +41,7 @@ function getAppVersion(): string {
   if (typeof window === "undefined") return "?";
   // package.json version은 build 시 inline 안 됨 = window 전역 변수로 박힘
   const w = window as unknown as { __APP_VERSION__?: string };
-  return w.__APP_VERSION__ || "v3.0.0";
+  return w.__APP_VERSION__ || `v${STORYMAKER_VERSION.version}`;
 }
 
 function sendLog(level: Level, message: string, stack: string | undefined, meta: LogMeta): void {

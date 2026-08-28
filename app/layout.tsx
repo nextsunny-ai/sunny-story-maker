@@ -11,7 +11,7 @@ import { OnboardingOverlay } from "@/components/OnboardingOverlay";
 const SITE_URL = "https://story.sunnytoon.com";
 const SITE_NAME = "SUNNY Story Maker";
 const SITE_TITLE = "SUNNY Story Maker — 작가의 첫 줄";
-const SITE_DESC = "12개 매체 한국 작가팀 워크플로우. AI Pitch부터 시나리오·웹툰·웹소설·게임 시나리오까지 한 화면에서. 작가 본인 Claude 구독 사용 = 사장님 비용 0.";
+const SITE_DESC = "영화·TV 드라마·숏드라마·웹툰·웹소설·소설을 한국 실무 표준 양식으로 쓰는 집필 도구. 기획 6단계부터 본문·각색·내보내기까지 한 화면에서.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ICONS } from "@/lib/icons";
-import { GENRES, type Genre } from "@/lib/genres";
+import { GENRES, isLaunchGenre, type Genre } from "@/lib/genres";
 
 export interface AdaptScore { score: number; reason: string }
 export interface RankedTarget { g: Genre; s: AdaptScore }
@@ -68,18 +68,23 @@ export function AdaptCrossMode({
               {candidates.map(({ g, s }) => {
                 const isTarget = g.letter === targetLetter;
                 const tier = s ? tierOf(s.score) : "mid";
+                const launched = isLaunchGenre(g.letter);
                 return (
                   <button
                     key={g.letter}
                     type="button"
                     className={"acx-bar is-" + tier + (isTarget ? " is-target" : "")}
                     onClick={() => setTargetLetter(g.letter)}
-                    title={s?.reason || g.sub}
+                    disabled={!launched}
+                    title={launched ? (s?.reason || g.sub) : "2차 오픈 예정"}
+                    style={launched ? undefined : { opacity: 0.45, cursor: "not-allowed" }}
                   >
                     <span className="acx-bar-icon">{I[g.letter]}</span>
                     <span className="acx-bar-letter">{g.letter}</span>
                     <span className="acx-bar-name">{g.name}</span>
-                    {s ? (
+                    {!launched ? (
+                      <span className="acx-bar-sub">2차 오픈 예정</span>
+                    ) : s ? (
                       <>
                         <span className="acx-bar-track">
                           <span className="acx-bar-fill" style={{ width: s.score + "%" }}></span>

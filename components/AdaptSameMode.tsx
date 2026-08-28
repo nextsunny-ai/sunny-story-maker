@@ -26,6 +26,7 @@ interface AdaptSameModeProps {
   setFreeform: (v: string) => void;
   onLaunch: (direction: string) => void; // AI 호출 — adapt page에서 처리
   busy?: boolean;
+  onStop?: () => void;
   /** ★ 2026-06-01 — 각색 결과 본문을 작가가 직접 클릭 편집(워드식) 시 저장 */
   onEditVersionBody?: (vnum: number, body: string) => void;
 }
@@ -74,7 +75,7 @@ export function AdaptSameMode({
   versions, openVer, setOpenVer,
   TONE_CHIPS, activeChips, toggleChip,
   freeform, setFreeform,
-  onLaunch, busy = false, onEditVersionBody,
+  onLaunch, busy = false, onStop, onEditVersionBody,
 }: AdaptSameModeProps) {
   const I = ICONS;
   const nextV = versions[versions.length - 1].v + 1;
@@ -200,6 +201,12 @@ export function AdaptSameMode({
             <span className="atl-edit-go-icon">{I.spark}</span>
             <span>{busy ? "변환 중…" : `v${nextV} 생성`}</span>
           </button>
+          {busy && onStop && (
+            <button className="atl-edit-go" type="button" onClick={onStop}
+              style={{ background: "transparent", color: "var(--ink-3)", border: "1px solid var(--line)" }}>
+              <span>중지</span>
+            </button>
+          )}
         </div>
       </div>
 

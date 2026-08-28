@@ -24,15 +24,15 @@
 // create index client_logs_created_idx on public.client_logs (created_at desc);
 // ```
 //
-// BYOK 모델 (= 글로벌 룰 16) 준수 — 사장님 텔레그램에 critical만 알림 (silent skip 가능).
+// BYOK 모델 (= 글로벌 룰 16) 준수 — 대표님 텔레그램에 critical만 알림 (silent skip 가능).
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 // ★ V3.1 (2026-05-20 대표님 명시) — 텔레그램 자동 알림 X.
 //   글로벌 룰 2 = "자동 푸시 알림 X — 대표님 명시 요청 시만".
-//   에러 100명 작가 × 매일 = 사장님 폭주 위험 = 절대 X.
-//   사장님은 client_logs DB + /admin/dashboard에서만 확인.
+//   에러 100명 작가 × 매일 = 대표님 폭주 위험 = 절대 X.
+//   대표님은 client_logs DB + /admin/dashboard에서만 확인.
 
 const VALID_LEVELS = ["error", "warn", "info"] as const;
 type Level = typeof VALID_LEVELS[number];
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ★ V3.1 (2026-05-20) — 텔레그램 자동 알림 제거.
-  //   에러는 client_logs DB에만 박힘. 사장님이 /admin/dashboard에서 보기.
+  //   에러는 client_logs DB에만 박힘. 대표님이 /admin/dashboard에서 보기.
 
   return NextResponse.json({ success: true });
 }

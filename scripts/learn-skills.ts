@@ -2,7 +2,7 @@
 /**
  * scripts/learn-skills.ts — 자동 학습 스킬 갱신 (V2.11.1, 2026-05-11)
  *
- * 사장님 명시 (옛): 일주일에 한 번 또는 두 번 = GitHub search → 작가 스킬 가져와서 추가.
+ * 대표님 명시 (옛): 일주일에 한 번 또는 두 번 = GitHub search → 작가 스킬 가져와서 추가.
  *
  * 사용법:
  *   npm run learn-skills

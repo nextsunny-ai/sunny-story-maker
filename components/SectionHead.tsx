@@ -15,7 +15,7 @@ export function SectionHead({ num, title, sub, right }: SectionHeadProps) {
           {sub && <div className="section-sub" style={{ marginTop: 4 }}>{sub}</div>}
         </div>
       </div>
-      {right}
+      {right && <div className="section-head-right">{right}</div>}
     </div>
   );
 }

@@ -5,7 +5,7 @@
 // 2. .exe 다운로드 → 더블클릭
 // 3. 첫 실행 = login (Supabase) → JWT 라이선스 받음 → ~/.sunny-story-maker/license.json 저장
 // 4. 사용 = `claude` CLI subprocess 호출 (= 작가 본인 Pro/Max 구독)
-// 5. 7일 후 = 자동 라이선스 재발급 → 사장님 plan 변경 = 즉시 반영
+// 5. 7일 후 = 자동 라이선스 재발급 → 대표님 plan 변경 = 즉시 반영
 //
 // ★ 2026-05-13 정정: OAuth 토큰 직접 Messages API 호출 path = 차단됨 (HTTP 401).
 //   진짜 작동 path = `claude` CLI subprocess (Anthropic 공식 도구, 약관 OK).

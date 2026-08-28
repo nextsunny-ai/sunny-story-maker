@@ -2,7 +2,7 @@
  * /api/memory/save — 작품별 메모리 .md 저장
  *
  * ★ 2026-05-05 마이그레이션: _works/ 파일 → Supabase `works` 테이블 (Vercel 디스크 휘발성).
- * 사장님 명시: production = 작품 영구 저장 = 어디서 로그인해도 같은 작품 (SSO).
+ * 대표님 명시: production = 작품 영구 저장 = 어디서 로그인해도 같은 작품 (SSO).
  *
  * POST { workId, files: { "01_제목.md": "...", ... } }
  *   → upsert into public.works (user_id = auth.uid(), work_id, files JSONB)

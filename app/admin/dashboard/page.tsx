@@ -1,6 +1,6 @@
 "use client";
 
-// V3.1 F1 — 사장님 운영 대시보드.
+// V3.1 F1 — 대표님 운영 대시보드.
 // 작가 피드백·에러·구독·신규 가입을 한 화면. Supabase 콘솔 X.
 
 import { useEffect, useState } from "react";

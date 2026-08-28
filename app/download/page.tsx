@@ -254,15 +254,15 @@ export default function DownloadPage() {
           <div style={{ marginTop: 18, padding: "12px 14px", background: "rgba(120, 200, 140, 0.06)", border: "1px solid rgba(120, 200, 140, 0.25)", borderRadius: 8, fontSize: 12, color: "var(--ink-2)", lineHeight: 1.7 }}>
             <strong>🔄 이미 설치하신 분 — 자동 업데이트</strong>
             <br />
-            앱을 켜면 새 버전이 있을 때 자동 알림 → 1클릭 설치. <strong>웹 콘텐츠는 자동 반영</strong>되므로 이미 켜져 있어도 새 기능을 쓸 수 있습니다. 단 옛 V2.11 이전 작가는 자동 업데이트가 없으니 이 페이지에서 다시 받아주세요.
+            앱을 켜면 새 버전이 있을 때 알림이 뜨고 클릭 한 번으로 설치됩니다. <strong>웹에서 쓰는 기능은 자동 반영</strong>되므로 앱을 켜 둔 채로도 새 기능을 쓸 수 있습니다. 알림이 뜨지 않으면 이 페이지에서 다시 받아주세요.
           </div>
 
           <div style={{ marginTop: 22, paddingTop: 20, borderTop: "1px solid var(--line)", fontSize: 11, color: "var(--ink-5)", lineHeight: 1.7 }}>
             ※ Windows .exe = V{V.version} (NSIS 자동 설치 · 자동 업데이터). <strong>{V.requirements.windows}</strong> 권장.<br />
             ※ macOS .dmg = V{V.version} (Apple Silicon aarch64 · 자동 업데이터). <strong>{V.requirements.macos}</strong>.<br />
             ※ 메모리 {V.requirements.memory} · 디스크 {V.requirements.disk} · {V.requirements.network}.<br />
-            ※ V3.0 신기능 = 16매체별 양식 틀 + 대사 인라인 수정 + 채팅 정밀 patch.<br />
-            ※ iOS·Android = 다음 단계.
+            ※ 1차 오픈 매체 = 영화 · TV 드라마 · 숏드라마 · 웹툰 · 웹소설 · 소설. 나머지 매체는 2차 오픈 예정.<br />
+            ※ iOS·Android = 준비 중.
           </div>
         </section>
       </div>

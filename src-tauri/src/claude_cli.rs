@@ -410,6 +410,9 @@ pub async fn stream(
     // stdout = line by line (stream-json).
     // ★ V2.13.3 — idle timeout = claude 가 hang 하면 무한 대기 → 앱 멈춤. 180초 무응답 = 중단·kill.
     let mut reader = BufReader::new(stdout).lines();
+    // ★ V3.1.1 (2026-08-26) — partial delta를 받았으면 assistant 풀 블록은 무시.
+    //   둘 다 보내면 응답 본문이 끝에 한 번 더 붙음 (Agent Pro v1.1.3에서 고친 것과 같은 버그).
+    let mut got_partial = false;
     loop {
         match tokio::time::timeout(
             std::time::Duration::from_secs(180),
@@ -421,7 +424,7 @@ pub async fn stream(
                 if line.trim().is_empty() {
                     continue;
                 }
-                parse_stream_event(&line, channel);
+                parse_stream_event(&line, channel, &mut got_partial);
             }
             Ok(Ok(None)) => break, // EOF = 정상 종료
             Ok(Err(e)) => return Err(e.into()),
@@ -472,7 +475,8 @@ pub async fn stream(
 }
 
 /// stream-json 한 줄 → StreamEvent 전송.
-fn parse_stream_event(line: &str, channel: &Channel<StreamEvent>) {
+/// `got_partial` = 이 스트림에서 partial delta를 한 번이라도 보냈는지 (assistant 풀 블록 중복 방지).
+fn parse_stream_event(line: &str, channel: &Channel<StreamEvent>, got_partial: &mut bool) {
     let v: serde_json::Value = match serde_json::from_str(line) {
         Ok(v) => v,
         Err(_) => return,
@@ -489,6 +493,7 @@ fn parse_stream_event(line: &str, channel: &Channel<StreamEvent>) {
                 let delta = ev.get("delta").cloned().unwrap_or(serde_json::Value::Null);
                 if delta.get("type").and_then(|t| t.as_str()) == Some("text_delta") {
                     if let Some(text) = delta.get("text").and_then(|t| t.as_str()) {
+                        *got_partial = true;
                         let _ = channel.send(StreamEvent::Delta { text: text.to_string() });
                     }
                 }
@@ -504,8 +509,11 @@ fn parse_stream_event(line: &str, channel: &Channel<StreamEvent>) {
             }
         }
 
-        // assistant message (full block — partial 없을 때 fallback)
+        // assistant message (full block — partial 없을 때만 fallback, ★ V3.1.1 중복 전송 방지)
         "assistant" => {
+            if *got_partial {
+                return;
+            }
             if let Some(content) = v.get("message").and_then(|m| m.get("content")).and_then(|c| c.as_array()) {
                 for block in content {
                     if block.get("type").and_then(|t| t.as_str()) == Some("text") {

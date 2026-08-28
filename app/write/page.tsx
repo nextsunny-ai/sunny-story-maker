@@ -1,19 +1,21 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryParams, useQueryParamsState } from "@/lib/use-query-params";
 import { GENRES } from "@/lib/genres";
 import { AppShell } from "@/components/AppShell";
 import { Topbar } from "@/components/Topbar";
 import { WriteCanvas, type Para, type WorkInfo } from "@/components/WriteCanvas";
 import { WriteWorkbook, type Note, type FlowItem, type ChatMsg } from "@/components/WriteWorkbook";
 import { Btn } from "@/components/ui";
-import { KEY, loadJSON, saveJSON, type WorkConversation } from "@/lib/persist";
+import { KEY, loadJSON, saveJSON, usePersistedState, type WorkConversation } from "@/lib/persist";
 import { appendTurns, getWorkId } from "@/lib/storymaker/work-id";
-import { downloadDocx, downloadTxt, downloadFountain, downloadPdfViaPrint } from "@/lib/storymaker/export";
+import { downloadDocx, downloadTxt, downloadFountain, downloadPdfViaPrint, todayStamp } from "@/lib/storymaker/export";
 import type { WriteDoc as WriteDocV3, Block as BlockV3, ProseBlock as ProseBlockV3, HeaderBlock as HeaderBlockV3 } from "@/lib/storymaker/write-doc";
 import { migrateParasToDoc } from "@/lib/storymaker/block-convert";
 import { streamFetch } from "@/lib/stream-agent";
+import { stripControlMarkers, stripDocMarkup, fixCommonTypos } from "@/lib/storymaker/strip-markers";
 import { getModelChoice } from "@/lib/storymaker/model-prefs";
 import { getWorkflow, QUICK_ACTIONS } from "@/lib/workflows";
 import { useKeyboard } from "@/lib/use-keyboard";
@@ -33,11 +35,31 @@ import {
 export default function WritePage() {
   return (
     <AppShell>
-      <Suspense fallback={null}>
-        <WriteMain />
-      </Suspense>
+      <WriteGate />
     </AppShell>
   );
+}
+
+/**
+ * 주소의 매체·아이디어를 다 읽은 뒤에 작업실을 연다.
+ *
+ * 옛 동작: 주소를 읽기 전 첫 렌더에서 작품이 만들어졌다. 그때 매체가 비어 있어
+ * 기본값 A(TV 드라마)로 굳었고, **웹툰으로 시작해도 TV 드라마 작업실이 열렸다**
+ * (실측 2026-08-27: genre=F 인데 저장된 medium 이 "A. TV 드라마"). 매체가 다르면
+ * 형식·분량·프롬프트가 전부 달라지므로 작가가 처음부터 다른 글을 쓰게 된다.
+ */
+function WriteGate() {
+  const { ready } = useQueryParamsState();
+  if (!ready) {
+    return (
+      <main className="main">
+        <div style={{ padding: "60px 0", textAlign: "center", color: "var(--ink-4)", fontSize: 13 }}>
+          ⏳ 작업실 여는 중…
+        </div>
+      </main>
+    );
+  }
+  return <WriteMain />;
 }
 
 // ───── 데모(시연용) 데이터 — 직접 /write 접근 시만 사용 ─────
@@ -109,9 +131,15 @@ function buildNewWorkContext(idea: string, genreLetter: string, activeStepName?:
   // ★ 빈 작업실(blank) = 작가 직접 쓰기 종이. AI 자동 생성 X — 빈 단락 1개로 시작, 작가가 바로 타이핑.
   //   AI가 시작하는 건 idea가 진짜 있고 blank가 아닐 때만 (develop 경유·홈 아이디어 등).
   const aiStart = !!idea && !blank;
-  const titlePreview = aiStart
-    ? idea.split(/[.,\s]/).filter(Boolean).slice(0, 4).join(" ").slice(0, 24)
-    : "새 작품";
+  // 기획실에서 정한 제목이 있으면 그걸 쓴다 (없을 때만 아이디어 앞머리를 임시 제목으로)
+  const developTitle = typeof window !== "undefined"
+    ? (window.localStorage.getItem("storyMaker.developTitle") || "").trim()
+    : "";
+  const titlePreview = developTitle
+    ? developTitle
+    : aiStart
+      ? idea.split(/[.,\s]/).filter(Boolean).slice(0, 4).join(" ").slice(0, 24)
+      : "새 작품";
 
   return {
     work: { title: titlePreview, chapter: "초안", elapsed: "방금 시작", medium: `${wf.letter}. ${wf.name} · ${wf.sub}` },
@@ -138,6 +166,25 @@ function buildNewWorkContext(idea: string, genreLetter: string, activeStepName?:
              ? `빈 작업실이 열렸습니다. 왼쪽 첫 단락을 클릭해 직접 쓰시거나, 쓰던 원고가 있으면 파일로 가져올 수 있어요. 제가 써드리길 원하시면 여기 채팅에 "시작해줘"라고 적어주세요.`
              : `${wf.name} 작품 준비 완료. 우측에 한 줄 아이디어 적어주시면 첫 단락부터 시작합니다.`, t: "방금" }],
   };
+}
+
+/**
+ * 복원한 원고에서 "생성 중"인 채 비어 있는 단락을 되살린다.
+ *
+ * 옛 「다시 써」가 단락을 비우고 streaming 으로 두기만 해서, 채워주는 쪽이 없으면
+ * 빈 칸이 영영 "생성 중"으로 남았다 (실측 2026-08-27). 작가에겐 멈춘 것처럼 보인다.
+ * 복원 시 그런 단락은 작가가 직접 쓸 수 있는 빈 자리(pending)로 되돌린다.
+ */
+function healStuckParas<T extends { text?: string; status?: string }>(list: T[]): T[] {
+  const healed = list.map(p =>
+    p.status === "streaming" && !(p.text || "").trim()
+      ? { ...p, status: "pending" as const }
+      : p
+  );
+  // 원고 끝에 쌓인 빈 칸은 작가가 만든 게 아니라 중단된 이어쓰기의 잔재다 — 마지막 하나만 남긴다
+  let end = healed.length;
+  while (end > 0 && !(healed[end - 1].text || "").trim()) end--;
+  return healed.slice(0, Math.min(healed.length, end + 1));
 }
 
 // ───── mode=continue: 저장된 작품이 없을 때 fallback (정상 흐름은 KEY.writeProject 자동 복원) ─────
@@ -199,9 +246,16 @@ function NoProjectGate() {
     mode?: string; idea?: string; genre?: string; project?: string; from?: string; fast?: string; blank?: string; savedAt?: string;
   } | null>(null);
   const [checked, setChecked] = useState(false);
+  // ★ 쿼리를 아직 못 읽은 상태에서 "작품 없음"으로 단정하면
+  //   방금 기획실에서 넘어온 작품을 버리고 옛 작품으로 되돌린다.
+  const { ready: queryReady } = useQueryParamsState();
 
   useEffect(() => {
-    // ★ 사장님 명시: /write 진입 시 = 빈 화면이든 작업 중이든 자동 진입. NoProjectGate 안 거침.
+    if (!queryReady) return;
+    // 앱 안에서 막 넘어온 직후면 주소가 먼저 바뀌고 화면이 뒤따른다.
+    // 주소에 이미 작품이 실려 있으면 게이트는 아무것도 하지 않는다.
+    if (new URLSearchParams(window.location.search).get("mode")) return;
+    // ★ 대표님 명시: /write 진입 시 = 빈 화면이든 작업 중이든 자동 진입. NoProjectGate 안 거침.
     //   - 옛 작품 있으면 = 그 작품 자동 복원
     //   - 없으면 = 빈 작업실 (채팅으로 처음부터 시작)
     //   - 다른 작품 전환 = 작업실 헤더의 「📁 작품 변경」 버튼 또는 = 사이드바 Library
@@ -241,10 +295,10 @@ function NoProjectGate() {
     });
     router.replace(`/write?${params.toString()}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [queryReady]);
 
   // 자동 redirect 도중에는 빈 화면 (잠깐)
-  if (!checked) {
+  if (!checked || !queryReady) {
     return (
       <main className="main">
         <div style={{ padding: "60px 0", textAlign: "center", color: "var(--ink-4)", fontSize: 13 }}>
@@ -464,11 +518,25 @@ function projectKeyFor(mode: string | null, isDemo: boolean, projectParam: strin
 
 function WriteMain() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const { params: searchParams, ready: queryReady } = useQueryParamsState();
   const mode = searchParams.get("mode");
   const ideaParam = searchParams.get("idea") || "";
-  const genreParam = searchParams.get("genre") || "A";
   const projectParam = searchParams.get("project") || "";
+  /**
+   * 작품의 매체.
+   *
+   * 「작품 변경」이나 라이브러리로 다시 열면 주소에 genre 가 없다. 그래서 기본값 A로 떨어졌고,
+   * **웹툰 작품을 다시 열면 컷 편집기가 사라지고 평문으로 보였다** (실측 2026-08-27).
+   * 시나리오·큐시트도 마찬가지로 형식을 잃는다.
+   * 작품 id 는 `F-택배_상자...` 처럼 매체 글자로 시작하므로 거기서 되찾는다.
+   */
+  const genreParam = (() => {
+    const q = searchParams.get("genre");
+    if (q) return q;
+    const m = /^([A-R])-/.exec(projectParam);
+    if (m) return m[1];
+    return "A";
+  })();
   const actionParam = searchParams.get("action") || ""; // 빠른 의뢰: 그 단계로 점프
   const isDemo = searchParams.get("demo") === "1";
   const isDirectMode = searchParams.get("fast") === "1"; // AI로 바로 집필 = 곧장 본문(script)
@@ -480,7 +548,10 @@ function WriteMain() {
   //   redirect case (둘 다 = /develop으로):
   //     (a) ?plan=1 = 옛 path
   //     (b) mode=new && !ideaParam = idea 없는 신규 = /develop에서 idea 입력
-  const needsRedirect = isPlanMode || (mode === "new" && !ideaParam && !isDemo);
+  // ★ 사전 자료 6단계를 마치고 넘어온 경우(from=develop)는 되돌리지 않는다.
+  //   되돌리면 작가가 6단계를 다 끝내고도 기획실로 튕겨 나간다 (실측 2026-08-26).
+  const fromDevelop = searchParams.get("from") === "develop";
+  const needsRedirect = queryReady && (isPlanMode || (mode === "new" && !ideaParam && !isDemo && !fromDevelop));
   useEffect(() => {
     if (needsRedirect) {
       const params = new URLSearchParams();
@@ -493,7 +564,8 @@ function WriteMain() {
 
   // ★ early return은 모든 hook 다음으로 — React Rules of Hooks 위반 방지.
   //   (NoProjectGate redirect는 useEffect로 처리해서 hook 순서 일정 유지)
-  const showNoProjectGate = !mode && !isDemo;
+  //   쿼리를 아직 못 읽었으면 "작품 없음"으로 단정하지 않는다 (게이트가 옛 작품으로 되돌림)
+  const showNoProjectGate = queryReady && !mode && !isDemo;
 
   // ─── 매체 정보 ───
   const wf = useMemo(() => getWorkflow(genreParam), [genreParam]);
@@ -532,7 +604,7 @@ function WriteMain() {
     if (isDemo) return true;
     if (isDirectMode) return true;
     if (mode === "continue" || mode === "adapt-same" || mode === "adapt-cross") return true;
-    // ★ 사장님 명시: /write는 본문 + 채팅 작업창. 의뢰서 폼 X.
+    // ★ 대표님 명시: /write는 본문 + 채팅 작업창. 의뢰서 폼 X.
     //   mode=new + idea 있으면 = 무조건 본문 모드 (의뢰서는 /develop에서만).
     //   plan=1 명시 시만 = 의뢰서 폼 (drama·영화·웹툰 등 매체별 사전 입력 강제 케이스).
     if (mode === "new" && ideaParam && !isPlanMode) return true;
@@ -556,7 +628,7 @@ function WriteMain() {
     if (storageKey) {
       const saved = loadJSON<PersistedProject | null>(storageKey, null);
       if (saved && saved.paras && saved.paras.length > 0) {
-        return { work: saved.work, notes: saved.notes, flow: saved.flow, paras: saved.paras, chat: saved.chat };
+        return { work: saved.work, notes: saved.notes, flow: saved.flow, paras: healStuckParas(saved.paras), chat: saved.chat };
       }
     }
     if (mode === "new") {
@@ -579,8 +651,32 @@ function WriteMain() {
     return !!(saved && saved.paras && saved.paras.some(p => p.text && p.text.trim().length > 0));
   });
 
-  const [work] = useState<WorkInfo>(initial.work);
+  /**
+   * 작업실 머리말(제목·매체).
+   *
+   * 옛 동작: `useState(initial.work)` 로 **첫 렌더 값에 갇혔다.** 주소를 읽기 전 첫 렌더에서는
+   * 매체가 기본값 A(TV 드라마)라, 웹툰으로 시작해도 머리말과 저장 데이터가 TV 드라마로 굳었다
+   * (실측 2026-08-27: genre=F 인데 저장된 medium 이 "A. TV 드라마", 작가 노트도 "매체: TV 드라마").
+   * 본문은 웹툰으로 나오는데 문서 정보만 달라서, 나중에 라이브러리·내보내기에서 매체가 어긋난다.
+   * 그래서 매체는 주소에서 그때그때 파생시킨다.
+   */
+  const work = useMemo<WorkInfo>(() => {
+    const base = initial.work;
+    // 이어쓰기·각색처럼 매체 표기를 따로 정해 둔 경우는 건드리지 않는다
+    if (mode !== "new") return base;
+    const w = getWorkflow(genreParam);
+    return { ...base, medium: `${w.letter}. ${w.name} · ${w.sub}` };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genreParam, mode]);
   const [notes, setNotes] = useState<Note[]>(initial.notes);
+  // 작가 노트의 매체 줄도 첫 렌더 값에 갇혀 있었다 (위 work 와 같은 원인) — 주소 기준으로 바로잡는다
+  useEffect(() => {
+    if (mode !== "new") return;
+    const name = getWorkflow(genreParam).name;
+    setNotes(prev => prev.some(n => n.id === "n_genre" && n.label === `매체: ${name}`)
+      ? prev
+      : prev.map(n => n.id === "n_genre" ? { ...n, label: `매체: ${name}` } : n));
+  }, [genreParam, mode]);
   const [flow, setFlow] = useState<FlowItem[]>(initial.flow);
   const [paras, setParas] = useState<Para[]>(initial.paras);
   // V3.1 추가-2 — 본문 찾기/바꾸기 모달
@@ -651,6 +747,9 @@ function WriteMain() {
   const aiAbortRef = useRef<AbortController | null>(null);
   // ★ AI 호출 진행 중 표시 — 스탑 버튼 노출 통제.
   const [aiBusy, setAiBusy] = useState(false);
+  // ★ 문장 자동 교정 — 본문 생성 직후 비문·조사·시제만 다듬는다. 작가가 끌 수 있다.
+  const [polishing, setPolishing] = useState(false);
+  const [polishEnabled, setPolishEnabled] = usePersistedState<boolean>(KEY.writeAutoPolish, true);
 
   // ★ 자동저장 상태 — 작가에게 시각적 피드백 (옛 silent fail 사고 방지 2026-05-14)
   //   "saved" = localStorage + 클라우드 둘 다 / "local-only" = 클라우드 401·실패 / "saving" = 진행 중
@@ -667,6 +766,7 @@ function WriteMain() {
   //   localStorage = 항상 저장 (= 본 PC 안전).
   //   Supabase = 항상 시도 + 결과 가시화 (= 401·네트워크 끊김 시 토스트 알림).
   const lastCloudPushRef = useRef<string>(""); // 마지막 클라우드 저장 hash (= 중복 push 방지)
+  const [rewritingIds, setRewritingIds] = useState<string[]>([]);  // 다시 쓰는 중인 단락
   const lastCloudTimeRef = useRef<number>(0);  // 마지막 클라우드 저장 시각
 
   const saveSnapshot = useCallback((reason: string, opts?: { keepalive?: boolean; force?: boolean }) => {
@@ -767,7 +867,16 @@ function WriteMain() {
       };
 
       // ★ 중복 push 방지 = content hash (= 같은 내용 다시 안 보냄, force 시는 무시)
-      const contentHash = `${bodyText.length}|${chatText.length}|${noteText.length}|${work.title}|${Object.keys(memoryFiles).length}`;
+      // ★ V3.1.1 (2026-08-26) — 옛 해시가 글자수 기반이라 같은 길이로 단어만 바뀐 편집이
+      //   cloud push를 건너뛰어 PC 이동 시 유실될 수 있었음 (진단 2026-06-12 P2) → 실제 내용 해시로 교체.
+      const hashStr = (s: string) => {
+        let h = 5381;
+        for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+        return h.toString(36);
+      };
+      const contentHash = hashStr(
+        [work.title, bodyText, chatText, noteText, Object.keys(memoryFiles).join(",")].join('\u0000')
+      );
       if (!opts?.force && contentHash === lastCloudPushRef.current) {
         // 내용 변경 없음 → cloud push skip (= localStorage만 갱신)
         return;
@@ -812,12 +921,33 @@ function WriteMain() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey, persistKey, isDemo, work, notes, flow, paras, chat, mediumFields, briefDone, wf, mode, ideaParam, genreParam, projectParam, searchParams]);
 
+  // ★★★ 원고 유실 방지 (실측 2026-08-26)
+  //   첫 렌더에서는 주소의 아이디어·매체를 아직 못 읽어 storageKey 가 엉뚱한 값이다.
+  //   그 상태로 자동저장이 돌면 **빈 원고가 진짜 작업물을 덮어쓴다.**
+  //   (기획실에서 같은 사고를 확인해 먼저 고쳤고, 원고지도 같은 구조였다)
+  //   그래서 주소를 읽은 뒤(queryReady) 그 키를 한 번 확인하고 나서만 저장한다.
+  const writeRestoredKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!queryReady || !storageKey) return;
+    if (writeRestoredKeyRef.current === storageKey) return;
+    const saved = loadJSON<PersistedProject | null>(storageKey, null);
+    if (saved) {
+      if (Array.isArray(saved.paras) && saved.paras.length > 0) setParas(healStuckParas(saved.paras));
+      if (Array.isArray(saved.notes)) setNotes(saved.notes);
+      if (Array.isArray(saved.chat) && saved.chat.length > 0) setChat(saved.chat);
+      if (saved.mediumFields) setMediumFields(saved.mediumFields);
+    }
+    writeRestoredKeyRef.current = storageKey;
+  }, [queryReady, storageKey]);
+
   // ─── 자동 저장 트리거 1: 0.4초 debounce (= 작가가 입력 멈춤) ───
   useEffect(() => {
     if (!storageKey || !persistKey || isDemo) return;
+    if (!queryReady) return;                                  // 주소를 읽기 전에는 저장하지 않는다
+    if (writeRestoredKeyRef.current !== storageKey) return;    // 그 키를 확인하기 전에는 저장하지 않는다
     const timer = setTimeout(() => saveSnapshot("auto"), 400);
     return () => clearTimeout(timer);
-  }, [storageKey, persistKey, isDemo, work, notes, flow, paras, chat, mediumFields, briefDone, saveSnapshot]);
+  }, [storageKey, persistKey, isDemo, queryReady, work, notes, flow, paras, chat, mediumFields, briefDone, saveSnapshot]);
 
   // ─── 자동 저장 트리거 2: 단락 추가 (= paras.length 증가 시 강제 cloud push) ───
   const lastParasCountRef = useRef(paras.length);
@@ -1101,6 +1231,8 @@ function WriteMain() {
                     }
 
                     // 3) 본문을 빈 줄 단위 단락으로 split — 지문·대사·씬 헤딩마다 별도 단락
+                    // 모델이 반복해서 내는 오타는 프롬프트로 안 잡힌다 — 여기서 바로잡는다
+                    body = fixCommonTypos(body);
                     const blocks = body
                       .split(/\n\s*\n+/)
                       .map(b => b.trim())
@@ -1135,7 +1267,7 @@ function WriteMain() {
                       streamTarget: undefined,
                     }));
                   });
-                  // 인사 메시지만 채팅에 — 자가분석(notesToChat)은 사장님 명시: 채팅에 박지 X
+                  // 인사 메시지만 채팅에 — 자가분석(notesToChat)은 대표님 명시: 채팅에 박지 X
                   const chatAdditions: ChatMsg[] = [];
                   if (introToChat) {
                     chatAdditions.push({
@@ -1207,11 +1339,72 @@ function WriteMain() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDemo, mode, ideaParam, genreParam, wasRestored, briefDone, actionParam, isBlankMode]);
 
-  const onRewrite = (id: string) => {
-    setParas(prev => prev.map(p => {
-      if (p.id !== id) return p;
-      return { ...p, text: "", status: "streaming" };
-    }));
+  /**
+   * 「↻ 다시 써」 — 그 단락만 실제로 다시 쓴다.
+   *
+   * 옛 동작: 단락을 비우고 status 만 streaming 으로 바꿨다. 그런데 그 상태를 받아
+   * 실제로 생성해주는 쪽이 없어서 (그 경로는 새 작품 모드 전용) **원고가 지워지기만 하고
+   * 아무것도 채워지지 않았다** (실측 2026-08-27: 3번 단락 0자, 요청 0건).
+   * 그래서 원문을 지우지 않고, 새 문장이 도착했을 때만 갈아 끼운다. 실패하면 원문 그대로 둔다.
+   */
+  const onRewrite = async (id: string) => {
+    const idx = paras.findIndex(p => p.id === id);
+    if (idx < 0) return;
+    const target = paras[idx];
+    if (!target.text || !target.text.trim()) return;
+    if (rewritingIds.includes(id)) return;
+    const original = target.text;
+
+    setRewritingIds(prev => [...prev, id]);
+    try {
+      const ac = new AbortController();
+      aiAbortRef.current = ac;  // 「🛑 중지」가 이 호출도 멈출 수 있게
+      const res = await fetch("/api/agent/stream", {
+        method: "POST",
+        signal: ac.signal,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: "rewritePara",
+          text: original,
+          genreLetter: genreParam,
+          beforeText: paras[idx - 1]?.text?.slice(0, 600) ?? "",
+          afterText: paras[idx + 1]?.text?.slice(0, 600) ?? "",
+          writerNotes: notes.filter(n => n.label?.trim()).map(n => `- ${n.label}`).join("\n"),
+          fast: true,
+        }),
+      });
+      if (!res.body) throw new Error("응답 없음");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let body = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const events = buf.split("\n\n");
+        buf = events.pop() || "";
+        for (const evt of events) {
+          const lines = evt.split("\n");
+          const type = lines.find(l => l.startsWith("event:"))?.slice(6).trim();
+          const dataLine = lines.find(l => l.startsWith("data:"))?.slice(5).trim();
+          if (!dataLine) continue;
+          try {
+            const data = JSON.parse(dataLine);
+            if (type === "delta" && data.text) body += data.text;
+          } catch { /* 조각난 줄은 건너뛴다 */ }
+        }
+      }
+      const cleaned = fixCommonTypos(stripControlMarkers(body)).trim();
+      // 빈 응답이나 터무니없이 짧은 결과로 작가 원고를 덮지 않는다
+      if (cleaned && cleaned.length > Math.min(20, original.length * 0.3)) {
+        setParas(prev => prev.map(p => p.id === id ? { ...p, text: cleaned, status: "done" } : p));
+      }
+    } catch {
+      // 원문은 건드리지 않았으므로 그대로 남는다
+    } finally {
+      setRewritingIds(prev => prev.filter(x => x !== id));
+    }
   };
 
   // 작가 직접 수정 — 단락 텍스트 그대로 저장.
@@ -1259,6 +1452,53 @@ function WriteMain() {
     });
   };
 
+  // ─── 문장 자동 교정 ───
+  // 갓 생성된 본문에는 비문·조사 오류·시제 흔들림이 남는다.
+  // 내용은 그대로 두고 문장만 다듬어 원고지에 반영한다. 실패해도 원문을 지키고 조용히 넘어간다.
+  const polishParagraph = async (paraId: string, body: string) => {
+    setPolishing(true);
+    try {
+      const res = await streamFetch({
+        mode: "polish",
+        text: body,
+        genreLetter: genreParam,
+        model: getModelChoice("polish"),
+      });
+      if (!res.body) return;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let polished = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const events = buf.split("\n\n");
+        buf = events.pop() || "";
+        for (const evt of events) {
+          const lines = evt.split("\n");
+          const et = lines.find(l => l.startsWith("event:"))?.slice(6).trim();
+          const dl = lines.find(l => l.startsWith("data:"))?.slice(5).trim();
+          if (et === "delta" && dl) {
+            try {
+              const d = JSON.parse(dl);
+              if (d.text) polished += d.text;
+            } catch { /* ignore */ }
+          }
+        }
+      }
+      const cleaned = stripDocMarkup(stripControlMarkers(polished));
+      // 교정본이 원문 분량과 크게 어긋나면(요약·삭제 사고) 원문을 지킨다
+      const ratio = cleaned.length / Math.max(1, body.length);
+      if (!cleaned || ratio < 0.7 || ratio > 1.4) return;
+      setParas(prev => prev.map(p => (p.id === paraId ? { ...p, text: cleaned } : p)));
+    } catch {
+      /* 교정 실패 = 원문 유지 */
+    } finally {
+      setPolishing(false);
+    }
+  };
+
   // 본문 다운로드 (워드/텍스트) — 단락 라벨 X, 본문만 자연스러운 흐름.
   // (라벨 "S#1"/"지문"/"대사"는 UI 표시용 — 다운로드 결과물엔 노출 X.
   //  본문 안에 박힌 매체별 표준 헤더 — S#1/[컷1]/[1막 1장] 등 — 만 그대로 흐름.)
@@ -1271,7 +1511,7 @@ function WriteMain() {
       alert("아직 작성된 본문이 없습니다.");
       return;
     }
-    const filename = (work.title || "대본") + "_" + new Date().toISOString().slice(0, 10);
+    const filename = (work.title || "대본") + "_" + todayStamp();
     if (format === "docx") downloadDocx(body, filename);
     else if (format === "fountain") downloadFountain(body, filename);
     else if (format === "pdf") downloadPdfViaPrint(body, filename);
@@ -1372,6 +1612,27 @@ function WriteMain() {
     return { ...base, blocks };
   }, [paras, genreParam, headerBlocks, customColumns, removedColumns]);
 
+  /**
+   * 화면의 블록 id → 실제 원고 단락 id.
+   *
+   * 소설·웹소설은 단락과 블록이 1:1이라 id가 같지만,
+   * 시나리오·웹툰 등은 본문을 합쳐 다시 쪼개므로 **블록 id가 단락 id와 다르다.**
+   * 그래서 id로만 찾는 기능은 시나리오에서 조용히 아무 일도 하지 않았다
+   * (실측 2026-08-27: 「↻ 다시 써」가 눌러도 요청조차 나가지 않음).
+   * 내용이 같은 단락을 먼저 찾고, 없으면 화면에 보이는 순서로 그 자리 단락을 잡는다.
+   */
+  const resolveParaId = (blockId: string): string | null => {
+    if (paras.some(x => x.id === blockId)) return blockId;
+    const blockList = doc?.blocks ?? [];
+    const blockIdx = blockList.findIndex(b => b.id === blockId);
+    if (blockIdx < 0) return null;
+    const bodyParas = paras.filter(x => x.text && x.text.trim());
+    if (bodyParas.length === 0) return null;
+    const beforeText = ((blockList[blockIdx] as { text?: string }).text ?? "").trim();
+    const byText = beforeText ? bodyParas.find(x => x.text.trim() === beforeText) : undefined;
+    return (byText ?? bodyParas[Math.min(blockIdx, bodyParas.length - 1)]).id;
+  };
+
   const onBlockEdit = (blockId: string, patch: Partial<BlockV3>) => {
     // HeaderBlock 수정 = headerBlocks state 직접
     const isHeader = headerBlocks.some(h => h.id === blockId);
@@ -1379,13 +1640,43 @@ function WriteMain() {
       setHeaderBlocks(prev => prev.map(h => h.id === blockId ? { ...h, ...(patch as Partial<HeaderBlockV3>) } : h));
       return;
     }
-    // ProseBlock 수정 = paras에 위임 (id 동일)
     const proseText = "text" in patch ? (patch as { text?: string }).text : undefined;
-    if (proseText !== undefined) onEditPara(blockId, proseText);
+    if (proseText === undefined) return;
+
+    // ★★★ 작가 직접 수정이 저장되지 않던 문제 (실측 2026-08-26)
+    //   소설·웹소설은 단락과 블록이 1:1이라 id가 그대로지만,
+    //   시나리오·웹툰 등은 본문을 합쳐 다시 쪼개므로 **블록 id가 원고 단락 id와 다르다.**
+    //   그래서 id로만 찾으면 아무 단락도 못 찾아 수정이 조용히 사라졌다.
+    //   (드라마·영화·숏드라마 작가가 본문을 직접 고칠 수 없던 상태)
+    //   id로 못 찾으면 = 화면에 보이는 블록 순서로 그 자리 단락을 찾아 고친다.
+    const found = paras.some(x => x.id === blockId);
+    if (found) {
+      onEditPara(blockId, proseText);
+      return;
+    }
+    const blockList = doc?.blocks ?? [];
+    const blockIdx = blockList.findIndex(b => b.id === blockId);
+    if (blockIdx < 0) return;
+    // 같은 순서의 "본문이 있는" 단락을 찾아 반영
+    const bodyParas = paras.filter(x => x.text && x.text.trim());
+    const beforeText = (blockList[blockIdx] as { text?: string }).text ?? "";
+    // 내용이 일치하는 단락 우선, 없으면 순서로
+    const byText = bodyParas.find(x => x.text.trim() === beforeText.trim());
+    const target = byText ?? bodyParas[Math.min(blockIdx, bodyParas.length - 1)];
+    if (!target) return;
+    onEditPara(target.id, target.text.trim() === beforeText.trim()
+      ? proseText
+      : target.text.replace(beforeText, proseText));
   };
 
-  const onBlockRewrite = (blockId: string) => onRewrite(blockId);
-  const onBlockContinue = (afterBlockId: string) => onContinuePara(afterBlockId);
+  const onBlockRewrite = (blockId: string) => {
+    const id = resolveParaId(blockId);
+    if (id) onRewrite(id);
+  };
+  const onBlockContinue = (afterBlockId: string) => {
+    const id = resolveParaId(afterBlockId);
+    if (id) onContinuePara(id);
+  };
 
   // ★ V3.0 단계 5 + V3.1 #10 보강 — 채팅 마커 [[수정/추가/삭제:N:내용]] 본문 patch
   //   production 검증: N 범위 체크 + 빈 content 안내 + applied 토스트
@@ -1459,13 +1750,16 @@ function WriteMain() {
       onRemoveHeader(blockId);
       return;
     }
-    // 일반 본문 블록 = paras에서 (= V3 단계에서 blocks↔paras mirror)
-    setParas(prev => prev.filter(p => p.id !== blockId));
+    // 일반 본문 블록 = paras에서 (시나리오처럼 id가 다른 매체는 순서로 찾는다)
+    const id = resolveParaId(blockId);
+    if (!id) return;
+    setParas(prev => prev.filter(p => p.id !== id));
   };
   const onBlockMove = (blockId: string, direction: "up" | "down") => {
-    // 일반 본문 블록 paras 순서 변경
+    // 일반 본문 블록 paras 순서 변경 (시나리오처럼 id가 다른 매체는 순서로 찾는다)
+    const resolved = resolveParaId(blockId);
     setParas(prev => {
-      const idx = prev.findIndex(p => p.id === blockId);
+      const idx = prev.findIndex(p => p.id === (resolved ?? blockId));
       if (idx === -1) return prev;
       const next = [...prev];
       const targetIdx = direction === "up" ? idx - 1 : idx + 1;
@@ -1495,20 +1789,78 @@ function WriteMain() {
 
   // 더 쓰기 — 이 단락 다음에 빈 단락 추가. 작가가 직접 쓰거나(✍️ 직접 쓰기),
   // 우측 채팅에서 "이어서 써줘"로 AI에게 맡길 수 있음 (pending = 작가·AI 둘 다 가능).
-  const onContinuePara = (id: string) => {
+  /**
+   * 「+ 더 쓰기」 — 그 자리 다음에 한 단락을 실제로 이어 쓴다.
+   *
+   * 옛 동작: 빈 단락(pending)만 끼워 넣었다. 그런데 빈 단락은 화면에 렌더되지 않아서
+   * 작가가 눌러도 **아무 일도 일어나지 않는 것처럼 보였다** (실측 2026-08-27: 요청 0건).
+   */
+  const onContinuePara = async (id: string) => {
+    const idx = paras.findIndex(p => p.id === id);
+    if (idx < 0) return;
+    const newId = "p_" + Date.now();
     setParas(prev => {
-      const idx = prev.findIndex(p => p.id === id);
-      if (idx === -1) return prev;
-      const newId = "p_" + Date.now();
-      const newPara: Para = {
-        id: newId,
-        n: prev.length + 1,
-        label: "이어쓰기",
-        text: "",
-        status: "pending",
-      };
-      return [...prev.slice(0, idx + 1), newPara, ...prev.slice(idx + 1)];
+      const at = prev.findIndex(p => p.id === id);
+      if (at === -1) return prev;
+      const newPara: Para = { id: newId, n: at + 2, label: "이어쓰기", text: "", status: "streaming" };
+      return [...prev.slice(0, at + 1), newPara, ...prev.slice(at + 1)].map((p, i) => ({ ...p, n: i + 1 }));
     });
+
+    try {
+      const ac = new AbortController();
+      aiAbortRef.current = ac;  // 「🛑 중지」가 이 호출도 멈출 수 있게
+      const res = await fetch("/api/agent/stream", {
+        method: "POST",
+        signal: ac.signal,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: "continuePara",
+          genreLetter: genreParam,
+          beforeText: paras.slice(Math.max(0, idx - 2), idx + 1).map(p => p.text).filter(Boolean).join("\n\n").slice(-1500),
+          afterText: paras[idx + 1]?.text?.slice(0, 600) ?? "",
+          writerNotes: notes.filter(n => n.label?.trim()).map(n => `- ${n.label}`).join("\n"),
+          fast: true,
+        }),
+      });
+      if (!res.body) throw new Error("응답 없음");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let body = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const events = buf.split("\n\n");
+        buf = events.pop() || "";
+        for (const evt of events) {
+          const lines = evt.split("\n");
+          const type = lines.find(l => l.startsWith("event:"))?.slice(6).trim();
+          const dataLine = lines.find(l => l.startsWith("data:"))?.slice(5).trim();
+          if (!dataLine) continue;
+          try {
+            const data = JSON.parse(dataLine);
+            if (type === "delta" && data.text) {
+              body += data.text;
+              const partial = stripControlMarkers(body);
+              setParas(prev => prev.map(p => p.id === newId ? { ...p, text: partial } : p));
+            }
+          } catch { /* 조각난 줄은 건너뛴다 */ }
+        }
+      }
+      let cleaned = fixCommonTypos(stripControlMarkers(body)).trim();
+      // 앞 단락을 그대로 옮겨 적고 이어 쓰는 경우가 있다 — 겹치는 앞부분은 잘라낸다
+      const prevText = (paras[idx]?.text || "").trim();
+      if (prevText && cleaned.includes(prevText)) {
+        cleaned = cleaned.slice(cleaned.indexOf(prevText) + prevText.length).trim();
+      }
+      setParas(prev => cleaned
+        ? prev.map(p => p.id === newId ? { ...p, text: cleaned, status: "done" as const } : p)
+        // 아무것도 못 받았으면 빈 칸을 남기지 않는다
+        : prev.filter(p => p.id !== newId).map((p, i) => ({ ...p, n: i + 1 })));
+    } catch {
+      setParas(prev => prev.filter(p => p.id !== newId).map((p, i) => ({ ...p, n: i + 1 })));
+    }
   };
 
   const addNote = (label: string) => {
@@ -1538,7 +1890,10 @@ function WriteMain() {
     // ★ 2026-06-01 정정 — 작가의 "본문 써달라" 명령은 항상 script(본문 생성)로.
     //   옛 사고: "이 씬 더 길게 써줘"·"2번 다시 써줘" = isChatIntent(길게/다시) 매칭 → chat(대화만) → 본문 안 바뀜.
     //   작가는 본문이 바뀌길 기대함. 글쓰기 동사("써줘/작성/이어 써/추가")가 있으면 무조건 script로 우선.
-    const isWriteCommand = /써\s*줘|써\s*줄래|써\s*주세요|써\s*봐|작성|다시\s*써|이어\s*써|추가\s*해|추가해|넣어\s*줘|만들어\s*줘|생성/i.test(text);
+    //   ★ 「~로 바꿔줘 · 고쳐줘 · 빼줘 · 지워줘」도 본문을 고치라는 말이다 (실측 2026-08-27).
+    //     옛 목록엔 「써줘」류만 있어서 「이름을 한서로 바꿔줘」가 대화로 빠졌고,
+    //     작가는 답만 받고 본문은 그대로였다.
+    const isWriteCommand = /써\s*줘|써\s*줄래|써\s*주세요|써\s*봐|작성|다시\s*써|이어\s*써|추가\s*해|추가해|넣어\s*줘|만들어\s*줘|생성|바꿔\s*줘|바꿔\s*줄래|바꿔\s*주세요|바꿔\s*봐|고쳐\s*줘|고쳐\s*주세요|빼\s*줘|빼\s*주세요|지워\s*줘|삭제\s*해|(?:으?로|에서)\s*(?:바꾸|고치|변경)/i.test(text);
     const isChatIntent = /수정|다시|짧게|길게|바꿔|고쳐|어때|어떻게|괜찮|좋아|싫어|별로|왜|이유|설명|뜻|의미|느낌|톤|평가|짧은|긴|이상|어색|자연|개선|첫\s*씬|첫\s*단락|\d+번|\d+\s*씬|\d+\s*단락/i.test(text);
     const isContinueIntent = /다음|이어|계속|^더\s|새\s*단락|다음\s*씬/i.test(text);
     const mode: "chat" | "script" = isWriteCommand ? "script" : (isChatIntent && !isContinueIntent ? "chat" : "script");
@@ -1674,11 +2029,17 @@ function WriteMain() {
                   bodyOnly = collected.slice(0, m.index).trimEnd();
                   notesPart = collected.slice(m.index + m[0].length).trim();
                 }
+                // 원고 본문에는 문서 편집 표시(제목·구분선·굵게)를 남기지 않는다
+                const cleanBody = stripDocMarkup(stripControlMarkers(bodyOnly));
                 setParas(prev => prev.map(p =>
                   p.id === newPara!.id
-                    ? { ...p, text: bodyOnly, status: "done" as const }
+                    ? { ...p, text: cleanBody, status: "done" as const }
                     : p
                 ));
+                // 갓 쓴 본문은 비문·조사·시제가 남는다 → 문장만 자동 교정 (내용 수정 X)
+                if (polishEnabled && cleanBody.trim().length >= 200) {
+                  void polishParagraph(newPara!.id, cleanBody);
+                }
                 if (notesPart) {
                   setChat(prev => [...prev, {
                     id: "ai_notes_" + Date.now(),
@@ -1992,6 +2353,7 @@ function WriteMain() {
           onBlockReorder={onBlockReorder}
           onOpenSnapshots={() => setSnapshotOpen(true)}
           onSaveProjectFile={onSaveProjectFile}
+          onBeforeSwitchWork={() => saveSnapshot("작품 전환", { force: true })}
           onOpenProjectFile={onOpenProjectFile}
           paused={paused}
           onPauseToggle={() => {
@@ -2012,6 +2374,9 @@ function WriteMain() {
           onImport={onEditAllParas}
           onDownload={onDownloadScript}
           aiBusy={aiBusy}
+          polishing={polishing}
+          polishEnabled={polishEnabled}
+          onPolishToggle={() => setPolishEnabled(!polishEnabled)}
           bookOpen={bookOpen}
           onBookToggle={() => setBookOpen(!bookOpen)}
           notesCount={notes.length}

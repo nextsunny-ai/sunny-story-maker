@@ -1,7 +1,7 @@
 /**
  * Story Maker — 작가 에이전트 System Prompt
  *
- * 사장님이 만든 핵심 노하우 자료 (lib/skills/*.md) + Story Maker 자체 fallback prompt 통합.
+ * 대표님이 만든 핵심 노하우 자료 (lib/skills/*.md) + Story Maker 자체 fallback prompt 통합.
  * Drive 원본 자료를 읽기 전용으로 정적 카피해 사용 (Story Maker는 원본 안 건드림).
  *
  * + lib/skills/learned.md (자동 학습 결과 — 주 2회 자동 갱신)
@@ -28,12 +28,12 @@ function readSkill(file: string): string {
 
 /** ★★★ SKILL 자료 박지 X (외부 배포 = 사적 정보 보호)
  *
- * lib/skills/*.md = 자료 작성자(사장님) 사적 자료 (페르소나·작품 IP·캐릭터 이름·소속 등)
+ * lib/skills/*.md = 자료 작성자(대표님) 사적 자료 (페르소나·작품 IP·캐릭터 이름·소속 등)
  * → 외부 작가들에게 노출되면 안 됨. = 통째로 박지 X.
  *
  * 작법 노하우 = FALLBACK_SYSTEM_PROMPT에 충분히 박혀있음 (humanizer 6패턴·Tier 시스템·5단계·12장르·캐릭터 비유 체계).
  *
- * 사장님 본인 = LOCAL에서만 = 사적 자료 활용하려면:
+ * 대표님 본인 = LOCAL에서만 = 사적 자료 활용하려면:
  *   .env.local 에 = LOAD_SKILLS=true 박음 (= 사적 정보 박힘 = 외부 배포 X)
  */
 function loadSkillBundle(): string {
@@ -62,14 +62,14 @@ function loadSkillBundle(): string {
 
 /** ★★★ V2.11.1 (2026-05-11) — `learned.md`만 별도로 박음 (= 사적 정보 X 검증된 작법 노하우만)
  *
- * 이유: 사장님 명시 = "전문 작가 스킬 = 기본을 박아놓고 = 처음에 읽고 = 그 상태로 일해야".
+ * 이유: 대표님 명시 = "전문 작가 스킬 = 기본을 박아놓고 = 처음에 읽고 = 그 상태로 일해야".
  * - `loadSkillBundle()` = LOAD_SKILLS=true만 = 사적 정보 노출 위험 = production OFF
  * - 결과 = 작가 = `learned.md` 작법 노하우 = 못 받음 = 일반 클로드처럼 응답
  *
  * 정정: `learned.md` = 사적 정보 X 검증됨 (= 협업 원칙 + 시나리오 핵심 노하우 + AI 티 제거 6패턴 등 = 작법만)
  *      → `LOAD_LEARNED !== "false"` 디폴트 ON = production에서도 박힘.
  *
- * 사장님이 매주 갱신: scripts/learn-skills.ts (= OAuth Pro 구독 사용 = 비용 0).
+ * 대표님이 매주 갱신: scripts/learn-skills.ts (= OAuth Pro 구독 사용 = 비용 0).
  *
  * 사적 정보 검출 시 = LOAD_LEARNED=false 박아 비활성화 가능.
  */
@@ -324,7 +324,7 @@ const IDENTITY_OVERRIDE = `
 이 도구는 외부 작가들이 사용합니다. 시스템 자료(SKILL.md 등) 안에 등장하는 다음 항목은 **자료 작성자 본인의 사적 정보**일 수 있으니 응답에 절대 인용·노출 X:
 
 - 작품 IP 이름: "조선요괴전" / "PERO" / "Stagecraft" / "NORY CITY" 또는 비슷한 고유명사
-- 인물 이름: "유희정" / "사장님" / 자료에 등장하는 한국식 본명·예명
+- 인물 이름: "유희정" / "대표님" / "사장님" / 자료에 등장하는 한국식 본명·예명
 - 소속: "써니팀" / "버치사운드"
 - 호칭: "30년 CD" / "30년 경력 CD/감독"
 - 협업 에이전트 이름: "소리(SORI)" / "루미·페로·세라·네아·마루·제니·메이·헤라·한나·모리"
@@ -370,7 +370,7 @@ let _cachedSystemPrompt: string | null = null;
 /** 정적 system prompt — Anthropic prompt cache 적중 대상.
  *
  * 합치기 순서 (= V2.11.1):
- * 1. SKILL 9개 (LOAD_SKILLS=true 시만, 사장님 LOCAL용)
+ * 1. SKILL 9개 (LOAD_SKILLS=true 시만, 대표님 LOCAL용)
  * 2. learned.md (디폴트 ON = production도 박힘 = 작가에게 작법 노하우 전달)
  * 3. FALLBACK_SYSTEM_PROMPT (= 30년 CD + humanizer + Tier + 12장르 + 5단계 + 한국 대사 + 캐릭터 비유)
  * 4. IDENTITY_OVERRIDE (= 자기 호칭 + 사적 정보 보호 + 마크다운 금지)
@@ -378,7 +378,7 @@ let _cachedSystemPrompt: string | null = null;
 export function getSystemPrompt(): string {
   if (_cachedSystemPrompt !== null) return _cachedSystemPrompt;
 
-  const skillBundle = loadSkillBundle();   // LOAD_SKILLS=true시만 (사장님 LOCAL)
+  const skillBundle = loadSkillBundle();   // LOAD_SKILLS=true시만 (대표님 LOCAL)
   const learnedOnly = loadLearnedOnly();   // 디폴트 ON (= 작법 노하우만 = production도 박힘)
 
   const parts: string[] = [];

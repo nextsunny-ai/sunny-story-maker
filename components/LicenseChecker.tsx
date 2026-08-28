@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/client";
  *
  * 만료된 license = 자동 갱신. plan="banned" 또는 status="suspended" = 사용 불가 안내.
  *
- * 7일 TTL = 일주일 안에 사장님 plan 변경 = 100% 반영.
+ * 7일 TTL = 일주일 안에 대표님 plan 변경 = 100% 반영.
  */
 
 const STORAGE_KEY = "sunny.account.anon.license";

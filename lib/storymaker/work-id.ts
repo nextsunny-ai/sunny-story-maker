@@ -1,7 +1,7 @@
 /**
  * 작품 ID = "한 클로드 conversation 모델" 키.
  *
- * 사장님 의도: 작가 1명이 한 작품을 작업하는 동안 = 같은 conversation.
+ * 대표님 의도: 작가 1명이 한 작품을 작업하는 동안 = 같은 conversation.
  * develop·write·chat·adapt·review·package = 다 같은 workId 사용 = 같은 messages 누적.
  *
  * id 형식 = 단순. 같은 (genreLetter, idea)면 = 항상 같은 id.

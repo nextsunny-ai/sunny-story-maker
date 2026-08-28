@@ -4,7 +4,7 @@
 // - 작가 = 가입 (Supabase) → 자동 trial_30days
 // - 데스크탑 앱 = startup 시 = /api/license/check 호출 → JWT 받음 (7일 유효)
 // - JWT에 박힘: user_id, plan, status, expires_at
-// - 7일 후 = 자동 재발급 시도 → 사장님이 Supabase에서 plan 변경했으면 = 새 JWT에 반영
+// - 7일 후 = 자동 재발급 시도 → 대표님이 Supabase에서 plan 변경했으면 = 새 JWT에 반영
 // - 데스크탑 앱 = JWT 만료 시 = 사용 차단 (= 재로그인 또는 plan 갱신 안내)
 //
 // Plan 종류:

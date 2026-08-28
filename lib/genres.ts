@@ -1,6 +1,6 @@
 /**
  * GENRES — 12개 장르 메타데이터 + 장르별 워크플로우
- * (사장님 design source data.jsx에서 변환 — 한 글자도 안 바꾸고 그대로)
+ * (대표님 design source data.jsx에서 변환 — 한 글자도 안 바꾸고 그대로)
  */
 
 export interface GenreStep {
@@ -19,6 +19,14 @@ export interface Genre {
   standard: string;
   rhythm?: string;
   steps: GenreStep[];
+}
+
+// ★ V3.1.1 — 1차 오픈 장르 (대표님 확정 2026-08-26): 드라마·영화·숏폼·웹툰·웹소설.
+//   나머지는 UI에서 "2차 오픈 예정" 비활성 (정의는 전부 보존 = 2차 때 다시 켬).
+// O(소설) 추가 2026-08-27 — 대표님 지시. 웹소설(H)과 정식 출판 소설(O)은 다른 매체다.
+export const LAUNCH_LETTERS: readonly string[] = ["A", "B", "C", "F", "H", "O"];
+export function isLaunchGenre(letter: string): boolean {
+  return LAUNCH_LETTERS.includes(letter);
 }
 
 export const GENRES: Genre[] = [

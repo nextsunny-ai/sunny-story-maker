@@ -1,7 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useState, type FormEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryParams } from "@/lib/use-query-params";
 import { ICONS } from "@/lib/icons";
 import { Symbol } from "@/components/Symbol";
 import { createClient } from "@/lib/supabase/client";
@@ -16,9 +17,7 @@ function isTauriEnv(): boolean {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="login-page" />}>
-      <LoginPageInner />
-    </Suspense>
+    <LoginPageInner />
   );
 }
 
@@ -26,7 +25,7 @@ function LoginPageInner() {
   const I = ICONS;
   useLocale(); // ★ V3.1 i18n
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams = useQueryParams();
   const redirectTo = searchParams.get("redirect") || "/";
 
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -39,7 +38,7 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false); // ★ 비번 보기 토글 (옛 V2.11 사장님 명시)
+  const [showPassword, setShowPassword] = useState(false); // ★ 비번 보기 토글 (옛 V2.11 대표님 명시)
 
   const quotes = [
     { line: "첫 줄을 쓰는 일은,", em: "언제나 가장 어려운 일.", by: "어떤 작가" },
@@ -120,7 +119,7 @@ function LoginPageInner() {
       router.push(redirectTo);
       router.refresh();
     } catch (err) {
-      // ★ V3.1 D3 완전 — 로그인 실패 = 작가 0% = 사장님 대시보드에서 즉시 인지
+      // ★ V3.1 D3 완전 — 로그인 실패 = 작가 0% = 대표님 대시보드에서 즉시 인지
       const message = err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.";
       setError(`로그인 처리 중 오류: ${message}\n\n잠시 후 다시 시도하시거나 = 우측 하단 💬 위젯으로 알려주세요.`);
       import("@/lib/log").then(({ logError }) => logError(err, `login:${mode}`, { email })).catch(() => {});
@@ -318,7 +317,7 @@ function LoginPageInner() {
         <div className="login-brand-foot">
           <div className="login-brand-foot-row">
             <span className="login-brand-foot-k">Built for writers</span>
-            <span className="login-brand-foot-v">12 genres · KR standards</span>
+            <span className="login-brand-foot-v">KR media formats · KR standards</span>
           </div>
           <div className="login-brand-foot-row">
             <span className="login-brand-foot-k">© 2026</span>
@@ -346,7 +345,7 @@ function LoginPageInner() {
           <p className="login-form-sub">
             {mode === "login"
               ? "이메일로 로그인하시면 마지막 작업이 그대로 열립니다."
-              : "계정을 만들면 12개 매체 워크플로우가 모두 열립니다. 첫 30일 무료."}
+              : "계정을 만들면 영화·TV 드라마·숏드라마·웹툰·웹소설·소설 작업실이 열립니다. 첫 30일 무료."}
           </p>
 
           <div className="login-fields">

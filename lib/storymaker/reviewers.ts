@@ -283,7 +283,7 @@ export const REVIEWERS: Reviewer[] = [
     loves: "정교한 문장, 치밀한 플롯, 기능하는 캐릭터, 자기 검증된 작가의 시그니처",
     hates: "클리셰·격언체·부자연스러운 설명조 대사·플롯 구멍·평면적 캐릭터·진부한 표현·문법 오류",
     voice_tone:
-      "★ 엄격한 문학 비평가 / 전문 편집자 페르소나 (특별 형식 — 12문항 양식이 아닌 본 페르소나 전용 출력으로 작성). " +
+      "★ 엄격한 문학 비평가 / 전문 편집자 페르소나. " +
       "**'희망적 격려'나 '성장 가능성' 언급 완전 배제.** 오직 문학적 완성도, 상업적 설득력, 논리적 결함에만 집중하여 " +
       "**가장 가혹하고 객관적인** 비평을 수행한다. " +
       "분석 5축: " +
@@ -292,10 +292,11 @@ export const REVIEWERS: Reviewer[] = [
       "③캐릭터 — 행동 동기 부족·평면적이거나 매력 없는 캐릭터를 논리적으로 비판. " +
       "④대사 — 부자연스럽거나 설명조 대사·캐릭터 성격과 맞지 않는 말투 분석. " +
       "⑤독자 관점 — 독자가 책을 덮어버릴 결정적 포인트 짚기. " +
-      "출력 형식 (이 페르소나는 Q1~Q12 표준 양식 대신 아래 3블록): " +
-      "**총평**: 작품의 치명적인 단점 한 줄 요약. " +
-      "**삭제 및 수정이 시급한 지점**: 리스트 형태로 구체적 이유와 함께 기술. " +
-      "**대안 제시**: 단순 비판에 그치지 않고, 문학적 수준을 높이기 위해 '어떻게 바꿔야 하는지' 구체적 방향성 제시.",
+      "12문항 안에서 이 사람답게 쓰는 법: " +
+      "Q10(고쳤으면 하는 부분)은 **삭제·수정이 시급한 지점**을 순서대로 세우고, " +
+      "지적에 그치지 말고 '어떻게 바꿔야 하는지'까지 쓴다. " +
+      "Q12(한 줄 평)는 치명적인 단점 하나로 끝낸다. " +
+      "평가서에서 짚을 키워드: '문장이 진부함', '개연성 구멍', '설명조 대사', '독자가 덮을 지점'.",
   },
   {
     id: "industry_pd",
@@ -496,6 +497,17 @@ const GENRE_PRESETS: Record<string, string[]> = {
   K: ["kidult", "20F_university_trend", "30F_office_seoul", "industry_pd"],
   L: ["10M_gamer", "20M_otaku", "japan_otaku", "30M_office_seoul"],
   M: ["casual_30s", "casual_40s", "rural_30M", "20F_university_trend"],
+  //   연극 = 무대에서 말로 버티는 형식. 구조와 대사 무게를 보는 사람들.
+  N: ["writer_critic", "50M_serious", "20M_director_track", "30F_office_seoul"],
+  //   소설(일반문학) = 문장을 보는 사람 + 실제로 소설을 사서 읽는 층.
+  //   ★ 1차 오픈 6종인데 프리셋이 없어 「해외 한류팬·평범한 시청자」가 붙던 것을 고쳤다 (실측 2026-08-27).
+  O: ["harsh_critic", "writer_critic", "30F_office_seoul", "50M_serious"],
+  //   에세이 = 위로·공감으로 읽는 층 + 문장을 보는 한 명.
+  P: ["30F_office_seoul", "40F_family", "casual_30s", "writer_critic"],
+  //   브랜딩 스토리 = 팔리는지 보는 사람들.
+  Q: ["industry_pd", "30M_office_seoul", "kidult", "global_kfan"],
+  //   동화책·그림책 = 사주는 사람(부모)과 캐릭터를 보는 눈.
+  R: ["30F_mom", "40F_family", "kidult", "casual_30s"],
 };
 
 export function recommendForGenre(genreLetter: string, limit = 4): Reviewer[] {

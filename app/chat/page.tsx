@@ -8,8 +8,9 @@ import { Topbar } from "@/components/Topbar";
 import { Field, Btn } from "@/components/ui";
 import { LibraryPicker } from "@/components/LibraryPicker";
 import { streamAgent } from "@/lib/stream-agent";
-import { KEY, loadJSON } from "@/lib/persist";
-import { GENRES } from "@/lib/genres";
+import { KEY, loadJSON, usePersistedState } from "@/lib/persist";
+import { GENRES, isLaunchGenre } from "@/lib/genres";
+import { todayStamp } from "@/lib/storymaker/export";
 
 interface Message {
   id: string;
@@ -35,7 +36,9 @@ function ChatMain() {
     if (saved && saved.trim()) setAssistantName(saved.trim());
   }, []);
 
-  const [messages, setMessages] = useState<Message[]>([
+  // ★ 보조작가와 나눈 대화가 새로고침 한 번에 사라지던 문제 (실측 2026-08-27).
+  //   작가가 자료를 묻고 아이디어를 정리한 기록이다 — 남아 있어야 한다.
+  const [messages, setMessages] = usePersistedState<Message[]>(KEY.coWriterMessages, [
     { id: "seed1", from: "ai", text: "" },
   ]);
   // assistantName 결정되면 인사 멘트 적용 (한 번만)
@@ -86,11 +89,11 @@ function ChatMain() {
     try {
       const { isFastModel } = await import("@/lib/storymaker/model-prefs");
       // 작품 본문 + 컨텍스트 prior (작가가 작품 가져왔을 때만 풍부하게).
-      // 안 가져왔으면 = 자유 (아이디어·잡담·자료조사). 사장님 명시: 다양한 사용 케이스 인정.
+      // 안 가져왔으면 = 자유 (아이디어·잡담·자료조사). 대표님 명시: 다양한 사용 케이스 인정.
       const trunc = (s: string, n: number) => s.length > n ? s.slice(0, n) + "...(이하 생략)" : s;
       const prior: Record<string, string> = {};
 
-      // ★ 사장님 명시: 작가가 메시지에 작품 제목 언급하면 = 자동으로 그 작품 메모리 read.
+      // ★ 대표님 명시: 작가가 메시지에 작품 제목 언급하면 = 자동으로 그 작품 메모리 read.
       //   라이브러리 작품 list에서 = title 매칭 검사. 매칭 시 = workId 자동 박음.
       let autoWorkId = contextWorkId; // 명시적 가져온 작품 우선
       if (!autoWorkId && typeof window !== "undefined") {
@@ -164,6 +167,15 @@ function ChatMain() {
           stage: "chat",
           fast: isFastModel("chat"),
           genreLetter: mediumLetter,
+          // ★ V3.1.1 — 대화 이력 전달. 옛날엔 마지막 메시지만 보내서 AI가 직전 대화를
+          //   전혀 기억 못 함 = "소통이 안 되고 자기 말만 한다"(대표님·김감독 이탈 원인).
+          conversationMessages: messages
+            .filter(m => m.text && m.text.trim())
+            .slice(-12)
+            .map(m => ({
+              role: m.from === "writer" ? ("user" as const) : ("assistant" as const),
+              content: m.text.slice(0, 3000),
+            })),
           userInput: {
             content: text,
             assistantName,
@@ -249,7 +261,9 @@ function ChatMain() {
                 onChange={e => setMediumLetter(e.target.value)}
               >
                 {GENRES.map(g => (
-                  <option key={g.letter} value={g.letter}>{g.name} — {g.sub}</option>
+                  <option key={g.letter} value={g.letter} disabled={!isLaunchGenre(g.letter)}>
+                    {g.name} — {isLaunchGenre(g.letter) ? g.sub : "2차 오픈 예정"}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -349,7 +363,7 @@ function ChatMain() {
                 onClick={async () => {
                   if (messages.length === 0) { alert("저장할 대화가 없습니다."); return; }
                   const { downloadDocx } = await import("@/lib/storymaker/export");
-                  const stamp = new Date().toISOString().slice(0, 10);
+                  const stamp = todayStamp();
                   const header = `# 보조작가 ${assistantName} 대화 기록\n> ${project || "(작품 미지정)"} · ${medium} · ${stamp}\n\n---\n\n`;
                   const body = messages
                     .map(m => `### ${m.from === "writer" ? "작가" : "보조작가 " + assistantName}\n\n${m.text}`)
@@ -363,7 +377,7 @@ function ChatMain() {
                 onClick={async () => {
                   if (messages.length === 0) { alert("저장할 대화가 없습니다."); return; }
                   const { downloadTxt } = await import("@/lib/storymaker/export");
-                  const stamp = new Date().toISOString().slice(0, 10);
+                  const stamp = todayStamp();
                   const header = `# 보조작가 ${assistantName} 대화 기록\n${project || "(작품 미지정)"} · ${medium} · ${stamp}\n\n---\n\n`;
                   const body = messages
                     .map(m => `[${m.from === "writer" ? "작가" : assistantName}]\n${m.text}`)
@@ -385,7 +399,9 @@ function ChatMain() {
               background: "var(--card)",
               border: "1px solid var(--line)",
               borderRadius: 14,
-              minHeight: 460,
+              // ★ V3.1.1 — 옛 minHeight 460 고정 = 좁은 화면에서 입력창이 화면 밖으로 밀림
+              //   (대표님: "창 크기 문제"). 화면 높이에 비례하도록 수정.
+              minHeight: "min(460px, 45vh)",
               maxHeight: "calc(100vh - 320px)",
               overflowY: "auto",
             }}
@@ -483,7 +499,7 @@ function ChatMain() {
                                 {i + 1}. {c.length > 40 ? c.slice(0, 38) + "…" : c}
                               </button>
                             ))}
-                            {/* 기타 — 사장님 명시: 항상 추가. 작가가 다른 거 원하면 직접 입력 */}
+                            {/* 기타 — 대표님 명시: 항상 추가. 작가가 다른 거 원하면 직접 입력 */}
                             <button
                               type="button"
                               onClick={() => {

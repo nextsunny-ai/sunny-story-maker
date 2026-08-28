@@ -1,6 +1,6 @@
-// V3.1 F1 — 사장님 운영 대시보드 데이터 endpoint.
+// V3.1 F1 — 대표님 운영 대시보드 데이터 endpoint.
 // client_logs·feedbacks·works·subscriptions·신규 가입 = 한 응답.
-// 사장님 (= ADMIN_EMAILS) 만 접근 가능.
+// 대표님 (= ADMIN_EMAILS) 만 접근 가능.
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// 사장님 이메일 (= 환경변수로 분리. 옵션)
+// 대표님 이메일 (= 환경변수로 분리. 옵션)
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "nextsunny@gmail.com")
   .split(",")
   .map(s => s.trim().toLowerCase());
