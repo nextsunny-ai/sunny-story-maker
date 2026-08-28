@@ -1656,14 +1656,42 @@ function WriteMain() {
     }
     const blockList = doc?.blocks ?? [];
     const blockIdx = blockList.findIndex(b => b.id === blockId);
-    if (blockIdx < 0) return;
+    //   빈 원고지는 doc.blocks 가 아직 없다. 블록을 못 찾아도
+    //   작가가 쓴 글은 버리지 않는다 — 단락 하나뿐이면 거기에 넣는다.
+    if (blockIdx < 0) {
+      if (!proseText.trim()) return;
+      const only = paras.length === 1 ? paras[0] : null;
+      if (only) { onEditPara(only.id, proseText); return; }
+      if (paras.length === 0) {
+        setParas([{ id: "p_first_" + Date.now(), n: 1, label: "작가", text: proseText, status: "done" }]);
+      }
+      return;
+    }
     // 같은 순서의 "본문이 있는" 단락을 찾아 반영
     const bodyParas = paras.filter(x => x.text && x.text.trim());
     const beforeText = (blockList[blockIdx] as { text?: string }).text ?? "";
     // 내용이 일치하는 단락 우선, 없으면 순서로
     const byText = bodyParas.find(x => x.text.trim() === beforeText.trim());
-    const target = byText ?? bodyParas[Math.min(blockIdx, bodyParas.length - 1)];
-    if (!target) return;
+    //   ★ 빈 원고지에서 작가가 쓴 첫 문장이 사라지던 문제 (실측 2026-08-28).
+    //   새 작품은 단락이 하나 있어도 안이 비어 있어 bodyParas 가 통째로 빈다.
+    //   그래서 target 을 못 찾고 조용히 버려졌다 — 작가가 처음 쓴 한 줄이 날아갔다.
+    //   내용 있는 단락이 없으면 빈 단락에라도 넣는다. 그것도 없으면 새로 만든다.
+    let target = byText ?? bodyParas[Math.min(blockIdx, bodyParas.length - 1)];
+    if (!target && paras.length > 0) {
+      target = paras[Math.min(blockIdx, paras.length - 1)];
+    }
+    if (!target) {
+      if (!proseText.trim()) return;
+      const fresh: Para = {
+        id: "p_first_" + Date.now(),
+        n: 1,
+        label: "작가",
+        text: proseText,
+        status: "done",
+      };
+      setParas([fresh]);
+      return;
+    }
     onEditPara(target.id, target.text.trim() === beforeText.trim()
       ? proseText
       : target.text.replace(beforeText, proseText));

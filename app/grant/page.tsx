@@ -167,7 +167,9 @@ function GrantMain() {
 
       // ★ V3.1.1 — 2단계: Sonnet/Opus로 신청서 본격 작성 (= 분석 결과 활용)
       const res = await streamFetch({
-          mode: "review", // review mode 활용 (text 입력 → 분석 출력)
+          //   ★ 전용 grant 모드. 옛날엔 review 모드를 빌려 써서
+          //   신청서 대신 작품 평가 리포트가 나왔다 (실측 2026-08-28).
+          mode: "grant",
           text: `# 작업 요청: 정부/문화재단 지원사업 신청서 작성
 
 ${fullText}
