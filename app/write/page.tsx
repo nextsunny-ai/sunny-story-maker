@@ -1896,16 +1896,38 @@ function WriteMain() {
     const isWriteCommand = /써\s*줘|써\s*줄래|써\s*주세요|써\s*봐|작성|다시\s*써|이어\s*써|추가\s*해|추가해|넣어\s*줘|만들어\s*줘|생성|바꿔\s*줘|바꿔\s*줄래|바꿔\s*주세요|바꿔\s*봐|고쳐\s*줘|고쳐\s*주세요|빼\s*줘|빼\s*주세요|지워\s*줘|삭제\s*해|(?:으?로|에서)\s*(?:바꾸|고치|변경)/i.test(text);
     const isChatIntent = /수정|다시|짧게|길게|바꿔|고쳐|어때|어떻게|괜찮|좋아|싫어|별로|왜|이유|설명|뜻|의미|느낌|톤|평가|짧은|긴|이상|어색|자연|개선|첫\s*씬|첫\s*단락|\d+번|\d+\s*씬|\d+\s*단락/i.test(text);
     const isContinueIntent = /다음|이어|계속|^더\s|새\s*단락|다음\s*씬/i.test(text);
-    const mode: "chat" | "script" = isWriteCommand ? "script" : (isChatIntent && !isContinueIntent ? "chat" : "script");
+
+    //   ★ 「고쳐 달라」와 「더 써 달라」는 다른 일이다 (실측 2026-08-28).
+    //   옛날엔 둘 다 이어쓰기로 갔다. 그래서 「현숙 이름을 정숙으로 바꿔줘」에
+    //   AI가 새 회차를 쓰면서 "앞으로는 정숙으로 쓰겠다"고 답했고, 이미 쓴 원고의
+    //   이름은 그대로 남았다. 작가가 원한 것은 **지금 원고를 고치는 것**이었다.
+    //   고치라는 말이면서 이어쓰라는 말이 아닐 때만 revise 로 보낸다.
+    const isReviseCommand =
+      /바꿔|바꾸|고쳐|고치|빼\s*줘|빼\s*주세요|지워|삭제|없애|줄여|늘려|교체|수정해|변경/i.test(text)
+      && !isContinueIntent
+      && !/써\s*줘|써\s*주세요|이어\s*써|추가/i.test(text);
+
+    const mode: "chat" | "script" | "revise" =
+      isReviseCommand ? "revise"
+      : isWriteCommand ? "script"
+      : (isChatIntent && !isContinueIntent ? "chat" : "script");
 
     const currentScript = paras
       .filter(p => p.text && p.text.trim())
       .map(p => p.text)
       .join("\n\n");
 
-    // chat 모드 = 본문 자동 추가 X. script 모드만 새 단락.
+    // chat·revise 모드 = 본문 자동 추가 X. script 모드만 새 단락.
+    //   revise = 지금 원고를 고치는 것이므로 새 단락을 만들면 안 된다.
     let newPara: Para | null = null;
-    if (mode === "script") {
+    if (mode === "revise") {
+      setChat(prev => [...prev, {
+        id: "m_rev_" + Date.now(),
+        role: "ai",
+        text: "원고를 고치는 중… (고친 전문으로 바꿉니다. 마음에 안 드시면 「⏮ 옛 버전」으로 되돌릴 수 있습니다.)",
+        t: "방금"
+      }]);
+    } else if (mode === "script") {
       newPara = {
         id: "p_" + Date.now(),
         n: paras.length + 1,
@@ -1970,6 +1992,8 @@ function WriteMain() {
           idea: ideaParam,
           genreLetter: genreParam,
           mediumFields,
+          //   revise = 지금 원고 전체와 작가 지시를 같이 보낸다. 응답은 고친 전문.
+          ...(mode === "revise" ? { text: currentScript, direction: text, targetSection: "전체", bodyOnly: true } : {}),
           // ★ V2.13.4 — 본문 작성(script)=Opus, 대화(chat)=Haiku
           model: getModelChoice(mode === "chat" ? "chat" : "write"),
           ...(persistKey ? { workId: persistKey } : {}),
@@ -2002,7 +2026,9 @@ function WriteMain() {
             const data = JSON.parse(dataLine);
             if (eventType === "delta" && data.text) {
               collected += data.text;
-              if (mode === "chat") {
+              if (mode === "revise") {
+                // revise = 완료 시 본문을 통째로 바꾼다. 흐르는 동안은 아무것도 건드리지 않는다.
+              } else if (mode === "chat") {
                 // chat 모드 = AI 응답을 chat 마지막 메시지에 누적
                 setChat(prev => {
                   if (prev.length === 0) return prev;
@@ -2017,7 +2043,32 @@ function WriteMain() {
               }
               firstD = false;
             } else if (eventType === "done") {
-              if (mode === "chat") {
+              if (mode === "revise") {
+                //   고친 전문으로 본문을 바꾼다. 빈 응답이면 원고를 지우지 않는다.
+                const NOTES_MARKER = /\n*={3,}\s*AI[_\s]?NOTES\s*={3,}\n*/i;
+                const mm = collected.match(NOTES_MARKER);
+                const bodyRaw = mm && mm.index !== undefined ? collected.slice(0, mm.index) : collected;
+                const cleaned = stripDocMarkup(stripControlMarkers(bodyRaw)).trim();
+                if (cleaned.length < 50) {
+                  setChat(prev => [...prev, {
+                    id: "rev_empty_" + Date.now(), role: "ai",
+                    text: "고친 원고가 비어 있어 그대로 두었습니다. 다시 한 번 말씀해 주세요.", t: "방금"
+                  }]);
+                } else {
+                  const blocks = cleaned.split(/\n\s*\n+/).map(b => b.trim()).filter(Boolean);
+                  setParas(blocks.map((tx, i) => ({
+                    id: "p_rev_" + Date.now() + "_" + i,
+                    n: i + 1,
+                    label: "수정본",
+                    text: tx,
+                    status: "done" as const,
+                  })));
+                  setChat(prev => [...prev, {
+                    id: "rev_done_" + Date.now(), role: "ai",
+                    text: `고쳤습니다 — ${blocks.length}개 단락 / ${cleaned.length}자.`, t: "방금"
+                  }]);
+                }
+              } else if (mode === "chat") {
                 // chat 모드 = 마커 분리 없음 = 응답 그대로 (옛 메시지에 이미 누적됨)
               } else {
                 // 마커 분리 (본문/분석)

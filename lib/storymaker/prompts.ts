@@ -525,7 +525,16 @@ ${conversionRule}
 }
 
 
-export function buildRevisePrompt(text: string, direction: string, genre: Genre, targetSection = "전체", versionNumber = 2): string {
+export function buildRevisePrompt(
+  text: string,
+  direction: string,
+  genre: Genre,
+  targetSection = "전체",
+  versionNumber = 2,
+  //   원고지 채팅에서 부를 때는 고친 원고만 받는다.
+  //   설명을 같이 받으면 그 설명이 그대로 작가의 본문에 섞여 들어간다 (실측 2026-08-28).
+  bodyOnly = false,
+): string {
   // ★ V3.1.1 — 같은 매체 다시 쓰기도 = 풀 컨텍스트 권장 (캐릭터·복선 보존 위해) = 25K (옛 20K 살짝 ↑)
   // 각색(40K)보다는 작음 = 같은 매체라 = 자체 구조 익숙.
   const truncated = fitSourceText(text, 25000);
@@ -555,12 +564,20 @@ ${truncated}
 7. 장르 양식 유지
 
 ## 출력 형식
-1. **변경 요약 (Diff Notes)** — 무엇을 / 왜 / 어떻게 바꿨는지 (불릿 5~10개)
+${bodyOnly ? `**고친 원고 전문만 낸다.**
+
+- 머리말·인사·설명을 앞에 붙이지 않는다
+- 「변경 요약」 「무엇을 바꿨는지」 「유지한 부분」 같은 것을 쓰지 않는다
+- 「- 현숙 → 정숙」처럼 작업 메모를 원고에 섞지 않는다 — 그대로 작가의 원고가 된다
+- 고치라고 한 것은 **한 곳도 빠뜨리지 않고 전부** 고친다.
+  이름을 바꾸라면 대사·지문·인물 소개에 나오는 것을 모두 바꾼다
+- 나머지는 원본 그대로 옮긴다. 요약하거나 줄이지 않는다
+- 첫 글자부터 바로 원고다` : `1. **변경 요약 (Diff Notes)** — 무엇을 / 왜 / 어떻게 바꿨는지 (불릿 5~10개)
 2. **수정된 본문** (${targetSection} 부분, 또는 전체)
 3. **유지한 부분** — 디렉션과 무관해서 그대로 둔 좋은 부분 3가지 명시
 4. **다음 수정 제안 (선택)** — 작가가 다음 라운드에 뭘 하면 좋을지 1~2개 (강요 X)
 
-작가는 이 결과를 받고 다시 디렉션 줘서 v${versionNumber + 1}로 갈 수 있다. 무한 반복 가능한 베이스로 작성해줘.
+작가는 이 결과를 받고 다시 디렉션 줘서 v${versionNumber + 1}로 갈 수 있다. 무한 반복 가능한 베이스로 작성해줘.`}
 `;
 }
 

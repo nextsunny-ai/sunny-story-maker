@@ -69,6 +69,8 @@ function DevelopMain() {
   // ─── Phase 관리 ───
   const [phase, setPhase] = useState<Phase>("brief");
 
+  const ideaSeededRef = useRef(false);
+
   // ─── 의뢰 분석 폼 (옛 작업 복원) ───
   const [mediumFields, setMediumFields] = useState<FieldValues>(() => {
     if (typeof window !== "undefined" && developKey) {
@@ -131,6 +133,29 @@ function DevelopMain() {
     } catch { /* 복원 실패 = 현재 상태 유지 */ }
     restoredKeyRef.current = developKey;
   }, [queryReady, developKey]);
+
+  //   ★ 홈에서 받은 한 줄을 개요의 자유 서술 칸에 넣어 준다 (대표님 지적 2026-08-28).
+  //   옛날엔 화면 위에 읽기 전용으로 보여주기만 해서, "한 줄로 시작하라"고 해 놓고
+  //   정작 개요 칸은 비어 있었다. 작가가 같은 문장을 다시 옮겨 적어야 했다.
+  //   ★ 반드시 **저장소 복원이 끝난 뒤**에 채운다. 먼저 채우면 복원이 통째로 덮어쓴다.
+  //   작가가 이미 뭔가 적어 둔 칸은 건드리지 않는다.
+  useEffect(() => {
+    if (ideaSeededRef.current) return;
+    if (!queryReady) return;
+    if (restoredKeyRef.current !== developKey) return;
+    const line = ideaParam.trim();
+    if (!line) return;
+    const freeKeys = ["story_outline", "premise", "logline", "story", "synopsis", "outline", "idea"];
+    const target = wf.fields.find(f => freeKeys.includes(f.key));
+    if (!target) return;
+    ideaSeededRef.current = true;
+    setMediumFields(prev => {
+      const cur = String((prev as Record<string, unknown>)?.[target.key] ?? "").trim();
+      if (cur) return prev;                       // 작가가 쓴 것이 있으면 그대로 둔다
+      return { ...prev, [target.key]: line };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryReady, developKey, ideaParam, wf]);
 
   // 변경 시 자동 저장 (debounced) — 다음 진입 시 자동 복원
   useEffect(() => {
@@ -313,6 +338,30 @@ function DevelopMain() {
           values={mediumFields}
           onChange={onChangeField}
         />
+
+        {/* ★ 다음에 무엇이 오는지 미리 보여준다 (대표님 지적 2026-08-28).
+            옛날엔 「사전 자료 시작」을 눌러야 6단계가 처음 나타나서,
+            작가는 이 화면에서 다음에 뭐가 있는지 알 수 없었다. */}
+        <div style={{ marginTop: 36 }}>
+          <SectionHead num={2} title="사전 자료 6단계" sub="개요를 적고 아래 버튼을 누르면 이 여섯 가지를 차례로 만듭니다" />
+          <div style={{
+            display: "grid", gap: 12, marginTop: 16,
+            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+          }}>
+            {STAGE_DEFS.map((st, i) => (
+              <div key={st.key} style={{
+                border: "1px dashed var(--line)", borderRadius: 12, padding: "14px 16px",
+                background: "var(--paper-2, transparent)", opacity: 0.75,
+              }}>
+                <div style={{ fontSize: 11, color: "var(--ink-5)", fontWeight: 700, letterSpacing: "0.06em" }}>
+                  {String(i + 1).padStart(2, "0")}
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 700, marginTop: 2 }}>{st.label}</div>
+                <div style={{ fontSize: 12.5, color: "var(--ink-4)", marginTop: 6, lineHeight: 1.5 }}>{st.hint}</div>
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div style={{
           display: "flex", gap: 10, marginTop: 32, paddingTop: 24,

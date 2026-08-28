@@ -73,6 +73,7 @@ interface RequestBody {
   targets?: TargetPersona[];       // targeted review 페르소나
   direction?: string;              // revise 방향
   targetSection?: string;
+  bodyOnly?: boolean;
   beforeText?: string;
   afterText?: string;
   writerNotes?: string;          // script/revise 섹션
@@ -304,7 +305,7 @@ function buildBasePrompt(b: RequestBody): string {
       return buildAnalyzePrompt(b.text ?? "", genre);
 
     case "revise":
-      return buildRevisePrompt(b.text ?? "", b.direction ?? "", genre, b.targetSection, b.versionNumber);
+      return buildRevisePrompt(b.text ?? "", b.direction ?? "", genre, b.targetSection, b.versionNumber, b.bodyOnly === true);
 
     case "continuePara":
       // 원고지 「+ 더 쓰기」 — 다음 한 단락만
