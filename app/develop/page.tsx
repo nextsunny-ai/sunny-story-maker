@@ -214,9 +214,16 @@ function DevelopMain() {
     structure: "treatment",    // 기승전결 = 트리트먼트 본질
   };
 
+  //   ★ 같은 버튼을 여러 번 누르면 요청이 그만큼 나가던 문제 (실측 2026-08-28: 5번 눌러 5개 요청).
+  //   작가는 반응이 없는 줄 알고 다시 누른다. 그때마다 토큰이 나가고 결과가 섞인다.
+  //   이미 도는 요청이 있으면 무시한다.
+  const runningRef = useRef<Set<string>>(new Set());
+
   const onStageRun = async (key: PreAsset["key"]) => {
     const mode = STAGE_MODE[key];
     if (!mode) return;
+    if (runningRef.current.has(key)) return;   // 이미 이 항목을 만드는 중
+    runningRef.current.add(key);
     setBusyKey(key);
     setStages(prev => prev.map(s => s.key === key ? { ...s, status: "active" } : s));
     try {
@@ -314,6 +321,7 @@ function DevelopMain() {
       const msg = e instanceof Error ? e.message : "오류";
       setStages(prev => prev.map(s => s.key === key ? { ...s, text: `(오류: ${msg})`, status: "active" as const } : s));
     } finally {
+      runningRef.current.delete(key);
       setBusyKey(null);
     }
   };

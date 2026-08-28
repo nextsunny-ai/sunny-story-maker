@@ -1823,9 +1823,15 @@ function WriteMain() {
    * 옛 동작: 빈 단락(pending)만 끼워 넣었다. 그런데 빈 단락은 화면에 렌더되지 않아서
    * 작가가 눌러도 **아무 일도 일어나지 않는 것처럼 보였다** (실측 2026-08-27: 요청 0건).
    */
+  //   ★ 「더 쓰기」를 여러 번 누르면 그만큼 요청이 나갔다 (실측 2026-08-28).
+  //   「다시 써」에는 가드가 있었는데 여기엔 없었다. 작가는 반응이 없으면 다시 누른다.
+  const continuingRef = useRef<Set<string>>(new Set());
+
   const onContinuePara = async (id: string) => {
     const idx = paras.findIndex(p => p.id === id);
     if (idx < 0) return;
+    if (continuingRef.current.has(id)) return;   // 이 자리에서 이미 이어 쓰는 중
+    continuingRef.current.add(id);
     const newId = "p_" + Date.now();
     setParas(prev => {
       const at = prev.findIndex(p => p.id === id);
@@ -1888,6 +1894,8 @@ function WriteMain() {
         : prev.filter(p => p.id !== newId).map((p, i) => ({ ...p, n: i + 1 })));
     } catch {
       setParas(prev => prev.filter(p => p.id !== newId).map((p, i) => ({ ...p, n: i + 1 })));
+    } finally {
+      continuingRef.current.delete(id);
     }
   };
 
