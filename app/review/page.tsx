@@ -486,9 +486,30 @@ function ReviewMain() {
     };
 
     // 1차 — 명시적 "타겟" 헤딩
-    const p1 = tryPattern(
-      /^##+\s*(?:🎯\s*)?타겟[\s:]*(?:\d+[\s:]*)?[:.]*\s*(.+?)\s*(?:의\s*리뷰지?)?$/gm
+    //   ★ AI가 내는 형식이 여러 가지다 (실측 2026-08-28):
+    //     「### 타겟: 이름」 / 「### 타겟 1: 이름」 / 「## 타겟 1의 리뷰지: 이름」
+    //   옛 정규식은 마지막 형식에서 「1의 리뷰지: 이름」을 통째로 이름으로 잡아
+    //   탭이 「🎯 의 리뷰지: 30대 도시 직장…」처럼 깨졌다.
+    //   ★ 그리고 「타겟 매칭도 매트릭스」 「타겟별 채널 분기」처럼 리뷰어가 아닌
+    //   섹션도 「타겟」으로 시작해 탭에 섞였다. 제외어로 거르면 새 말머리마다 또 샌다.
+    //   작가가 고른 리뷰어 이름과 대조해 맞는 것만 남긴다.
+    const activeNames = selectedPersonas.map(p => p.name).filter(Boolean);
+    const looksLikeReviewer = (name: string): boolean => {
+      const n = name.trim();
+      if (!n) return false;
+      if (activeNames.length === 0) return true;   // 고른 사람 정보가 없으면 거르지 않는다
+      //   헤딩의 이름과 리뷰어 이름은 완전히 같지 않다 (괄호 안 설명이 다르다).
+      //   앞부분이 겹치면 같은 사람으로 본다.
+      const head = n.replace(/\s*\(.*$/, "").trim();
+      return activeNames.some(a => {
+        const b = a.replace(/\s*[\/(].*$/, "").trim();
+        return head.startsWith(b.slice(0, 6)) || b.startsWith(head.slice(0, 6));
+      });
+    };
+    const p1raw = tryPattern(
+      /^##+\s*(?:🎯\s*)?타겟\s*\d*\s*(?:의\s*리뷰지?)?\s*[:.\-]?\s*(.+?)\s*(?:의\s*리뷰지?)?\s*$/gm
     );
+    const p1 = p1raw.filter(x => looksLikeReviewer(x.name));
     if (p1.length > 0) return buildSections(p1);
 
     // 2차 — "리뷰어:"/"페르소나:" 명시
