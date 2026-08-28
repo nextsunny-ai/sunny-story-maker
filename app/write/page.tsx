@@ -132,7 +132,13 @@ function buildNewWorkContext(idea: string, genreLetter: string, activeStepName?:
   //   AI가 시작하는 건 idea가 진짜 있고 blank가 아닐 때만 (develop 경유·홈 아이디어 등).
   const aiStart = !!idea && !blank;
   // 기획실에서 정한 제목이 있으면 그걸 쓴다 (없을 때만 아이디어 앞머리를 임시 제목으로)
-  const developTitle = typeof window !== "undefined"
+  //   ★ 단, 그 제목은 **이 작품이 기획실을 거쳐 왔을 때만** 쓴다 (실측 2026-08-29).
+  //   storyMaker.developTitle 은 작품별이 아니라 하나뿐이라,
+  //   기획실에서 「부고」를 정한 뒤로는 새 작품마다 그 제목이 따라붙었다.
+  //   라이브러리에 「부고」가 6개 쌓여 무엇이 무엇인지 알 수 없었다.
+  const cameFromDevelop = typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).get("from") === "develop";
+  const developTitle = (typeof window !== "undefined" && cameFromDevelop)
     ? (window.localStorage.getItem("storyMaker.developTitle") || "").trim()
     : "";
   const titlePreview = developTitle
