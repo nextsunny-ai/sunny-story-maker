@@ -3,7 +3,9 @@ import { NextRequest } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_BYTES = 20 * 1024 * 1024; // 20MB
+//   서버는 20MB까지 받지만, 배포(Vercel)에서 4.5MB를 넘으면 요청 자체가 막힌다.
+//   작가에게는 4.5MB로 안내한다 — 지킬 수 있는 숫자를 말해야 한다.
+const MAX_BYTES = 20 * 1024 * 1024;
 
 interface UploadResponse {
   text: string;
@@ -124,7 +126,19 @@ export async function POST(req: NextRequest) {
     // ★ V3.1 D3 — server log
     console.error("[/api/upload] 실패:", msg);
     return new Response(JSON.stringify({
-      error: `파일 업로드 중 오류: ${msg}\n\n파일 형식이 지원되지 X 또는 = 파일이 너무 클 수 있습니다 (최대 20MB).\n해결: 본문을 복사해서 직접 붙여넣기 또는 = .docx·.pdf·.txt로 변환 후 재시도.`
+      //   ★ 작가가 읽는 안내다. 실제 이유를 정확히 말한다 (실측 2026-08-29).
+      //   옛 안내는 한도를 20MB로 잘못 적고(실제 4.5MB), 내부 표기 「X」가 그대로 나왔고,
+      //   PDF를 올린 작가에게 「PDF로 변환하라」고 했다.
+      error: /body|FormData|too large|entity/i.test(msg)
+        ? "파일이 너무 큽니다. 한 번에 올릴 수 있는 크기는 4.5MB까지입니다.\n\n" +
+          "이렇게 해보세요\n" +
+          "· 원고 본문만 복사해서 아래 칸에 붙여넣기 (크기 제한 없음)\n" +
+          "· PDF라면 이미지가 많은 경우가 많습니다 — 워드(.docx)나 텍스트(.txt)로 저장해서 올리기\n" +
+          "· 원고가 아주 길면 앞부분부터 나눠서 올리기"
+        : `파일을 읽지 못했습니다.\n\n` +
+          `쓸 수 있는 형식 — 워드(.docx) · 한글(.hwpx) · PDF · 텍스트(.txt)\n` +
+          `구버전 .doc / .hwp 는 먼저 변환해 주세요.\n\n` +
+          `그래도 안 되면 원고 본문을 복사해서 아래 칸에 붙여넣어 주세요.`
     }), {
       status: 500, headers: { "content-type": "application/json" },
     });

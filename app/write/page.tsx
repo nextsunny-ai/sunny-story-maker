@@ -814,10 +814,20 @@ function WriteMain() {
     const updatedStr = `${String(today.getMonth() + 1).padStart(2, "0")}.${String(today.getDate()).padStart(2, "0")}`;
     // ★ 2026-06-01 — 작품 제목 자동 부여: 제목이 기본값("새 작품…")이면 본문 첫 줄에서 추출 (라이브러리 "새 작품" 범벅 방지).
     const isDefaultTitle = !work.title || /^새 작품/.test(work.title);
-    const firstLine = paras.find(p => p.text && p.text.trim())?.text.trim().split("\n")[0].replace(/^#+\s*/, "").replace(/^S#\d+\.\s*/, "").trim() || "";
-    const autoTitle = (isDefaultTitle && firstLine)
-      ? firstLine.slice(0, 30)
-      : (work.title || ideaParam.slice(0, 40) || "(제목 없음)");
+    //   ★ 본문 첫 줄을 제목으로 쓰면 시나리오·웹툰이 망가진다 (실측 2026-08-29).
+    //   첫 줄이 「S#1. 장례식장 영안실 (오후 3시)」 「[컷1] 영안실. 형광등이…」 같은
+    //   씬·컷 지시라, 라이브러리에서 무슨 작품인지 알 수 없게 된다.
+    //   작가가 넣은 한 줄 아이디어가 제목에 훨씬 가깝다. 그것부터 쓴다.
+    const firstLineRaw = paras.find(p => p.text && p.text.trim())?.text.trim().split("\n")[0] || "";
+    const looksLikeSceneMark = /^(#+\s*)?(S#|SC#|씬\s*\d|\[컷|컷\s*\d|EP\s*\d|제\s*\d+\s*화|INT\.|EXT\.)/i.test(firstLineRaw.trim());
+    const firstLine = looksLikeSceneMark
+      ? ""
+      : firstLineRaw.replace(/^#+\s*/, "").replace(/^S#\d+\.\s*/, "").trim();
+    const autoTitle = !isDefaultTitle
+      ? work.title
+      : (ideaParam.trim() ? ideaParam.trim().slice(0, 30)
+         : firstLine ? firstLine.slice(0, 30)
+         : "(제목 없음)");
     const newWork: LibraryWorkLite = {
       id: persistKey,
       title: autoTitle,
