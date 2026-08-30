@@ -589,7 +589,17 @@ ${bodyOnly ? `**고친 원고 전문만 낸다.**
  * (실측: "지우 대면에도 책상이", "이곳도 같은 사람이 앉아 있었다").
  * 내용·구성·대사 의도는 건드리지 않고 문장만 바로잡는다.
  */
-export function buildPolishPrompt(text: string, genre: Genre): string {
+export function buildPolishPrompt(text: string, genre: Genre, keepSeparator?: string): string {
+  //   여러 단락을 한 번에 다듬을 때 쓰는 구분선.
+  //   시나리오는 단락이 20~60자라 하나씩 부르면 호출이 수십 번이 된다 (실측 2026-08-28).
+  //   구분선을 그대로 두고 돌려줘야 어느 단락이 어느 것인지 알 수 있다.
+  const sepRule = keepSeparator
+    ? `\n\n## ★ 구분선 규칙 (반드시 지킨다)\n` +
+      `아래 원고는 \`${keepSeparator}\` 로 나뉜 여러 조각이다.\n` +
+      `- 조각 수를 바꾸지 않는다. 합치거나 나누지 않는다\n` +
+      `- \`${keepSeparator}\` 를 **그 자리에 그대로** 두고 돌려준다\n` +
+      `- 조각 하나가 한 줄뿐이어도 그 한 줄만 고쳐서 돌려준다\n`
+    : "";
   return `# 작업 요청: 문장 교정 (내용 수정 X)
 
 아래는 이미 완성된 ${genre.name} 원고다. 편집자로서 문장만 바로잡아라.
@@ -655,6 +665,7 @@ export function buildPolishPrompt(text: string, genre: Genre): string {
 
 ## 원고
 ${text}
+${sepRule}
 `;
 }
 

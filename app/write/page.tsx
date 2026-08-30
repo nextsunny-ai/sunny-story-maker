@@ -1520,6 +1520,64 @@ function WriteMain() {
     }
   };
 
+  //   ─── 여러 단락을 한 번에 다듬기 ───
+  //   시나리오는 단락이 20~60자라 단락별 다듬기 기준(200자)에 걸려 전부 건너뛰었다.
+  //   단락마다 AI를 부르면 호출이 수십 번이 되므로, 짧은 것들을 묶어 한 번에 보낸다.
+  //   구분선으로 나눠 보내고 **같은 수로 돌아왔을 때만** 반영한다 — 어긋나면 원문을 지킨다.
+  const POLISH_MARK = "\n\n@@@\n\n";
+
+  const polishManyParas = async (targets: Array<{ id: string; text: string }>) => {
+    if (targets.length === 0) return;
+    const joined = targets.map(t => t.text).join(POLISH_MARK);
+    setPolishing(true);
+    try {
+      const res = await streamFetch({
+        mode: "polish",
+        text: joined,
+        genreLetter: genreParam,
+        model: getModelChoice("polish"),
+        keepSeparator: "@@@",
+      });
+      if (!res.body) return;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "", polished = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const events = buf.split("\n\n");
+        buf = events.pop() || "";
+        for (const evt of events) {
+          const lines = evt.split("\n");
+          const et = lines.find(l => l.startsWith("event:"))?.slice(6).trim();
+          const dl = lines.find(l => l.startsWith("data:"))?.slice(5).trim();
+          if (et === "delta" && dl) {
+            try { const d = JSON.parse(dl); if (d.text) polished += d.text; } catch { /* ignore */ }
+          }
+        }
+      }
+      const cleaned = stripDocMarkup(stripControlMarkers(polished));
+      const parts = cleaned.split(/\n*@@@\n*/).map(x => x.trim());
+      //   개수가 어긋나면 어느 단락이 어느 것인지 알 수 없다 — 손대지 않는다.
+      if (parts.length !== targets.length) return;
+      setParas(prev => prev.map(pp => {
+        const i = targets.findIndex(t => t.id === pp.id);
+        if (i < 0) return pp;
+        const next = parts[i];
+        if (!next) return pp;
+        //   분량이 크게 어긋나면 요약·삭제 사고다. 원문을 지킨다.
+        const ratio = next.length / Math.max(1, targets[i].text.length);
+        if (ratio < 0.6 || ratio > 1.6) return pp;
+        return { ...pp, text: next };
+      }));
+    } catch {
+      /* 교정 실패 = 원문 유지 */
+    } finally {
+      setPolishing(false);
+    }
+  };
+
   // 본문 다운로드 (워드/텍스트) — 단락 라벨 X, 본문만 자연스러운 흐름.
   // (라벨 "S#1"/"지문"/"대사"는 UI 표시용 — 다운로드 결과물엔 노출 X.
   //  본문 안에 박힌 매체별 표준 헤더 — S#1/[컷1]/[1막 1장] 등 — 만 그대로 흐름.)
@@ -2161,8 +2219,20 @@ function WriteMain() {
                   return next.map((p, i) => ({ ...p, n: i + 1 }));
                 });
                 // 갓 쓴 본문은 비문·조사·시제가 남는다 → 문장만 자동 교정 (내용 수정 X)
-                if (polishEnabled && cleanBody.trim().length >= 200) {
-                  void polishParagraph(newPara!.id, cleanBody);
+                //   ★ 200자가 넘으면 그 단락만, 짧으면 방금 만든 단락들을 모아 한 번에 (실측 2026-08-29).
+                //   시나리오는 단락이 20~60자라 옛 기준(200자)으로는 전부 건너뛰었고
+                //   「손목에 댈려 한다」 같은 비문이 그대로 남았다.
+                if (polishEnabled) {
+                  if (cleanBody.trim().length >= 200) {
+                    void polishParagraph(newPara!.id, cleanBody);
+                  } else if (chunks.length > 1) {
+                    //   방금 나눈 조각들 중 손볼 만한 것만 (너무 짧은 머리글은 뺀다)
+                    const ids = chunks.map((tx, k) => ({
+                      id: k === 0 ? newPara!.id : `${newPara!.id}_${k}`,
+                      text: tx,
+                    })).filter(x => x.text.length >= 12);
+                    if (ids.length > 0) void polishManyParas(ids.slice(0, 40));
+                  }
                 }
                 if (notesPart) {
                   setChat(prev => [...prev, {

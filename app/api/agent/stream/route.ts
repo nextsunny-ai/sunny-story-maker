@@ -74,6 +74,7 @@ interface RequestBody {
   direction?: string;              // revise 방향
   targetSection?: string;
   bodyOnly?: boolean;
+  keepSeparator?: string;
   beforeText?: string;
   afterText?: string;
   writerNotes?: string;          // script/revise 섹션
@@ -347,7 +348,7 @@ function buildBasePrompt(b: RequestBody): string {
 
     case "polish":
       // 갓 쓴 본문의 비문·조사·시제만 바로잡는다 (내용 수정 X)
-      return buildPolishPrompt(b.text ?? "", genre);
+      return buildPolishPrompt(b.text ?? "", genre, b.keepSeparator);
 
     case "title":
       return buildTitlePrompt(b.idea ?? "", genre, b.userInput, b.mediumFields);
